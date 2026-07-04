@@ -13,6 +13,8 @@ export class Ball {
   pos = new THREE.Vector3(0, 1, 0);
   vel = new THREE.Vector3();
   inFlight = false;
+  /** após o ponto, a bola quica no chão em vez de encerrar o rally */
+  bouncy = false;
   private spin = new THREE.Vector3();
 
   constructor() {
@@ -50,6 +52,7 @@ export class Ball {
     this.pos.copy(p0);
     this.vel.copy(v0);
     this.inFlight = true;
+    this.bouncy = false;
     this.spin.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(8);
   }
 
@@ -66,6 +69,14 @@ export class Ball {
       this.mesh.rotation.x += this.spin.x * dt;
       this.mesh.rotation.y += this.spin.y * dt;
       this.mesh.rotation.z += this.spin.z * dt;
+      // quicando após o ponto
+      if (this.bouncy && this.pos.y <= BALL_RADIUS && this.vel.y < 0) {
+        this.pos.y = BALL_RADIUS;
+        this.vel.y = -this.vel.y * 0.55;
+        this.vel.x *= 0.82;
+        this.vel.z *= 0.82;
+        if (Math.abs(this.vel.y) < 0.8) this.vel.set(0, 0, 0);
+      }
     }
     this.mesh.position.copy(this.pos);
 
