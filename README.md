@@ -1,11 +1,18 @@
-# 🏐 VOLEY PRO
+# 🏐 PRÓ VOLEI
 
 Jogo de vôlei 3D no browser — **você contra o computador**, 6×6, quadra oficial,
 torcida viva, juiz, câmera de transmissão dinâmica. Feito com Three.js + TypeScript + Vite.
 
+**🎮 Jogue agora: https://tarikdsm.github.io/pro_volei/**
+
+Funciona no desktop (teclado) e no **celular (controles de toque)** — melhor na horizontal.
+
+O time da casa conta com **Elisa** (#1, rabo de cavalo castanho claro), **Heloisa**
+(#2, cabelo preto liso) e **Isabela** (#3, loira) — nomes estampados nas costas das camisas.
+
 ![stack](https://img.shields.io/badge/Three.js-r185-blue) ![lang](https://img.shields.io/badge/TypeScript-strict-blue)
 
-## Como jogar
+## Como rodar localmente
 
 ```bash
 npm install   # (já instalado se você clonou com node_modules)
@@ -15,7 +22,19 @@ npm run dev   # abre em http://localhost:5173
 Funciona **100% offline** depois do `npm install` — zero assets remotos:
 toda a geometria é procedural, texturas geradas em canvas e áudio sintetizado via Web Audio API.
 
-### Controles
+## Publicar no GitHub Pages
+
+```bash
+npm run deploy   # builda e publica dist/ na branch gh-pages
+```
+
+### Controles no celular (toque)
+
+**Joystick** (esquerda) move e mira · **botão 🏐** (direita) faz tudo: segure para
+carregar o saque, toque no momento da recepção, toque para pular no ataque/bloqueio ·
+**zonas de ataque** são botões tocáveis · **⏸** pausa.
+
+### Controles no teclado
 
 | Momento | Tecla | Ação |
 |---|---|---|

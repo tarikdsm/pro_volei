@@ -16,7 +16,7 @@ export class Crowd {
   private waveActive = false;
   private wavePos = 0;
 
-  constructor(arena: Arena) {
+  constructor(arena: Arena, density = 1) {
     // geometria de um torcedor: corpo + cabeça fundidos manualmente
     const body = new THREE.CylinderGeometry(0.16, 0.2, 0.55, 6);
     body.translate(0, 0.28, 0);
@@ -24,11 +24,12 @@ export class Crowd {
     head.translate(0, 0.68, 0);
     const geo = mergeGeos([body, head]);
 
+    const emptySeatChance = 1 - 0.82 * density;
     const spots: { pos: THREE.Vector3; angle: number }[] = [];
     for (const s of arena.standsInfo) {
       for (let r = 0; r < s.rows; r++) {
         for (let c = 0; c < s.cols; c++) {
-          if (Math.random() < 0.18) continue; // assentos vazios
+          if (Math.random() < emptySeatChance) continue; // assentos vazios
           const t = (c / (s.cols - 1) - 0.5);
           const pos = s.origin.clone()
             .addScaledVector(s.right, t * s.cols * 0.75)

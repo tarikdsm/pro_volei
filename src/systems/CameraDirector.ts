@@ -60,9 +60,9 @@ export class CameraDirector {
         break;
       }
       case 'serveHome': {
-        // atrás e acima do sacador humano, olhando o campo adversário
-        this.targetPos.set(this.servePos.x - 3.2, this.servePos.y + 2.6, this.servePos.z * 0.75);
-        this.targetLook.set(2, 1.6, this.servePos.z * 0.25);
+        // atrás e acima do sacador humano, com ele inteiro no quadro
+        this.targetPos.set(this.servePos.x - 5.2, this.servePos.y + 2.7, this.servePos.z * 0.85);
+        this.targetLook.set(0.5, 1.0, this.servePos.z * 0.35);
         this.lambda = 4;
         break;
       }

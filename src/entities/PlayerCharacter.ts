@@ -10,9 +10,15 @@ export interface CharLook {
   skin: number;
   hair: number;
   number: number;
+  /** nome impresso nas costas da camisa */
+  name?: string;
+  hairstyle?: 'short' | 'long' | 'ponytail';
+  female?: boolean;
 }
 
 // Humanoide low-poly procedural com juntas animadas por código (sem assets externos).
+// Convenção: frente do personagem = local +z (padrão Three.js). Braços no eixo x,
+// número no peito (+z) e nome+número nas costas (−z).
 export class PlayerCharacter {
   root = new THREE.Group();       // no chão, rotação = direção que encara
   private body = new THREE.Group(); // sobe ao pular
@@ -36,37 +42,69 @@ export class PlayerCharacter {
     const hairMat = new THREE.MeshStandardMaterial({ color: look.hair, roughness: 0.9 });
     const shoeMat = new THREE.MeshStandardMaterial({ color: 0xf5f5f5, roughness: 0.6 });
 
+    const chestW = look.female ? 0.38 : 0.42;
+
     // ----- tronco (pivô nos quadris) -----
     this.torso = new THREE.Group();
     this.torso.position.y = 0.95;
 
-    const chest = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.52, 0.42), jerseyMat);
+    const chest = new THREE.Mesh(new THREE.BoxGeometry(chestW, 0.52, 0.3), jerseyMat);
     chest.position.y = 0.28;
     this.torso.add(chest);
 
-    // número no peito e costas (canvas)
-    const numTex = makeNumberTexture(look.number);
-    for (const s of [1, -1]) {
-      const plane = new THREE.Mesh(
-        new THREE.PlaneGeometry(0.26, 0.3),
-        new THREE.MeshBasicMaterial({ map: numTex, transparent: true }),
-      );
-      plane.position.set(s * 0.155, 0.3, 0);
-      plane.rotation.y = s > 0 ? Math.PI / 2 : -Math.PI / 2;
-      this.torso.add(plane);
-    }
+    // número no peito (frente, +z) e nome+número nas costas (−z)
+    const frontTex = makeJerseyTexture(look.number);
+    const front = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.26, 0.3),
+      new THREE.MeshBasicMaterial({ map: frontTex, transparent: true }),
+    );
+    front.position.set(0, 0.3, 0.155);
+    this.torso.add(front);
+
+    const backTex = makeJerseyTexture(look.number, look.name);
+    const back = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.34, 0.38),
+      new THREE.MeshBasicMaterial({ map: backTex, transparent: true }),
+    );
+    back.position.set(0, 0.28, -0.155);
+    back.rotation.y = Math.PI;
+    this.torso.add(back);
 
     this.head = new THREE.Mesh(new THREE.SphereGeometry(0.13, 10, 8), skinMat);
     this.head.position.y = 0.68;
     this.torso.add(this.head);
-    const hair = new THREE.Mesh(new THREE.SphereGeometry(0.135, 10, 6, 0, Math.PI * 2, 0, Math.PI * 0.55), hairMat);
-    hair.position.y = 0.71;
-    this.torso.add(hair);
 
-    // ----- braços (pivô no ombro; braço aponta para baixo em repouso) -----
+    // ----- cabelo -----
+    const style = look.hairstyle ?? 'short';
+    const cap = new THREE.Mesh(
+      new THREE.SphereGeometry(0.135, 10, 6, 0, Math.PI * 2, 0, Math.PI * (style === 'short' ? 0.55 : 0.62)),
+      hairMat,
+    );
+    cap.position.y = 0.71;
+    this.torso.add(cap);
+    if (style === 'long') {
+      // cabelo liso na altura dos ombros (não cobre o nome na camisa)
+      const sheet = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.24, 0.06), hairMat);
+      sheet.position.set(0, 0.58, -0.13);
+      this.torso.add(sheet);
+      const sides = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.16, 0.16), hairMat);
+      sides.position.set(0, 0.66, -0.05);
+      this.torso.add(sides);
+    } else if (style === 'ponytail') {
+      // rabo de cavalo: tufo + cauda caindo atrás
+      const tuft = new THREE.Mesh(new THREE.SphereGeometry(0.055, 8, 6), hairMat);
+      tuft.position.set(0, 0.78, -0.11);
+      this.torso.add(tuft);
+      const tail = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.018, 0.3, 7), hairMat);
+      tail.position.set(0, 0.62, -0.16);
+      tail.rotation.x = 0.25;
+      this.torso.add(tail);
+    }
+
+    // ----- braços (pivô no ombro, x = lados; braço aponta para baixo em repouso) -----
     const mkArm = (side: 1 | -1) => {
       const sh = new THREE.Group();
-      sh.position.set(0, 0.5, side * 0.26);
+      sh.position.set(side * (chestW / 2 + 0.05), 0.5, 0);
       const upper = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.05, 0.3, 7), jerseyMat);
       upper.position.y = -0.15;
       sh.add(upper);
@@ -82,7 +120,7 @@ export class PlayerCharacter {
       this.torso.add(sh);
       return { sh, el };
     };
-    const ra = mkArm(1);  // z+ = direita do personagem
+    const ra = mkArm(1);   // +x = direita do personagem
     const la = mkArm(-1);
     this.rSh = ra.sh; this.rEl = ra.el;
     this.lSh = la.sh; this.lEl = la.el;
@@ -90,7 +128,7 @@ export class PlayerCharacter {
     // ----- pernas (pivô no quadril) -----
     const mkLeg = (side: 1 | -1) => {
       const hip = new THREE.Group();
-      hip.position.set(0, 0.95, side * 0.11);
+      hip.position.set(side * 0.11, 0.95, 0);
       const thigh = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.06, 0.42, 7), shortsMat);
       thigh.position.y = -0.21;
       hip.add(thigh);
@@ -99,8 +137,8 @@ export class PlayerCharacter {
       const shin = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.045, 0.42, 7), skinMat);
       shin.position.y = -0.21;
       knee.add(shin);
-      const shoe = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.08, 0.1), shoeMat);
-      shoe.position.set(0.05, -0.44, 0);
+      const shoe = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.08, 0.14), shoeMat);
+      shoe.position.set(0, -0.44, 0.05);
       knee.add(shoe);
       hip.add(knee);
       this.body.add(hip);
@@ -124,6 +162,7 @@ export class PlayerCharacter {
   }
 
   // Pose paramétrica computada a cada frame — transições suaves via damping das juntas.
+  // Convenção dos valores de pose: positivo = membro à frente/para cima.
   update(dt: number): void {
     this.actionTime += dt;
     this.runPhase += dt * Math.max(2, this.moveSpeed * 2.6);
@@ -244,13 +283,14 @@ export class PlayerCharacter {
       }
     }
 
-    // aplica com amortecimento p/ transições suaves
+    // aplica com amortecimento p/ transições suaves.
+    // Ombros/quadris/joelhos são negados: pose positiva = à frente (+z do modelo).
     const l = 1 - Math.exp(-16 * dt);
     this.torso.rotation.x += (p.torsoPitch - this.torso.rotation.x) * l;
     this.torso.rotation.y += (p.torsoYaw - this.torso.rotation.y) * l;
     this.head.rotation.x += (p.headPitch - this.head.rotation.x) * l;
-    this.lSh.rotation.x += (p.lShX - this.lSh.rotation.x) * l;
-    this.rSh.rotation.x += (p.rShX - this.rSh.rotation.x) * l;
+    this.lSh.rotation.x += (-p.lShX - this.lSh.rotation.x) * l;
+    this.rSh.rotation.x += (-p.rShX - this.rSh.rotation.x) * l;
     this.lSh.rotation.z += (p.lShZ - this.lSh.rotation.z) * l;
     this.rSh.rotation.z += (p.rShZ - this.rSh.rotation.z) * l;
     this.lEl.rotation.x += (p.lElX - this.lEl.rotation.x) * l;
@@ -260,10 +300,10 @@ export class PlayerCharacter {
     const rHipX = p.rHipX !== 0 ? p.rHipX : p.hips;
     const lKneeX = p.lKneeX !== 0 ? p.lKneeX : p.knees;
     const rKneeX = p.rKneeX !== 0 ? p.rKneeX : p.knees;
-    this.lHip.rotation.x += (lHipX - this.lHip.rotation.x) * l;
-    this.rHip.rotation.x += (rHipX - this.rHip.rotation.x) * l;
-    this.lKnee.rotation.x += (lKneeX - this.lKnee.rotation.x) * l;
-    this.rKnee.rotation.x += (rKneeX - this.rKnee.rotation.x) * l;
+    this.lHip.rotation.x += (-lHipX - this.lHip.rotation.x) * l;
+    this.rHip.rotation.x += (-rHipX - this.rHip.rotation.x) * l;
+    this.lKnee.rotation.x += (-lKneeX - this.lKnee.rotation.x) * l;
+    this.rKnee.rotation.x += (-rKneeX - this.rKnee.rotation.x) * l;
   }
 }
 
@@ -290,19 +330,38 @@ function ease01(t: number): number {
   return 1 - Math.pow(1 - x, 3);
 }
 
-function makeNumberTexture(n: number): THREE.CanvasTexture {
+// Estampa da camisa: número (frente) ou nome + número (costas).
+function makeJerseyTexture(n: number, name?: string): THREE.CanvasTexture {
   const canvas = document.createElement('canvas');
-  canvas.width = 128; canvas.height = 128;
+  canvas.width = 256; canvas.height = 256;
   const c = canvas.getContext('2d')!;
-  c.clearRect(0, 0, 128, 128);
-  c.font = 'bold 84px Arial';
+  c.clearRect(0, 0, 256, 256);
   c.textAlign = 'center';
-  c.textBaseline = 'middle';
-  c.lineWidth = 10;
+  c.lineWidth = 12;
   c.strokeStyle = 'rgba(0,0,0,0.35)';
-  c.strokeText(String(n), 64, 68);
   c.fillStyle = '#ffffff';
-  c.fillText(String(n), 64, 68);
-  const tex = new THREE.CanvasTexture(canvas);
-  return tex;
+
+  if (name) {
+    // nome legível no topo, número maior abaixo
+    let size = 52;
+    c.font = `bold ${size}px Arial`;
+    while (c.measureText(name).width > 225 && size > 24) {
+      size -= 2;
+      c.font = `bold ${size}px Arial`;
+    }
+    c.textBaseline = 'middle';
+    c.lineWidth = 8;
+    c.strokeText(name, 128, 48);
+    c.fillText(name, 128, 48);
+    c.font = 'bold 130px Arial';
+    c.lineWidth = 12;
+    c.strokeText(String(n), 128, 160);
+    c.fillText(String(n), 128, 160);
+  } else {
+    c.font = 'bold 150px Arial';
+    c.textBaseline = 'middle';
+    c.strokeText(String(n), 128, 135);
+    c.fillText(String(n), 128, 135);
+  }
+  return new THREE.CanvasTexture(canvas);
 }

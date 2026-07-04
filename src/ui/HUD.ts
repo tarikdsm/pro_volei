@@ -12,7 +12,7 @@ export class HUD {
   private zonesEl!: HTMLElement;
   private bannerTimer = 0;
 
-  constructor(parent: HTMLElement) {
+  constructor(parent: HTMLElement, private touchMode = false) {
     this.root = document.createElement('div');
     this.root.id = 'hud';
     this.root.innerHTML = `
@@ -37,6 +37,20 @@ export class HUD {
     this.meterWrap = this.root.querySelector('#meter')!;
     this.meterFill = this.root.querySelector('#meter-fill')!;
     this.zonesEl = this.root.querySelector('#zones')!;
+
+    // no celular as zonas são botões tocáveis (sintetizam A/W/D)
+    if (this.touchMode) {
+      this.zonesEl.classList.add('tappable');
+      const codes = ['KeyA', 'KeyW', 'KeyD'];
+      this.zonesEl.querySelectorAll('span').forEach((s) => {
+        s.addEventListener('pointerdown', (e) => {
+          const code = codes[Number((s as HTMLElement).dataset.z)];
+          window.dispatchEvent(new KeyboardEvent('keydown', { code, bubbles: true }));
+          window.dispatchEvent(new KeyboardEvent('keyup', { code, bubbles: true }));
+          e.preventDefault();
+        });
+      });
+    }
   }
 
   show(visible: boolean): void {
@@ -65,6 +79,20 @@ export class HUD {
   }
 
   hint(text: string): void {
+    if (this.touchMode && text) {
+      // traduz as dicas de teclado para os controles de toque
+      text = text
+        .replace('SEGURE ESPAÇO', 'SEGURE 🏐')
+        .replace('ESPAÇO pula', '🏐 pula')
+        .replace('ESPAÇO no momento do toque', '🏐 no momento do toque')
+        .replace('ESPAÇO pula!', '🏐 pula!')
+        .replace('ESPAÇO', '🏐')
+        .replace('WASD ajusta a mira', 'direcional ajusta a mira')
+        .replace('WASD move', 'direcional move')
+        .replace('WASD mira a cortada', 'direcional mira')
+        .replace('A esquerda · W centro · D direita', 'toque na zona de ataque')
+        .replace('A/D desliza na rede', 'direcional desliza na rede');
+    }
     this.hintEl.textContent = text;
     this.hintEl.style.opacity = text ? '1' : '0';
   }

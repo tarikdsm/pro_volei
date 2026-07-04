@@ -8,7 +8,7 @@ export class Arena {
   private scoreCanvas!: HTMLCanvasElement;
   private scoreTex!: THREE.CanvasTexture;
 
-  constructor() {
+  constructor(private lowSpec = false) {
     this.buildStands();
     this.buildLights();
     this.buildScoreboard();
@@ -76,7 +76,7 @@ export class Arena {
     this.group.add(ceil);
 
     // banners de publicidade ao redor da quadra
-    const bannerTexts = ['VOLEY PRO', '★ SUPER LIGA ★', 'PONTO! SETS! GLÓRIA!', 'BEACH & INDOOR'];
+    const bannerTexts = ['PRÓ VOLEI', '★ SUPER LIGA ★', 'PONTO! SETS! GLÓRIA!', 'BEACH & INDOOR'];
     const bannerCanvas = document.createElement('canvas');
     bannerCanvas.width = 1024; bannerCanvas.height = 64;
     const bc = bannerCanvas.getContext('2d')!;
@@ -117,7 +117,8 @@ export class Arena {
     const key = new THREE.DirectionalLight(0xfff4e0, 1.9);
     key.position.set(12, 24, 10);
     key.castShadow = true;
-    key.shadow.mapSize.set(2048, 2048);
+    const shadowRes = this.lowSpec ? 1024 : 2048;
+    key.shadow.mapSize.set(shadowRes, shadowRes);
     key.shadow.camera.left = -16; key.shadow.camera.right = 16;
     key.shadow.camera.top = 16; key.shadow.camera.bottom = -16;
     key.shadow.camera.far = 60;
