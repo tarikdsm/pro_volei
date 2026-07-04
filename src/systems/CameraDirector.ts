@@ -76,16 +76,16 @@ export class CameraDirector {
       case 'rally': {
         // câmera broadcast lateral que acompanha a bola com amortecimento
         const bx = clamp(this.ballPos.x, -8, 8);
-        this.targetPos.set(bx * 0.5, 7.8, 16.5);
-        this.targetLook.set(bx * 0.55, 1.8 + this.ballPos.y * 0.12, this.ballPos.z * 0.22);
+        this.targetPos.set(bx * 0.5, 8.6, 18.0);
+        this.targetLook.set(bx * 0.55, 1.5 + this.ballPos.y * 0.12, this.ballPos.z * 0.22);
         this.lambda = 2.6;
         break;
       }
       case 'spike': {
         // aproximação dramática na hora do ataque
         const bx = clamp(this.ballPos.x, -6, 6);
-        this.targetPos.set(bx * 0.4, 4.6, 11.5);
-        this.targetLook.set(bx * 0.6, 2.6, this.ballPos.z * 0.4);
+        this.targetPos.set(bx * 0.4, 5.6, 13.5);
+        this.targetLook.set(bx * 0.6, 2.3, this.ballPos.z * 0.4);
         this.lambda = 4.5;
         break;
       }

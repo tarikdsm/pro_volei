@@ -369,12 +369,22 @@ export class Match {
 
     const team = this.teamOf(side);
     const sp = team.setterSpot();
-    const noise = (1 - q) * 2.6;
-    const target = new THREE.Vector3(
-      clamp(sp.x + rand(-noise, noise), side === TeamSide.HOME ? -8.5 : 0.6, side === TeamSide.HOME ? -0.6 : 8.5),
-      CONTACT.set,
-      clamp(sp.z + rand(-noise, noise), -4, 4),
-    );
+    let target: THREE.Vector3;
+    if (q < 0.15) {
+      // escorregou: bola explode em direção imprevisível (pode sair, voltar, tudo)
+      target = new THREE.Vector3(
+        this.ball.pos.x + rand(-6, 6),
+        CONTACT.set,
+        this.ball.pos.z + rand(-6, 6),
+      );
+    } else {
+      const noise = (1 - q) * 2.6;
+      target = new THREE.Vector3(
+        clamp(sp.x + rand(-noise, noise), side === TeamSide.HOME ? -8.5 : 0.6, side === TeamSide.HOME ? -0.6 : 8.5),
+        CONTACT.set,
+        clamp(sp.z + rand(-noise, noise), -4, 4),
+      );
+    }
     const { v0 } = ballisticArc(this.ball.pos.clone(), target, 2.6 + (1 - q) * 1.2);
     this.ball.launch(this.ball.pos.clone(), v0);
 
@@ -747,22 +757,47 @@ export class Match {
       return;
     }
 
+    // bola rápida é mais difícil de defender — cortadas fortes furam defesa passiva
+    const speed = this.ball.vel.length();
+    const hard = speed > 15;
+    const medium = speed > 9.5;
+
     const isHuman = plan.isHuman;
     if (d <= CONTACT.reach) {
-      let q: number;
+      let q = -1;
       if (isHuman) {
-        q = this.timingQ >= 0 ? 0.45 + 0.55 * this.timingQ : 0.45;
-        if (this.timingQ > 0.8) this.hooks.banner('PERFEITO!', '');
+        if (this.timingQ >= 0) {
+          // apertou no tempo: defende, qualidade cai um pouco contra bola forte
+          q = (0.45 + 0.55 * this.timingQ) * (hard ? 0.8 : 1);
+          if (this.timingQ > 0.8 && !hard) this.hooks.banner('PERFEITO!', '');
+          if (this.timingQ > 0.7 && hard) this.hooks.banner('DEFESAÇA!', '');
+        } else {
+          // sem apertar: o toque automático falha contra bolas rápidas
+          const missP = hard ? 0.6 : medium ? 0.28 : 0;
+          if (chance(missP)) {
+            q = chance(0.5) ? rand(0.02, 0.12) : -1; // escorrega ou perde limpo
+          } else {
+            q = hard ? 0.3 : 0.45;
+          }
+        }
       } else {
-        q = rand(this.diff.passQuality[0], this.diff.passQuality[1]);
+        // IA: contra bola forte, defesa depende da dificuldade
+        if (hard && !chance(this.diff.digChance)) {
+          q = chance(0.55) ? rand(0.03, 0.12) : -1;
+        } else {
+          q = rand(this.diff.passQuality[0], this.diff.passQuality[1]) * (hard ? 0.75 : 1);
+        }
       }
-      this.executeTouch(plan, q);
+      if (q >= 0) this.executeTouch(plan, q);
+      else a.act('dive', 0.8); // tentou e não conseguiu
     } else if (d <= CONTACT.lungeReach) {
       // peixinho!
       a.act('dive', 0.8);
-      const q = rand(0.08, 0.35);
-      this.hooks.crowd.excite(0.6);
-      this.executeTouch(plan, q);
+      const saveP = hard ? 0.35 : 0.75;
+      if (chance(saveP)) {
+        this.hooks.crowd.excite(0.6);
+        this.executeTouch(plan, rand(0.08, 0.35));
+      }
     }
     // fora de alcance: nada acontece — a bola vai cair e o ponto será resolvido
     this.timingQ = -1;
@@ -782,12 +817,14 @@ export class Match {
       }
       this.executeTouch(plan, q);
     } else if (d <= CONTACT.lungeReach) {
-      // não pulou/perdeu o tempo: bola de graça por cima
+      // não pulou/perdeu o tempo: bola de graça por cima (com risco de sair)
       a.act('set', 0.5);
       this.hooks.audio.hitSoft();
       const enemy = otherSide(plan.side);
       const s = sideSign(enemy);
-      const target = new THREE.Vector3(s * rand(3, 7), 0, rand(-3, 3));
+      const target = chance(0.12)
+        ? new THREE.Vector3(s * rand(9.6, 10.8), 0, rand(-5, 5))
+        : new THREE.Vector3(s * rand(3, 7), 0, rand(-3, 3));
       const { v0 } = ballisticArc(this.ball.pos.clone(), target, 3.2);
       this.ball.launch(this.ball.pos.clone(), v0);
       // conta o toque

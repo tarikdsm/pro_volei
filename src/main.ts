@@ -68,6 +68,9 @@ const match = new Match({
 });
 scene.add(match.group);
 
+// acesso de depuração no console do browser
+(window as unknown as { __match: Match }).__match = match;
+
 let playing = false;
 let paused = false;
 

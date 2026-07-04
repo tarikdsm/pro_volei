@@ -81,6 +81,9 @@ html, body, #app {
   border-radius: 999px;
   font-size: 15px; font-weight: 600;
   white-space: nowrap;
+  max-width: 92vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
   transition: opacity 0.3s;
   box-shadow: 0 4px 18px rgba(0,0,0,0.45);
 }

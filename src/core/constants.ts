@@ -47,12 +47,12 @@ export interface Difficulty {
 export const DIFFICULTIES: Difficulty[] = [
   {
     name: 'Fácil', reactionDelay: 0.42, moveSpeed: 0.8,
-    passQuality: [0.3, 0.75], attackError: 0.22, serveError: 0.18,
-    servePower: [0.35, 0.6], blockChance: 0.25, digChance: 0.35,
+    passQuality: [0.3, 0.75], attackError: 0.3, serveError: 0.18,
+    servePower: [0.3, 0.55], blockChance: 0.22, digChance: 0.28,
   },
   {
     name: 'Normal', reactionDelay: 0.24, moveSpeed: 1.0,
-    passQuality: [0.5, 0.92], attackError: 0.11, serveError: 0.1,
+    passQuality: [0.5, 0.92], attackError: 0.13, serveError: 0.1,
     servePower: [0.5, 0.8], blockChance: 0.45, digChance: 0.55,
   },
   {
