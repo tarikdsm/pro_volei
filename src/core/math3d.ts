@@ -33,6 +33,25 @@ export function ballisticDrive(
   return { v0, time };
 }
 
+// Saque: resolve o tempo de voo para que a trajetória cruze o plano da rede (x=0)
+// exatamente na altura crossHeight. Garante que a força escolhida nunca gere uma
+// trajetória geometricamente impossível (que era a causa de todo saque ir na rede).
+// crossHeight abaixo do topo da rede = falta proposital (saque fraco/errado).
+export function serveDrive(
+  p0: THREE.Vector3, target: THREE.Vector3, crossHeight: number,
+): { v0: THREE.Vector3; time: number } {
+  const dxTotal = target.x - p0.x;
+  const f = (0 - p0.x) / dxTotal; // fração do percurso horizontal onde está a rede
+  if (f > 0.03 && f < 0.97) {
+    // y(f·T) = p0.y + f·(y1 − y0) + (|g|/2)·T²·f·(1−f)  →  resolve T
+    const num = crossHeight - p0.y - f * (target.y - p0.y);
+    const den = (-GRAVITY / 2) * f * (1 - f);
+    const t2 = num / den;
+    if (t2 > 0.05) return ballisticDrive(p0, target, Math.sqrt(t2));
+  }
+  return ballisticDrive(p0, target, 1.1); // alvo atípico (mesmo lado da rede etc.)
+}
+
 // Tempo até a bola (pos, vel) descer à altura h. Retorna -1 se nunca atinge.
 export function timeToHeight(pos: THREE.Vector3, vel: THREE.Vector3, h: number): number {
   // pos.y + vel.y*t + 0.5*g*t^2 = h  →  0.5*g*t^2 + vel.y*t + (pos.y - h) = 0

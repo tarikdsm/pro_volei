@@ -13,7 +13,7 @@ import {
   TeamSide, otherSide, sideSign, Difficulty, DIFFICULTIES,
   ATTACK_ZONES, SERVE_SPOT, MATCH_FORMATS, TouchKind,
 } from '../core/constants';
-import { ballisticArc, ballisticDrive, clamp, lerp, rand, chance, randPick } from '../core/math3d';
+import { ballisticArc, ballisticDrive, serveDrive, clamp, lerp, rand, chance, randPick } from '../core/math3d';
 
 export interface MatchStats {
   aces: number; blocks: number; longestRally: number; points: [number, number];
@@ -177,17 +177,23 @@ export class Match {
     const err = chance(this.diff.serveError);
     const s = sideSign(otherSide(this.servingTeam)); // lado alvo
     let target: THREE.Vector3;
+    let clearance: number;
     if (err) {
-      target = chance(0.5)
-        ? new THREE.Vector3(s * rand(9.6, 11), 0, rand(-4, 4))                 // fora, longa
-        : new THREE.Vector3(s * 0.35, 1.2, rand(-3, 3));                        // na rede
+      if (chance(0.5)) {
+        target = new THREE.Vector3(s * rand(9.6, 11), 0, rand(-4, 4)); // fora, longa
+        clearance = rand(0.3, 0.8);
+      } else {
+        target = new THREE.Vector3(s * rand(3.5, 7), 0, rand(-3, 3));  // na rede
+        clearance = -rand(0.18, 0.5);
+      }
     } else {
       target = new THREE.Vector3(s * rand(3.5, 8.4), 0, rand(-3.9, 3.9));
+      clearance = lerp(1.3, 0.16, power) * rand(0.9, 1.1);
     }
-    this.performServe(server, power, target);
+    this.performServe(server, power, target, clearance);
   }
 
-  private performServe(server: Athlete, power: number, target: THREE.Vector3): void {
+  private performServe(server: Athlete, power: number, target: THREE.Vector3, clearance: number): void {
     this.hooks.serveMeter(false);
     this.hooks.effects.showAim(null);
     server.act('serveToss', 0.5);
@@ -196,8 +202,8 @@ export class Match {
     this.after(0.34, () => server.act('serveHit', 0.5));
     this.after(0.42, () => {
       const p0 = this.ball.pos.clone();
-      const T = lerp(1.5, 0.82, power);
-      const { v0 } = ballisticDrive(p0, target, T);
+      // trajetória resolvida pela folga sobre a rede: força alta = raspando, baixa = flutuante
+      const { v0 } = serveDrive(p0, target, COURT.netHeight + clearance);
       this.ball.launch(p0, v0);
       this.hooks.audio.hitHard();
       this.state = 'rally';
@@ -886,19 +892,24 @@ export class Match {
           this.serveCharging = false;
           this.ctl = 'none';
           const p = this.servePower;
-          let target = this.aim.clone();
+          const target = this.aim.clone();
           let power = p;
+          // folga sobre a rede: força alta = raspando na fita, baixa = flutuante
+          let clearance = lerp(1.3, 0.16, p) * rand(0.92, 1.08);
           if (p > PERFECT_HI) {
             // arriscou demais: pode sair longa
-            if (chance((p - PERFECT_HI) * 4)) target.x = rand(9.6, 11.5);
-            power = p;
+            if (chance((p - PERFECT_HI) * 4)) {
+              target.x = rand(9.6, 11.5);
+              clearance = rand(0.25, 0.6);
+            }
           } else if (p >= PERFECT_LO) {
             this.hooks.banner('SAQUE PERFEITO!', '');
             power = 0.95;
+            clearance = rand(0.16, 0.28);
           }
-          // pouca força não passa da rede às vezes
-          if (p < 0.25) target.x = rand(-0.5, 1.5);
-          this.performServe(this.controlled!, Math.max(0.3, power), target);
+          // pouca força morre na rede às vezes
+          if (p < 0.25 && chance(0.7)) clearance = -rand(0.2, 0.5);
+          this.performServe(this.controlled!, Math.max(0.3, power), target, clearance);
         }
       }
     }
