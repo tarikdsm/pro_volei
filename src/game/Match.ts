@@ -12,7 +12,6 @@ import {
   COURT,
   CONTACT,
   PLAYER,
-  GRAVITY,
   BALL_RADIUS,
   TeamSide,
   otherSide,
@@ -44,6 +43,7 @@ import {
 } from './rules/scoring';
 import { computeNetCrossing } from './mechanics/net';
 import { RallyState, TouchPlan } from './RallyState';
+import { blockCrossing, blockerReaches, blockProximity } from './mechanics/block';
 
 export interface MatchStats {
   aces: number;
@@ -518,30 +518,23 @@ export class Match {
   /** verifica bloqueio no cruzamento da rede (chamado no lançamento da cortada) */
   private resolveBlock(attackSide: TeamSide): void {
     const defSide = otherSide(attackSide);
-    const { pos, vel } = this.ball;
-    if (Math.abs(vel.x) < 0.01) return;
-    const t = -pos.x / vel.x;
-    if (t <= 0 || t > 0.8) return;
-    const yCross = pos.y + vel.y * t + 0.5 * GRAVITY * t * t;
-    const zCross = pos.z + vel.z * t;
+    const cross = blockCrossing(this.ball.pos, this.ball.vel);
+    if (!cross) return;
 
     // candidatos: bloqueadores da linha de frente que estarão no ar
     const team = this.teamOf(defSide);
     const isHumanDef = defSide === TeamSide.HOME;
     for (const blocker of team.frontRow()) {
-      const nearNet = Math.abs(blocker.pos.x) < 1.4;
-      const zDist = Math.abs(blocker.pos.z - zCross);
       // no momento do cruzamento o bloqueador precisa estar no ar
       const willBeAirborne = isHumanDef
         ? blocker.isAirborne && blocker.jumpY > 0.18
         : this.blockers.some((b) => b.athlete === blocker);
-      if (!nearNet || zDist > 0.85 || !willBeAirborne) continue;
-      const reach = CONTACT.blockReach + blocker.jumpY * 0.5;
-      if (yCross > reach) continue;
+      if (!willBeAirborne) continue;
+      if (!blockerReaches(blocker.pos.x, blocker.pos.z, blocker.jumpY, cross)) continue;
 
-      // BLOQUEIO! resolve no instante do cruzamento
-      this.after(t, () => {
-        const prox = 1 - zDist / 0.85;
+      // BLOQUEIO! resolve no instante do cruzamento (prox congelada no agendamento)
+      const prox = blockProximity(blocker.pos.z, cross.z);
+      this.after(cross.t, () => {
         const r = Math.random();
         const bp = this.ball.pos.clone();
         this.hooks.audio.block();
