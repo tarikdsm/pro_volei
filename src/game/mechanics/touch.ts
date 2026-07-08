@@ -158,5 +158,5 @@ function doSpike(ctx: MechanicsCtx, plan: TouchPlan, q: number): void {
   ctx.hooks.effects.showAim(null);
 
   resolveBlock(ctx, side);
-  ctx.planNext(ctx.rally.touchesOf(enemy) === 0 ? 'pass' : 'pass');
+  ctx.planNext('pass');
 }

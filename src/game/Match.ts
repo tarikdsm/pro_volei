@@ -291,10 +291,8 @@ export class Match {
 
   private computeNetEvent(): void {
     this.rally.netEventIn = null;
-    this.rally.crossIn = null;
     const crossing = computeNetCrossing(this.ball.pos, this.ball.vel);
     if (crossing.kind === 'net') this.rally.netEventIn = crossing.t;
-    else if (crossing.kind === 'cross') this.rally.crossIn = crossing.t;
   }
 
   // ---------------------------------------------------------------- PONTO

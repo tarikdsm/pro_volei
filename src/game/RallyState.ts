@@ -26,8 +26,6 @@ export class RallyState {
   // próximo contato e geometria de rede
   plan: TouchPlan | null = null;
   netEventIn: number | null = null;
-  crossIn: number | null = null;
-  prevBallX = 0;
 
   // planejamento: quem joga o próximo toque e bloqueadores agendados
   setterHold: Athlete | null = null;
