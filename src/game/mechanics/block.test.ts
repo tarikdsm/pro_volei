@@ -4,11 +4,12 @@ import {
   blockCrossing,
   blockerReaches,
   blockProximity,
+  isBlockable,
   resolveBlock,
   BlockCrossing,
 } from './block';
 import { RallyState } from '../RallyState';
-import { TeamSide } from '../../core/constants';
+import { TeamSide, COURT } from '../../core/constants';
 import type { MechanicsCtx } from './context';
 import type { Athlete } from '../Team';
 
@@ -69,6 +70,36 @@ describe('blockProximity', () => {
   });
 });
 
+describe('isBlockable', () => {
+  it('cortada que vai na rede não é bloqueável (deve virar falta de rede)', () => {
+    // contato da IA na rede (x≈0.9, y=3.0) mirando baixo: cruza x=0 a ~2,25 m,
+    // abaixo do topo da rede (2,43) → faixa 'net'
+    expect(isBlockable({ x: 0.9, y: 3.0, z: 0 }, { x: -6, y: -4, z: 0 })).toBe(false);
+  });
+
+  it('cortada que passa limpo por cima é bloqueável', () => {
+    // t=1; y no cruzamento = 3,0 m, acima do topo da rede → faixa 'cross'
+    expect(isBlockable({ x: -3, y: 2, z: 0 }, { x: 3, y: 7.5, z: 0 })).toBe(true);
+  });
+
+  it('bola larga (fora da largura da rede) não é considerada falta de rede', () => {
+    // z além de halfWidth: passa pela lateral → 'cross', continua bloqueável (gated por z)
+    expect(isBlockable({ x: -1, y: 1, z: COURT.halfWidth + 1 }, { x: 1, y: 6.5, z: 0 })).toBe(true);
+  });
+
+  it('o guard (isBlockable), não a geometria, é o que barra o bloqueio indevido', () => {
+    // raiz do bug: a geometria ALCANÇA a cortada-erro-na-rede, mas ela é falta de rede.
+    const pos = { x: 0.9, y: 3.0, z: 0 };
+    const vel = { x: -6, y: -4, z: 0 };
+    const cross = blockCrossing(pos, vel);
+    expect(cross).not.toBeNull();
+    // blockerReaches devolveria true (bloqueador na rede alcança geometricamente)…
+    expect(blockerReaches(0.72, cross!.z, 0.5, cross!)).toBe(true);
+    // …mas isBlockable é false, então resolveBlock retorna cedo e a rede resolve a falta.
+    expect(isBlockable(pos, vel)).toBe(false);
+  });
+});
+
 describe('resolveBlock — snap ao ponto analítico de cruzamento (x = 0)', () => {
   // Monta um ctx falso mínimo: bola stale, HOME defende no ar contra ataque AWAY,
   // captura o callback agendado por ctx.after e o burst de partículas.
@@ -125,10 +156,10 @@ describe('resolveBlock — snap ao ponto analítico de cruzamento (x = 0)', () =
     const spy = vi.spyOn(Math, 'random').mockReturnValue(0);
     try {
       const { ctx, launches, bursts, scheduled } = makeCtx(
-        new THREE.Vector3(-2, 2.5, 0.5), // pos STALE
-        new THREE.Vector3(10, 1, 0), // cruza x=0 em t=0.2
+        new THREE.Vector3(-2, 3.0, 0.5), // pos STALE
+        new THREE.Vector3(10, 1, 0), // cruza x=0 em t=0.2, y≈2,94 (acima da fita → bloqueável)
       );
-      const cross = blockCrossing({ x: -2, y: 2.5, z: 0.5 }, { x: 10, y: 1, z: 0 })!;
+      const cross = blockCrossing({ x: -2, y: 3.0, z: 0.5 }, { x: 10, y: 1, z: 0 })!;
 
       // AWAY ataca; HOME (humano, no ar) bloqueia
       resolveBlock(ctx, TeamSide.AWAY);
@@ -148,5 +179,16 @@ describe('resolveBlock — snap ao ponto analítico de cruzamento (x = 0)', () =
     } finally {
       spy.mockRestore();
     }
+  });
+
+  it('não agenda bloqueio quando a bola cruza na faixa da rede (falta de rede tem prioridade)', () => {
+    // Mesma geometria alcançável do teste acima, mas cruzando a ~2,44 m (dentro da faixa
+    // da rede): o guard isBlockable barra o bloqueio para o evento de rede resolver a falta.
+    const { ctx, scheduled } = makeCtx(
+      new THREE.Vector3(-2, 2.5, 0.5), // pos STALE, cruza x=0 a y≈2,44 (na fita)
+      new THREE.Vector3(10, 1, 0),
+    );
+    resolveBlock(ctx, TeamSide.AWAY);
+    expect(scheduled).toHaveLength(0); // sem o guard, seria 1 (bug: bloqueio apaga a falta)
   });
 });

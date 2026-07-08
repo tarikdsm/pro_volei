@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { CONTACT, COURT, GRAVITY, TeamSide, otherSide, sideSign } from '../../core/constants';
 import { ballisticDrive, rand, chance, clamp } from '../../core/math3d';
+import { computeNetCrossing } from './net';
 import type { MechanicsCtx } from './context';
 
 interface Vec3 {
@@ -36,6 +37,17 @@ export function blockCrossing(pos: Vec3, vel: Vec3): BlockCrossing | null {
   const y = pos.y + vel.y * t + 0.5 * GRAVITY * t * t;
   const z = pos.z + vel.z * t;
   return { t, y, z };
+}
+
+/**
+ * A cortada é bloqueável? Falso quando a bola vai bater na rede (deve ser falta de rede,
+ * não bloqueio). Usa `computeNetCrossing` (net.ts) como única fonte de verdade da faixa da
+ * rede — evita duplicar o piso de altura aqui. Obs.: `blockCrossing` (janela 0.8s) e
+ * `computeNetCrossing` (t <= 0.005 → none) têm limiares de borda ligeiramente diferentes;
+ * em cruzamentos quase imediatos podem divergir por poucos ms, sem impacto prático.
+ */
+export function isBlockable(pos: Vec3, vel: Vec3): boolean {
+  return computeNetCrossing(pos, vel).kind === 'cross';
 }
 
 /** O bloqueador (posição na rede + altura do pulo) alcança a bola no cruzamento? */
@@ -80,6 +92,8 @@ export function resolveBlock(ctx: MechanicsCtx, attackSide: TeamSide): void {
   const defSide = otherSide(attackSide);
   const cross = blockCrossing(ctx.ball.pos, ctx.ball.vel);
   if (!cross) return;
+  // bola cruza abaixo da fita → deixa o evento de rede resolver como falta, sem bloqueio
+  if (!isBlockable(ctx.ball.pos, ctx.ball.vel)) return;
 
   // candidatos: bloqueadores da linha de frente que estarão no ar
   const team = ctx.teamOf(defSide);

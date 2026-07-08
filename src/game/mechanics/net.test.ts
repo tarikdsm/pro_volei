@@ -30,6 +30,13 @@ describe('computeNetCrossing', () => {
     const r = computeNetCrossing({ x: -1, y: 1, z }, { x: 1, y: 6.5, z: 0 });
     expect(r.kind).toBe('cross');
   });
+
+  it('cortada baixa da IA (erro na rede) é classificada como net → falta de rede', () => {
+    // contato da IA junto à rede (x≈0.9, y=3.0) mirando baixo (~-0.3, 1.0):
+    // cruza x=0 abaixo do topo da rede, deve bater na rede e não ser bloqueável
+    const r = computeNetCrossing({ x: 0.9, y: 3.0, z: 0 }, { x: -6, y: -4, z: 0 });
+    expect(r.kind).toBe('net');
+  });
 });
 
 describe('netTouchPoint', () => {
