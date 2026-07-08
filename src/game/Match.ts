@@ -17,12 +17,11 @@ import {
   sideSign,
   Difficulty,
   DIFFICULTIES,
-  ATTACK_ZONES,
   SERVE_SPOT,
   MATCH_FORMATS,
   TouchKind,
 } from '../core/constants';
-import { ballisticArc, ballisticDrive, clamp, lerp, rand, chance, randPick } from '../core/math3d';
+import { ballisticArc, clamp, lerp, rand, chance, randPick } from '../core/math3d';
 import {
   isSetOver,
   setWinner,
@@ -33,7 +32,8 @@ import {
 } from './rules/scoring';
 import { computeNetCrossing } from './mechanics/net';
 import { RallyState, TouchPlan } from './RallyState';
-import { prepareBlock, resolveBlock } from './mechanics/block';
+import { prepareBlock } from './mechanics/block';
+import { executeTouch } from './mechanics/touch';
 import { performServe, aiServe } from './mechanics/serve';
 import { MechanicsCtx } from './mechanics/context';
 
@@ -297,153 +297,6 @@ export class Match {
     else if (crossing.kind === 'cross') this.rally.crossIn = crossing.t;
   }
 
-  // ---------------------------------------------------------------- TOQUES
-  private executeTouch(plan: TouchPlan, quality: number): void {
-    const { athlete, kind, side } = plan;
-    plan.done = true;
-    this.rally.lastToucher = athlete;
-    this.rally.rallyTouches++;
-    this.hooks.crowd.excite(0.25 + Math.min(0.4, this.rally.rallyTouches * 0.04));
-    this.hooks.audio.excite(0.3);
-
-    // contagem de toques (bloqueio não conta)
-    if (kind !== 'block') this.rally.countTouch(side);
-    this.rally.lastTouchTeam = side;
-    this.rally.lastKind = kind;
-
-    switch (kind) {
-      case 'pass':
-      case 'dig':
-      case 'freeball':
-        this.doPass(plan, quality);
-        break;
-      case 'set':
-        this.doSet(plan, quality);
-        break;
-      case 'spike':
-        this.doSpike(plan, quality);
-        break;
-      default:
-        this.doPass(plan, quality);
-    }
-  }
-
-  private doPass(plan: TouchPlan, q: number): void {
-    const { athlete, side } = plan;
-    athlete.act(q < 0.3 ? 'dive' : 'bump', 0.55);
-    this.hooks.audio.hitSoft();
-    this.hooks.effects.burst(this.ball.pos, 0xfff2b0, 8, 2);
-
-    const team = this.teamOf(side);
-    const sp = team.setterSpot();
-    let target: THREE.Vector3;
-    if (q < 0.15) {
-      // escorregou: bola explode em direção imprevisível (pode sair, voltar, tudo)
-      target = new THREE.Vector3(
-        this.ball.pos.x + rand(-6, 6),
-        CONTACT.set,
-        this.ball.pos.z + rand(-6, 6),
-      );
-    } else {
-      const noise = (1 - q) * 2.6;
-      target = new THREE.Vector3(
-        clamp(
-          sp.x + rand(-noise, noise),
-          side === TeamSide.HOME ? -8.5 : 0.6,
-          side === TeamSide.HOME ? -0.6 : 8.5,
-        ),
-        CONTACT.set,
-        clamp(sp.z + rand(-noise, noise), -4, 4),
-      );
-    }
-    const { v0 } = ballisticArc(this.ball.pos.clone(), target, 2.6 + (1 - q) * 1.2);
-    this.ball.launch(this.ball.pos.clone(), v0);
-
-    // se o time já gastou os 3 toques, esta bola precisa ter ido para o outro lado — senão cai
-    if (this.rally.possessionTouches >= 3) {
-      this.planNext('pass');
-      return;
-    }
-
-    // designa levantador para o próximo toque
-    this.rally.setterHold = team.nearestTo(sp.x, sp.z, athlete);
-    this.rally.plannedAttacker = null;
-
-    // passe horrível vira bola de graça pro outro lado às vezes
-    if (q < 0.18 && chance(0.5)) {
-      this.planNext('pass'); // deixa o motor decidir pelo lado em que vai cair
-      return;
-    }
-    this.planNext('set');
-  }
-
-  private doSet(plan: TouchPlan, q: number): void {
-    const { athlete, side } = plan;
-    athlete.act('set', 0.55);
-    this.hooks.audio.hitSoft();
-
-    const team = this.teamOf(side);
-    // zona de ataque: humano escolheu com A/W/D; IA escolhe aleatória
-    const zoneIdx = side === TeamSide.HOME ? this.chosenZone : randPick([0, 1, 2]);
-    const zoneZ = side === TeamSide.HOME ? ATTACK_ZONES[zoneIdx] : -ATTACK_ZONES[zoneIdx];
-    const attacker = team.nearestFrontRowTo(zoneZ, athlete);
-    this.rally.plannedAttacker = attacker;
-    this.rally.setterHold = null;
-
-    const contact = new THREE.Vector3(
-      sideSign(side) * rand(0.8, 1.1),
-      CONTACT.spike,
-      clamp(zoneZ + rand(-0.3, 0.3) * (1 - q), -4.1, 4.1),
-    );
-    const apex = zoneIdx === 1 ? 0.6 : 1.5; // bola rápida no meio, alta nas pontas
-    const { v0 } = ballisticArc(this.ball.pos.clone(), contact, apex + (1 - q) * 0.8);
-    this.ball.launch(this.ball.pos.clone(), v0);
-    this.hooks.zoneHint(null);
-    this.planNext('spike');
-  }
-
-  private doSpike(plan: TouchPlan, q: number): void {
-    const { athlete, side } = plan;
-    athlete.act('spikeHit', 0.5);
-    this.hooks.audio.hitHard();
-    this.hooks.camera.kickFov(9);
-    this.hooks.camera.addShake(0.5);
-    this.hooks.slowMo(0.35, 0.4);
-    this.hooks.effects.burst(this.ball.pos, 0xffcf6b, 16, 5);
-
-    const enemy = otherSide(side);
-    const s = sideSign(enemy);
-    let target: THREE.Vector3;
-    const isAI = side === TeamSide.AWAY;
-
-    if (isAI && chance(this.diff.attackError)) {
-      target = chance(0.5)
-        ? new THREE.Vector3(s * rand(9.5, 11.5), 0, rand(-5, 5)) // pra fora
-        : new THREE.Vector3(s * 0.3, 1.0, rand(-3, 3)); // na rede
-    } else if (isAI) {
-      const spots = [
-        new THREE.Vector3(s * rand(6.5, 8.5), 0, rand(-3.8, -2.2)),
-        new THREE.Vector3(s * rand(6.5, 8.5), 0, rand(2.2, 3.8)),
-        new THREE.Vector3(s * rand(2.5, 4.5), 0, rand(-3.5, 3.5)),
-        new THREE.Vector3(s * rand(5, 8), 0, rand(-1.5, 1.5)),
-      ];
-      target = randPick(spots);
-    } else {
-      // humano: mira + erro pela qualidade do pulo
-      const err = (1 - q) * 2.4;
-      target = new THREE.Vector3(this.aim.x + rand(-err, err), 0, this.aim.z + rand(-err, err));
-    }
-
-    const dist = Math.hypot(target.x - this.ball.pos.x, target.z - this.ball.pos.z);
-    const T = clamp(dist / lerp(11, 20, q), 0.34, 0.75);
-    const { v0 } = ballisticDrive(this.ball.pos.clone(), target, T);
-    this.ball.launch(this.ball.pos.clone(), v0);
-    this.hooks.effects.showAim(null);
-
-    resolveBlock(this.ctx, side);
-    this.planNext(this.rally.touchesOf(enemy) === 0 ? 'pass' : 'pass');
-  }
-
   // ---------------------------------------------------------------- PONTO
   private resolvePoint(): void {
     const { winner, inCourt, landSide } = resolveRallyOutcome(
@@ -705,7 +558,7 @@ export class Match {
           q = rand(this.diff.passQuality[0], this.diff.passQuality[1]) * (hard ? 0.75 : 1);
         }
       }
-      if (q >= 0) this.executeTouch(plan, q);
+      if (q >= 0) executeTouch(this.ctx, plan, q);
       else a.act('dive', 0.8); // tentou e não conseguiu
     } else if (d <= CONTACT.lungeReach) {
       // peixinho!
@@ -713,7 +566,7 @@ export class Match {
       const saveP = hard ? 0.35 : 0.75;
       if (chance(saveP)) {
         this.hooks.crowd.excite(0.6);
-        this.executeTouch(plan, rand(0.08, 0.35));
+        executeTouch(this.ctx, plan, rand(0.08, 0.35));
       }
     }
     // fora de alcance: nada acontece — a bola vai cair e o ponto será resolvido
@@ -732,7 +585,7 @@ export class Match {
       } else {
         q = rand(0.6, 1);
       }
-      this.executeTouch(plan, q);
+      executeTouch(this.ctx, plan, q);
     } else if (d <= CONTACT.lungeReach) {
       // não pulou/perdeu o tempo: bola de graça por cima (com risco de sair)
       a.act('set', 0.5);
