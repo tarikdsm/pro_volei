@@ -30,7 +30,14 @@ Complementa (não substitui) os testes de `npm run test`.
 
 ## Encerrar
 
-- **Pare o dev server** em background ao terminar (não deixe a porta 5173 presa).
+- **Pare o dev server** em background ao terminar (não deixe a porta presa).
+- Salve screenshots dentro de `.playwright-mcp/` (já ignorado pelo git) para não sujar a raiz
+  do repositório; limpe qualquer artefato que tenha escapado.
+
+## Dica de porta
+
+Se a porta padrão (5173) estiver ocupada por outro projeto, suba numa porta dedicada com
+`npm run dev -- --port 5199 --strictPort` e navegue para `http://localhost:5199/`.
 
 ## Dicas
 
