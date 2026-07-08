@@ -29,6 +29,12 @@ export class RallyState {
   crossIn: number | null = null;
   prevBallX = 0;
 
+  // planejamento: quem joga o próximo toque e bloqueadores agendados
+  setterHold: Athlete | null = null;
+  plannedAttacker: Athlete | null = null;
+  lastToucher: Athlete | null = null;
+  blockers: { athlete: Athlete; jumpIn: number }[] = [];
+
   /** Conta um toque para o lado: bola nova em um time abre a posse com 1; mesmo time incrementa. */
   countTouch(side: TeamSide): void {
     if (this.possessionTeam !== side) {

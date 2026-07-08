@@ -13,6 +13,14 @@ describe('RallyState — valores iniciais', () => {
     expect(r.plan).toBe(null);
     expect(r.netEventIn).toBe(null);
   });
+
+  it('começa sem campos de planejamento definidos', () => {
+    const r = new RallyState();
+    expect(r.setterHold).toBe(null);
+    expect(r.plannedAttacker).toBe(null);
+    expect(r.lastToucher).toBe(null);
+    expect(r.blockers).toEqual([]);
+  });
 });
 
 describe('RallyState.countTouch', () => {

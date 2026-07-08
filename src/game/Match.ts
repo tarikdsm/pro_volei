@@ -112,8 +112,6 @@ export class Match {
   private marker: THREE.Mesh; // anel sob o jogador controlado
 
   private stats: MatchStats = { aces: 0, blocks: 0, longestRally: 0, points: [0, 0] };
-  private setterHold: Athlete | null = null;
-
   constructor(private hooks: Hooks) {
     this.group.add(this.ball.group, this.home.group, this.away.group);
     this.marker = new THREE.Mesh(
@@ -270,10 +268,12 @@ export class Match {
     let athlete: Athlete;
     if (nextKind === 'set') {
       const sp = team.setterSpot();
-      athlete = this.setterHold ?? team.nearestTo(sp.x, sp.z, this.lastToucher ?? undefined);
+      athlete =
+        this.rally.setterHold ?? team.nearestTo(sp.x, sp.z, this.rally.lastToucher ?? undefined);
     } else if (nextKind === 'spike') {
       athlete =
-        this.plannedAttacker ?? team.nearestFrontRowTo(cPoint.z, this.lastToucher ?? undefined);
+        this.rally.plannedAttacker ??
+        team.nearestFrontRowTo(cPoint.z, this.rally.lastToucher ?? undefined);
     } else {
       athlete = team.nearestTo(cPoint.x, cPoint.z);
     }
@@ -343,9 +343,6 @@ export class Match {
     }
   }
 
-  private lastToucher: Athlete | null = null;
-  private plannedAttacker: Athlete | null = null;
-
   private computeNetEvent(): void {
     this.rally.netEventIn = null;
     this.rally.crossIn = null;
@@ -355,16 +352,15 @@ export class Match {
   }
 
   // Bloqueio da IA (ou preparação do lado da IA contra ataque humano)
-  private blockers: { athlete: Athlete; jumpIn: number }[] = [];
   private prepareBlock(side: TeamSide, z: number, contactIn: number): void {
-    this.blockers = [];
+    this.rally.blockers = [];
     const team = this.teamOf(side);
     const isAI = side === TeamSide.AWAY;
     const blocker = team.nearestFrontRowTo(z);
     const bx = sideSign(side) * 0.72;
     blocker.moveTo(bx, clamp(z, -COURT.halfWidth + 0.4, COURT.halfWidth - 0.4));
     if (isAI && chance(this.diff.blockChance)) {
-      this.blockers.push({ athlete: blocker, jumpIn: contactIn + rand(0.0, 0.12) });
+      this.rally.blockers.push({ athlete: blocker, jumpIn: contactIn + rand(0.0, 0.12) });
     }
   }
 
@@ -372,7 +368,7 @@ export class Match {
   private executeTouch(plan: TouchPlan, quality: number): void {
     const { athlete, kind, side } = plan;
     plan.done = true;
-    this.lastToucher = athlete;
+    this.rally.lastToucher = athlete;
     this.rally.rallyTouches++;
     this.hooks.crowd.excite(0.25 + Math.min(0.4, this.rally.rallyTouches * 0.04));
     this.hooks.audio.excite(0.3);
@@ -437,8 +433,8 @@ export class Match {
     }
 
     // designa levantador para o próximo toque
-    this.setterHold = team.nearestTo(sp.x, sp.z, athlete);
-    this.plannedAttacker = null;
+    this.rally.setterHold = team.nearestTo(sp.x, sp.z, athlete);
+    this.rally.plannedAttacker = null;
 
     // passe horrível vira bola de graça pro outro lado às vezes
     if (q < 0.18 && chance(0.5)) {
@@ -458,8 +454,8 @@ export class Match {
     const zoneIdx = side === TeamSide.HOME ? this.chosenZone : randPick([0, 1, 2]);
     const zoneZ = side === TeamSide.HOME ? ATTACK_ZONES[zoneIdx] : -ATTACK_ZONES[zoneIdx];
     const attacker = team.nearestFrontRowTo(zoneZ, athlete);
-    this.plannedAttacker = attacker;
-    this.setterHold = null;
+    this.rally.plannedAttacker = attacker;
+    this.rally.setterHold = null;
 
     const contact = new THREE.Vector3(
       sideSign(side) * rand(0.8, 1.1),
@@ -528,7 +524,7 @@ export class Match {
       // no momento do cruzamento o bloqueador precisa estar no ar
       const willBeAirborne = isHumanDef
         ? blocker.isAirborne && blocker.jumpY > 0.18
-        : this.blockers.some((b) => b.athlete === blocker);
+        : this.rally.blockers.some((b) => b.athlete === blocker);
       if (!willBeAirborne) continue;
       if (!blockerReaches(blocker.pos.x, blocker.pos.z, blocker.jumpY, cross)) continue;
 
@@ -541,7 +537,7 @@ export class Match {
         this.hooks.effects.burst(bp, 0x9fd8ff, 20, 6);
         this.hooks.camera.addShake(0.6);
         blocker.act('block', 0.5);
-        this.lastToucher = blocker;
+        this.rally.lastToucher = blocker;
         this.rally.lastTouchTeam = defSide;
         this.rally.lastKind = 'block';
         this.rally.rallyTouches++;
@@ -744,12 +740,12 @@ export class Match {
       }
 
       // bloqueadores IA pulam
-      for (let i = this.blockers.length - 1; i >= 0; i--) {
-        this.blockers[i].jumpIn -= dt;
-        if (this.blockers[i].jumpIn <= 0) {
-          this.blockers[i].athlete.act('block', 0.7);
-          this.blockers[i].athlete.jump(PLAYER.blockJumpVel);
-          this.blockers.splice(i, 1);
+      for (let i = this.rally.blockers.length - 1; i >= 0; i--) {
+        this.rally.blockers[i].jumpIn -= dt;
+        if (this.rally.blockers[i].jumpIn <= 0) {
+          this.rally.blockers[i].athlete.act('block', 0.7);
+          this.rally.blockers[i].athlete.jump(PLAYER.blockJumpVel);
+          this.rally.blockers.splice(i, 1);
         }
       }
 
@@ -889,7 +885,7 @@ export class Match {
       this.rally.countTouch(plan.side);
       this.rally.lastTouchTeam = plan.side;
       this.rally.lastKind = 'freeball';
-      this.lastToucher = a;
+      this.rally.lastToucher = a;
       this.rally.rallyTouches++;
       this.hooks.banner('', '');
       this.planNext('pass');
