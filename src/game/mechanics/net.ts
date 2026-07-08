@@ -1,4 +1,5 @@
 // Geometria de cruzamento da bola pelo plano da rede (x = 0). Pura, extraída de Match.ts.
+import * as THREE from 'three';
 import { COURT, BALL_RADIUS, GRAVITY } from '../../core/constants';
 
 export type NetCrossing =
@@ -29,4 +30,12 @@ export function computeNetCrossing(pos: Vec3, vel: Vec3): NetCrossing {
     y < COURT.netHeight + BALL_RADIUS * 0.4 &&
     Math.abs(z) < COURT.halfWidth + 0.5;
   return hitsNet ? { kind: 'net', t, y, z } : { kind: 'cross', t, y, z };
+}
+
+/**
+ * Ponto analítico onde a bola toca a rede (plano x = 0), para snapar a bola no evento
+ * de rede antes de resolvê-lo — evita usar a posição stale do frame anterior.
+ */
+export function netTouchPoint(cross: { y: number; z: number }): THREE.Vector3 {
+  return new THREE.Vector3(0, cross.y, cross.z);
 }

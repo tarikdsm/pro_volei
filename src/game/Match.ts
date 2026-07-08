@@ -22,7 +22,7 @@ import {
   TouchKind,
 } from '../core/constants';
 import { ballisticArc, clamp, rand, chance } from '../core/math3d';
-import { computeNetCrossing } from './mechanics/net';
+import { computeNetCrossing, netTouchPoint } from './mechanics/net';
 import { RallyState, TouchPlan } from './RallyState';
 import { prepareBlock } from './mechanics/block';
 import { executeTouch } from './mechanics/touch';
@@ -230,8 +230,12 @@ export class Match {
 
   private computeNetEvent(): void {
     this.rally.netEventIn = null;
+    this.rally.netEventPoint = null;
     const crossing = computeNetCrossing(this.ball.pos, this.ball.vel);
-    if (crossing.kind === 'net') this.rally.netEventIn = crossing.t;
+    if (crossing.kind === 'net') {
+      this.rally.netEventIn = crossing.t;
+      this.rally.netEventPoint = netTouchPoint(crossing);
+    }
   }
 
   // ---------------------------------------------------------------- UPDATE
@@ -350,8 +354,8 @@ export class Match {
       const target = chance(0.12)
         ? new THREE.Vector3(s * rand(9.6, 10.8), 0, rand(-5, 5))
         : new THREE.Vector3(s * rand(3, 7), 0, rand(-3, 3));
-      const { v0 } = ballisticArc(this.ball.pos.clone(), target, 3.2);
-      this.ball.launch(this.ball.pos.clone(), v0);
+      const { v0 } = ballisticArc(plan.point.clone(), target, 3.2);
+      this.ball.launch(plan.point.clone(), v0);
       // conta o toque
       this.rally.countTouch(plan.side);
       this.rally.lastTouchTeam = plan.side;
@@ -367,6 +371,12 @@ export class Match {
   private onNetTouch(): void {
     this.hooks.audio.netTouch();
     this.hooks.camera.addShake(0.2);
+    // snap ao ponto analítico de cruzamento antes de amortecer a velocidade
+    // (a bola ainda está na posição integrada do frame anterior neste handler)
+    if (this.rally.netEventPoint) {
+      this.ball.pos.copy(this.rally.netEventPoint);
+      this.rally.netEventPoint = null;
+    }
     const wasServe = this.rally.lastKind === 'serve';
     // bola morre na rede: cai do lado de quem tocou
     const v = this.ball.vel;

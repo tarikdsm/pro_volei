@@ -96,7 +96,8 @@ export function resolveBlock(ctx: MechanicsCtx, attackSide: TeamSide): void {
     const prox = blockProximity(blocker.pos.z, cross.z);
     ctx.after(cross.t, () => {
       const r = Math.random();
-      const bp = ctx.ball.pos.clone();
+      // origem no ponto analítico de cruzamento da rede (x=0), não na pos stale da bola
+      const bp = new THREE.Vector3(0, cross.y, cross.z);
       ctx.hooks.audio.block();
       ctx.hooks.effects.burst(bp, 0x9fd8ff, 20, 6);
       ctx.hooks.camera.addShake(0.6);

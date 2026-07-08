@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeNetCrossing } from './net';
+import { computeNetCrossing, netTouchPoint } from './net';
 import { COURT } from '../../core/constants';
 
 describe('computeNetCrossing', () => {
@@ -29,5 +29,20 @@ describe('computeNetCrossing', () => {
     const z = COURT.halfWidth + 1; // além da largura da rede
     const r = computeNetCrossing({ x: -1, y: 1, z }, { x: 1, y: 6.5, z: 0 });
     expect(r.kind).toBe('cross');
+  });
+});
+
+describe('netTouchPoint', () => {
+  it('para kind "net" leva y e z do cruzamento ao ponto de snap no plano da rede (x = 0)', () => {
+    const r = computeNetCrossing({ x: -1, y: 1, z: 0.3 }, { x: 1, y: 6.5, z: 0 });
+    expect(r.kind).toBe('net');
+    if (r.kind === 'net') {
+      expect(typeof r.y).toBe('number');
+      expect(typeof r.z).toBe('number');
+      const p = netTouchPoint(r);
+      expect(p.x).toBe(0); // plano da rede
+      expect(p.y).toBeCloseTo(r.y);
+      expect(p.z).toBeCloseTo(r.z);
+    }
   });
 });

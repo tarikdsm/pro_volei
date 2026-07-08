@@ -49,18 +49,16 @@ function doPass(ctx: MechanicsCtx, plan: TouchPlan, q: number): void {
   const { athlete, side } = plan;
   athlete.act(q < 0.3 ? 'dive' : 'bump', 0.55);
   ctx.hooks.audio.hitSoft();
-  ctx.hooks.effects.burst(ctx.ball.pos, 0xfff2b0, 8, 2);
+  // lança a partir de plan.point (ponto analítico do contato), não de ctx.ball.pos
+  // (posição stale do frame anterior — a bola só avança em ball.step depois deste handler).
+  ctx.hooks.effects.burst(plan.point, 0xfff2b0, 8, 2);
 
   const team = ctx.teamOf(side);
   const sp = team.setterSpot();
   let target: THREE.Vector3;
   if (q < 0.15) {
     // escorregou: bola explode em direção imprevisível (pode sair, voltar, tudo)
-    target = new THREE.Vector3(
-      ctx.ball.pos.x + rand(-6, 6),
-      CONTACT.set,
-      ctx.ball.pos.z + rand(-6, 6),
-    );
+    target = new THREE.Vector3(plan.point.x + rand(-6, 6), CONTACT.set, plan.point.z + rand(-6, 6));
   } else {
     const noise = (1 - q) * 2.6;
     target = new THREE.Vector3(
@@ -73,8 +71,8 @@ function doPass(ctx: MechanicsCtx, plan: TouchPlan, q: number): void {
       clamp(sp.z + rand(-noise, noise), -4, 4),
     );
   }
-  const { v0 } = ballisticArc(ctx.ball.pos.clone(), target, 2.6 + (1 - q) * 1.2);
-  ctx.ball.launch(ctx.ball.pos.clone(), v0);
+  const { v0 } = ballisticArc(plan.point.clone(), target, 2.6 + (1 - q) * 1.2);
+  ctx.ball.launch(plan.point.clone(), v0);
 
   // se o time já gastou os 3 toques, esta bola precisa ter ido para o outro lado — senão cai
   if (ctx.rally.possessionTouches >= 3) {
@@ -113,8 +111,8 @@ function doSet(ctx: MechanicsCtx, plan: TouchPlan, q: number): void {
     clamp(zoneZ + rand(-0.3, 0.3) * (1 - q), -4.1, 4.1),
   );
   const apex = zoneIdx === 1 ? 0.6 : 1.5; // bola rápida no meio, alta nas pontas
-  const { v0 } = ballisticArc(ctx.ball.pos.clone(), contact, apex + (1 - q) * 0.8);
-  ctx.ball.launch(ctx.ball.pos.clone(), v0);
+  const { v0 } = ballisticArc(plan.point.clone(), contact, apex + (1 - q) * 0.8);
+  ctx.ball.launch(plan.point.clone(), v0);
   ctx.hooks.zoneHint(null);
   ctx.planNext('spike');
 }
@@ -126,7 +124,7 @@ function doSpike(ctx: MechanicsCtx, plan: TouchPlan, q: number): void {
   ctx.hooks.camera.kickFov(9);
   ctx.hooks.camera.addShake(0.5);
   ctx.hooks.slowMo(0.35, 0.4);
-  ctx.hooks.effects.burst(ctx.ball.pos, 0xffcf6b, 16, 5);
+  ctx.hooks.effects.burst(plan.point, 0xffcf6b, 16, 5);
 
   const enemy = otherSide(side);
   const s = sideSign(enemy);
@@ -151,10 +149,10 @@ function doSpike(ctx: MechanicsCtx, plan: TouchPlan, q: number): void {
     target = new THREE.Vector3(ctx.aim.x + rand(-err, err), 0, ctx.aim.z + rand(-err, err));
   }
 
-  const dist = Math.hypot(target.x - ctx.ball.pos.x, target.z - ctx.ball.pos.z);
+  const dist = Math.hypot(target.x - plan.point.x, target.z - plan.point.z);
   const T = clamp(dist / lerp(11, 20, q), 0.34, 0.75);
-  const { v0 } = ballisticDrive(ctx.ball.pos.clone(), target, T);
-  ctx.ball.launch(ctx.ball.pos.clone(), v0);
+  const { v0 } = ballisticDrive(plan.point.clone(), target, T);
+  ctx.ball.launch(plan.point.clone(), v0);
   ctx.hooks.effects.showAim(null);
 
   resolveBlock(ctx, side);
