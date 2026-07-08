@@ -15,12 +15,26 @@ O time da casa conta com **Elisa** (#1, rabo de cavalo castanho claro), **Helois
 ## Como rodar localmente
 
 ```bash
-npm install   # (já instalado se você clonou com node_modules)
+npm install   # instala as dependências (node_modules não vai para o git)
 npm run dev   # abre em http://localhost:5173
 ```
 
 Funciona **100% offline** depois do `npm install` — zero assets remotos:
 toda a geometria é procedural, texturas geradas em canvas e áudio sintetizado via Web Audio API.
+
+## Desenvolvimento
+
+Ferramental profissional configurado. Antes de commitar, rode o portão de qualidade:
+
+```bash
+npm run check   # typecheck + lint + format + testes
+npm run test    # só os testes (Vitest)
+npm run lint    # ESLint (lint:fix aplica correções)
+npm run format  # Prettier
+```
+
+O CI (GitHub Actions) roda o mesmo `check` + build em cada push/PR. Guia completo de
+setup, estilo e fluxo em **[CONTRIBUTING.md](CONTRIBUTING.md)**.
 
 ## Publicar no GitHub Pages
 
@@ -71,7 +85,19 @@ src/
 └── ui/          HUD (placar, medidor, banners) e menus
 ```
 
-Detalhes de design em [PLAN.md](PLAN.md).
+Detalhes em **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**. Plano de produto em
+**[docs/ROADMAP.md](docs/ROADMAP.md)**.
+
+## Documentação
+
+| Doc | Para quê |
+|---|---|
+| [CLAUDE.md](CLAUDE.md) | Contexto do projeto para o Claude Code |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Setup, fluxo de trabalho e estilo de código |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Arquitetura atual e refatoração-alvo |
+| [docs/ROADMAP.md](docs/ROADMAP.md) | Do protótipo ao produto (fases) |
+| [docs/deployment/](docs/deployment/) | Publicar em Web · Desktop/Steam · Mobile |
+| [CHANGELOG.md](CHANGELOG.md) | Histórico de versões |
 
 ## Build de produção
 

@@ -1,3 +1,10 @@
+> **Documento histórico.** Este é o plano original de construção do *protótipo* (feito no
+> macOS), preservado como registro. Ele já foi **concluído** — todas as fases 0–8 estão no
+> `git log`. O planejamento **vivo** do produto está em [../ROADMAP.md](../ROADMAP.md) e a
+> arquitetura atual/alvo em [../ARCHITECTURE.md](../ARCHITECTURE.md).
+
+---
+
 # VOLEY PRO — Plano de Desenvolvimento
 
 Jogo de vôlei 3D no browser. Humano vs Computador, 6x6, quadra oficial, torcida, juiz, câmera dinâmica.
