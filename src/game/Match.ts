@@ -22,14 +22,6 @@ import {
   TouchKind,
 } from '../core/constants';
 import { ballisticArc, clamp, rand, chance } from '../core/math3d';
-import {
-  isSetOver,
-  setWinner,
-  isMatchOver,
-  setPointLeader,
-  isAce,
-  resolveRallyOutcome,
-} from './rules/scoring';
 import { computeNetCrossing } from './mechanics/net';
 import { RallyState, TouchPlan } from './RallyState';
 import { prepareBlock } from './mechanics/block';
@@ -37,6 +29,7 @@ import { executeTouch } from './mechanics/touch';
 import { MechanicsCtx } from './mechanics/context';
 import { HumanController } from './control/HumanController';
 import { AiController } from './ai/AiController';
+import { resolvePoint, awardPoint, pushScore, ScoringCtx } from './rules/SetMatch';
 
 export interface MatchStats {
   aces: number;
@@ -95,14 +88,16 @@ export class Match {
 
   private stats: MatchStats = { aces: 0, blocks: 0, longestRally: 0, points: [0, 0] };
 
-  // contexto injetado nas funções de mecânica (mechanics/*), montado no construtor
+  // contextos injetados (mecânica e pontuação), montados no construtor
   private ctx!: MechanicsCtx;
+  private scoringCtx!: ScoringCtx;
 
   constructor(private hooks: Hooks) {
     this.group.add(this.ball.group, this.home.group, this.away.group);
     this.group.add(this.human.marker);
     this.ball.hold(new THREE.Vector3(0, 1.2, 0));
     this.ctx = this.makeCtx();
+    this.scoringCtx = this.makeScoringCtx();
   }
 
   startMatch(diffIdx: number, fmtIdx: number): void {
@@ -113,7 +108,7 @@ export class Match {
     this.setNumber = 1;
     this.stats = { aces: 0, blocks: 0, longestRally: 0, points: [0, 0] };
     this.servingTeam = chance(0.5) ? TeamSide.HOME : TeamSide.AWAY;
-    this.pushScore();
+    pushScore(this.scoringCtx);
     this.beginServePrep();
   }
 
@@ -239,133 +234,6 @@ export class Match {
     if (crossing.kind === 'net') this.rally.netEventIn = crossing.t;
   }
 
-  // ---------------------------------------------------------------- PONTO
-  private resolvePoint(): void {
-    const { winner, inCourt, landSide } = resolveRallyOutcome(
-      this.ball.pos,
-      this.rally.lastTouchTeam,
-      this.servingTeam,
-    );
-    const reason = inCourt
-      ? landSide === TeamSide.HOME
-        ? 'Bola no seu chão'
-        : 'Bola no chão deles!'
-      : 'Bola fora';
-    this.awardPoint(winner, reason);
-  }
-
-  private awardPoint(winner: TeamSide, reason: string): void {
-    if (this.state !== 'rally') return;
-    this.state = 'point';
-    this.stateTime = 0;
-    this.events = [];
-    this.rally.plan = null;
-    this.human.release();
-    this.ball.bouncy = true;
-    this.hooks.effects.showLanding(null);
-    this.hooks.effects.showAim(null);
-    this.hooks.serveMeter(false);
-    this.hooks.zoneHint(null);
-
-    const ace = isAce(this.rally.lastKind, winner, this.servingTeam, this.rally.rallyTouches);
-    this.score[winner]++;
-    this.stats.points[winner]++;
-    this.stats.longestRally = Math.max(this.stats.longestRally, this.rally.rallyTouches);
-
-    // banners com personalidade
-    let text = winner === TeamSide.HOME ? 'PONTO SEU!' : 'PONTO DO CPU';
-    if (ace) {
-      text = winner === TeamSide.HOME ? '🔥 ACE!' : 'ACE DO CPU';
-      if (winner === TeamSide.HOME) this.stats.aces++;
-    } else if (this.rally.rallyTouches >= 8) text = `QUE RALLY! ${this.rally.rallyTouches} toques`;
-    this.hooks.banner(text, reason);
-
-    this.hooks.audio.whistleLong();
-    this.hooks.audio.scoreJingle(winner === TeamSide.HOME);
-    this.hooks.audio.cheer(winner === TeamSide.HOME);
-    if (winner === TeamSide.HOME) this.hooks.audio.applause(1.4);
-    this.hooks.referee.signalPoint(winner);
-    this.hooks.crowd.excite(winner === TeamSide.HOME ? 1 : 0.55);
-    this.hooks.camera.setMode('point', { side: winner });
-
-    this.teamOf(winner).celebrate();
-    this.teamOf(otherSide(winner)).deject();
-
-    // troca de saque + rodízio
-    if (winner !== this.servingTeam) {
-      this.servingTeam = winner;
-      this.teamOf(winner).rotate();
-    }
-    this.pushScore();
-
-    // fim de set?
-    const target = this.format.pointsPerSet;
-    const [h, a] = this.score;
-    const setOver = isSetOver(h, a, target);
-    this.after(2.6, () => {
-      if (setOver) this.endSet(setWinner(h, a));
-      else this.beginServePrep();
-    });
-
-    // set point / match point aviso
-    const spLeader = setPointLeader(h, a, target);
-    if (spLeader !== null) {
-      this.after(1.4, () =>
-        this.hooks.banner(spLeader === TeamSide.HOME ? 'SET POINT — VOCÊ!' : 'SET POINT — CPU', ''),
-      );
-    }
-  }
-
-  private endSet(winner: TeamSide): void {
-    this.sets[winner]++;
-    this.state = 'setEnd';
-    this.stateTime = 0;
-    this.hooks.camera.setMode('setEnd');
-    this.hooks.effects.confetti(sideSign(winner) * 4);
-    this.hooks.audio.victoryFanfare();
-    this.hooks.crowd.excite(1);
-    this.hooks.crowd.startWave();
-
-    const matchOver = isMatchOver(this.sets[winner], this.format.sets);
-    this.hooks.banner(
-      matchOver ? '' : winner === TeamSide.HOME ? 'SET SEU! 🏐' : 'SET DO CPU',
-      matchOver ? '' : `Sets ${this.sets[0]} × ${this.sets[1]}`,
-    );
-    this.pushScore();
-
-    this.after(matchOver ? 1.2 : 4.0, () => {
-      if (matchOver) {
-        this.state = 'matchEnd';
-        const scoreline = `${this.sets[0]} × ${this.sets[1]}`;
-        this.hooks.matchEnd(winner === TeamSide.HOME, this.stats, scoreline);
-      } else {
-        this.setNumber++;
-        this.score = [0, 0];
-        this.servingTeam = winner;
-        this.pushScore();
-        this.beginServePrep();
-      }
-    });
-  }
-
-  private pushScore(): void {
-    this.hooks.setScore(
-      this.score[0],
-      this.score[1],
-      this.sets[0],
-      this.sets[1],
-      this.setNumber,
-      this.servingTeam,
-    );
-    this.hooks.arena.updateScoreboard(
-      this.score[0],
-      this.score[1],
-      this.sets[0],
-      this.sets[1],
-      this.setNumber,
-    );
-  }
-
   // ---------------------------------------------------------------- UPDATE
   update(dt: number, input: Input): void {
     this.stateTime += dt;
@@ -413,7 +281,7 @@ export class Match {
       this.hooks.audio.bounce();
       this.hooks.effects.burst(this.ball.pos, 0xd8b06a, 14, 3);
       this.hooks.camera.addShake(0.25);
-      this.resolvePoint();
+      resolvePoint(this.scoringCtx);
     }
 
     // física e visual
@@ -508,7 +376,7 @@ export class Match {
       // saque na rede = ponto do recebedor
       this.after(0.5, () => {
         if (this.state === 'rally') {
-          this.awardPoint(otherSide(this.servingTeam), 'Saque na rede');
+          awardPoint(this.scoringCtx, otherSide(this.servingTeam), 'Saque na rede');
         }
       });
       return;
@@ -548,6 +416,69 @@ export class Match {
       startRally: () => {
         this.state = 'rally';
       },
+    };
+  }
+
+  /** Contexto do fluxo de pontuação (rules/SetMatch): acesso ao placar + transições de estado. */
+  private makeScoringCtx(): ScoringCtx {
+    // closures capturam `this` (Match); getters/setters mantêm vivos os valores mutáveis
+    const score = () => this.score;
+    const sets = () => this.sets;
+    const stats = () => this.stats;
+    const format = () => this.format;
+    const getServing = () => this.servingTeam;
+    const setServing = (s: TeamSide) => {
+      this.servingTeam = s;
+    };
+    const getSetNumber = () => this.setNumber;
+    const setSetNumber = (n: number) => {
+      this.setNumber = n;
+    };
+    return {
+      ball: this.ball,
+      rally: this.rally,
+      hooks: this.hooks,
+      get score() {
+        return score();
+      },
+      get sets() {
+        return sets();
+      },
+      get stats() {
+        return stats();
+      },
+      get format() {
+        return format();
+      },
+      get servingTeam() {
+        return getServing();
+      },
+      set servingTeam(s) {
+        setServing(s);
+      },
+      get setNumber() {
+        return getSetNumber();
+      },
+      set setNumber(n) {
+        setSetNumber(n);
+      },
+      teamOf: (side) => this.teamOf(side),
+      after: (t, fn) => this.after(t, fn),
+      releaseControl: () => this.human.release(),
+      beginServePrep: () => this.beginServePrep(),
+      enterPoint: () => {
+        this.state = 'point';
+        this.stateTime = 0;
+        this.events = [];
+      },
+      enterSetEnd: () => {
+        this.state = 'setEnd';
+        this.stateTime = 0;
+      },
+      enterMatchEnd: () => {
+        this.state = 'matchEnd';
+      },
+      isRally: () => this.state === 'rally',
     };
   }
 
