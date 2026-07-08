@@ -42,6 +42,7 @@ import {
   isAce,
   resolveRallyOutcome,
 } from './rules/scoring';
+import { computeNetCrossing } from './mechanics/net';
 
 export interface MatchStats {
   aces: number;
@@ -372,21 +373,9 @@ export class Match {
   private computeNetEvent(): void {
     this.netEventIn = null;
     this.crossIn = null;
-    const { pos, vel } = this.ball;
-    if (Math.abs(vel.x) < 0.01) return;
-    const t = -pos.x / vel.x;
-    if (t <= 0.005) return;
-    const y = pos.y + vel.y * t + 0.5 * GRAVITY * t * t;
-    const z = pos.z + vel.z * t;
-    if (
-      y > BALL_RADIUS &&
-      y < COURT.netHeight + BALL_RADIUS * 0.4 &&
-      Math.abs(z) < COURT.halfWidth + 0.5
-    ) {
-      this.netEventIn = t;
-    } else {
-      this.crossIn = t;
-    }
+    const crossing = computeNetCrossing(this.ball.pos, this.ball.vel);
+    if (crossing.kind === 'net') this.netEventIn = crossing.t;
+    else if (crossing.kind === 'cross') this.crossIn = crossing.t;
   }
 
   // Bloqueio da IA (ou preparação do lado da IA contra ataque humano)
