@@ -54,7 +54,11 @@ export class CameraDirector {
       case 'menu': {
         this.orbitT += dt * 0.14;
         const r = 22;
-        this.targetPos.set(Math.cos(this.orbitT) * r, 9 + Math.sin(this.orbitT * 0.7) * 2.5, Math.sin(this.orbitT) * r);
+        this.targetPos.set(
+          Math.cos(this.orbitT) * r,
+          9 + Math.sin(this.orbitT * 0.7) * 2.5,
+          Math.sin(this.orbitT) * r,
+        );
         this.targetLook.set(0, 1.5, 0);
         this.lambda = 1.2;
         break;
@@ -119,7 +123,9 @@ export class CameraDirector {
     const s = this.shake * this.shake * 0.35;
     const t = performance.now() * 0.045;
     const off = new THREE.Vector3(
-      Math.sin(t * 1.3) * s, Math.sin(t * 1.7 + 2) * s * 0.7, Math.cos(t * 1.1) * s,
+      Math.sin(t * 1.3) * s,
+      Math.sin(t * 1.7 + 2) * s * 0.7,
+      Math.cos(t * 1.1) * s,
     );
 
     this.camera.position.copy(this.pos).add(off);

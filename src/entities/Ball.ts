@@ -29,7 +29,12 @@ export class Ball {
     // sombra "blob" no chão (mais legível p/ gameplay que sombra real)
     this.shadow = new THREE.Mesh(
       new THREE.CircleGeometry(BALL_RADIUS * 1.4, 16),
-      new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.35, depthWrite: false }),
+      new THREE.MeshBasicMaterial({
+        color: 0x000000,
+        transparent: true,
+        opacity: 0.35,
+        depthWrite: false,
+      }),
     );
     this.shadow.rotation.x = -Math.PI / 2;
     this.group.add(this.shadow);
@@ -40,9 +45,16 @@ export class Ball {
     trailGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(maxPts * 3), 3));
     const colors = new Float32Array(maxPts * 3);
     trailGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-    this.trail = new THREE.Line(trailGeo, new THREE.LineBasicMaterial({
-      vertexColors: true, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false,
-    }));
+    this.trail = new THREE.Line(
+      trailGeo,
+      new THREE.LineBasicMaterial({
+        vertexColors: true,
+        transparent: true,
+        opacity: 0.85,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      }),
+    );
     this.trail.frustumCulled = false;
     this.group.add(this.trail);
   }
@@ -82,8 +94,9 @@ export class Ball {
 
     // sombra segue no chão, some se a bola sai muito da quadra
     this.shadow.position.set(this.pos.x, 0.012, this.pos.z);
-    const inArea = Math.abs(this.pos.x) < COURT.halfLength + COURT.freeZone
-      && Math.abs(this.pos.z) < COURT.halfWidth + COURT.freeZone;
+    const inArea =
+      Math.abs(this.pos.x) < COURT.halfLength + COURT.freeZone &&
+      Math.abs(this.pos.z) < COURT.halfWidth + COURT.freeZone;
     this.shadow.visible = inArea && this.pos.y > 0.05;
     const scale = Math.max(0.4, 1.6 - this.pos.y * 0.12);
     this.shadow.scale.set(scale, scale, 1);
@@ -131,7 +144,8 @@ export class Ball {
 
 function makeBallTexture(): THREE.CanvasTexture {
   const canvas = document.createElement('canvas');
-  canvas.width = 256; canvas.height = 128;
+  canvas.width = 256;
+  canvas.height = 128;
   const c = canvas.getContext('2d')!;
   // padrão clássico azul/amarelo/branco em faixas
   const bands = ['#ffffff', '#ffd500', '#0057b8', '#ffffff', '#ffd500', '#0057b8'];
@@ -144,7 +158,10 @@ function makeBallTexture(): THREE.CanvasTexture {
   c.strokeStyle = 'rgba(0,0,0,0.25)';
   c.lineWidth = 2;
   for (let i = 1; i < bands.length; i++) {
-    c.beginPath(); c.moveTo(i * bw, 0); c.lineTo(i * bw, 128); c.stroke();
+    c.beginPath();
+    c.moveTo(i * bw, 0);
+    c.lineTo(i * bw, 128);
+    c.stroke();
   }
   const tex = new THREE.CanvasTexture(canvas);
   tex.wrapS = THREE.RepeatWrapping;

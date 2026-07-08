@@ -4,7 +4,13 @@ import { COURT } from '../core/constants';
 // Ginásio: arquibancadas em 4 lados, iluminação de arena, placar suspenso, banners.
 export class Arena {
   group = new THREE.Group();
-  standsInfo: { origin: THREE.Vector3; right: THREE.Vector3; up: THREE.Vector3; rows: number; cols: number }[] = [];
+  standsInfo: {
+    origin: THREE.Vector3;
+    right: THREE.Vector3;
+    up: THREE.Vector3;
+    rows: number;
+    cols: number;
+  }[] = [];
   private scoreCanvas!: HTMLCanvasElement;
   private scoreTex!: THREE.CanvasTexture;
 
@@ -18,7 +24,8 @@ export class Arena {
   // Arquibancadas: degraus de concreto; guarda posições p/ a torcida instanciada
   private buildStands(): void {
     const rows = 12;
-    const stepH = 0.55, stepD = 0.9;
+    const stepH = 0.55,
+      stepD = 0.9;
     const startDist = { long: COURT.halfWidth + 6.2, short: COURT.halfLength + 6.5 };
     const stepMat = new THREE.MeshStandardMaterial({ color: 0x3a4a5a, roughness: 0.9 });
     const faceMat = new THREE.MeshStandardMaterial({ color: 0x2c3947, roughness: 0.9 });
@@ -34,7 +41,10 @@ export class Arena {
     for (const s of sides) {
       const stand = new THREE.Group();
       for (let r = 0; r < rows; r++) {
-        const step = new THREE.Mesh(new THREE.BoxGeometry(s.len, stepH, stepD), r % 2 ? stepMat : faceMat);
+        const step = new THREE.Mesh(
+          new THREE.BoxGeometry(s.len, stepH, stepD),
+          r % 2 ? stepMat : faceMat,
+        );
         step.position.set(0, r * stepH + stepH / 2, r * stepD + stepD / 2);
         step.receiveShadow = true;
         stand.add(step);
@@ -66,11 +76,18 @@ export class Arena {
     }
 
     // paredes do ginásio
-    const wallMat = new THREE.MeshStandardMaterial({ color: 0x1a232e, roughness: 1, side: THREE.BackSide });
+    const wallMat = new THREE.MeshStandardMaterial({
+      color: 0x1a232e,
+      roughness: 1,
+      side: THREE.BackSide,
+    });
     const wall = new THREE.Mesh(new THREE.CylinderGeometry(38, 38, 22, 24, 1, true), wallMat);
     wall.position.y = 11;
     this.group.add(wall);
-    const ceil = new THREE.Mesh(new THREE.CircleGeometry(38, 24), new THREE.MeshStandardMaterial({ color: 0x141b24, side: THREE.BackSide }));
+    const ceil = new THREE.Mesh(
+      new THREE.CircleGeometry(38, 24),
+      new THREE.MeshStandardMaterial({ color: 0x141b24, side: THREE.BackSide }),
+    );
     ceil.rotation.x = Math.PI / 2;
     ceil.position.y = 21.9;
     this.group.add(ceil);
@@ -78,9 +95,11 @@ export class Arena {
     // banners de publicidade ao redor da quadra
     const bannerTexts = ['PRÓ VOLEI', '★ SUPER LIGA ★', 'PONTO! SETS! GLÓRIA!', 'BEACH & INDOOR'];
     const bannerCanvas = document.createElement('canvas');
-    bannerCanvas.width = 1024; bannerCanvas.height = 64;
+    bannerCanvas.width = 1024;
+    bannerCanvas.height = 64;
     const bc = bannerCanvas.getContext('2d')!;
-    bc.fillStyle = '#10161f'; bc.fillRect(0, 0, 1024, 64);
+    bc.fillStyle = '#10161f';
+    bc.fillRect(0, 0, 1024, 64);
     bc.font = 'bold 34px Arial';
     bc.textBaseline = 'middle';
     let bx = 20;
@@ -119,8 +138,10 @@ export class Arena {
     key.castShadow = true;
     const shadowRes = this.lowSpec ? 1024 : 2048;
     key.shadow.mapSize.set(shadowRes, shadowRes);
-    key.shadow.camera.left = -16; key.shadow.camera.right = 16;
-    key.shadow.camera.top = 16; key.shadow.camera.bottom = -16;
+    key.shadow.camera.left = -16;
+    key.shadow.camera.right = 16;
+    key.shadow.camera.top = 16;
+    key.shadow.camera.bottom = -16;
     key.shadow.camera.far = 60;
     key.shadow.bias = -0.0005;
     this.group.add(key);
@@ -149,7 +170,8 @@ export class Arena {
   // Placar 3D suspenso no centro — atualizado via canvas
   private buildScoreboard(): void {
     this.scoreCanvas = document.createElement('canvas');
-    this.scoreCanvas.width = 512; this.scoreCanvas.height = 256;
+    this.scoreCanvas.width = 512;
+    this.scoreCanvas.height = 256;
     this.scoreTex = new THREE.CanvasTexture(this.scoreCanvas);
     this.updateScoreboard(0, 0, 0, 0, 1);
 
@@ -200,11 +222,12 @@ export class Arena {
   private buildAmbience(): void {
     // tapetes de proteção coloridos nos cantos da zona livre (detalhe visual)
     const matA = new THREE.MeshStandardMaterial({ color: 0x24506b, roughness: 0.95 });
-    for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
-      const pad = new THREE.Mesh(new THREE.PlaneGeometry(4, 4), matA);
-      pad.rotation.x = -Math.PI / 2;
-      pad.position.set(sx * (COURT.halfLength + 3.4), 0.001, sz * (COURT.halfWidth + 3.2));
-      this.group.add(pad);
-    }
+    for (const sx of [-1, 1])
+      for (const sz of [-1, 1]) {
+        const pad = new THREE.Mesh(new THREE.PlaneGeometry(4, 4), matA);
+        pad.rotation.x = -Math.PI / 2;
+        pad.position.set(sx * (COURT.halfLength + 3.4), 0.001, sz * (COURT.halfWidth + 3.2));
+        this.group.add(pad);
+      }
   }
 }

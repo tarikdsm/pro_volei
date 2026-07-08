@@ -30,8 +30,9 @@ export class Crowd {
       for (let r = 0; r < s.rows; r++) {
         for (let c = 0; c < s.cols; c++) {
           if (Math.random() < emptySeatChance) continue; // assentos vazios
-          const t = (c / (s.cols - 1) - 0.5);
-          const pos = s.origin.clone()
+          const t = c / (s.cols - 1) - 0.5;
+          const pos = s.origin
+            .clone()
             .addScaledVector(s.right, t * s.cols * 0.75)
             .add(new THREE.Vector3(s.up.x * r, s.up.y * r + 0.55, s.up.z * r));
           pos.x += (Math.random() - 0.5) * 0.18;
@@ -62,13 +63,18 @@ export class Crowd {
       this.phase[i] = Math.random() * Math.PI * 2;
       this.sectionAngle[i] = s.angle;
       this.dummy.position.copy(s.pos);
-      this.dummy.rotation.y = Math.atan2(-s.pos.z, -s.pos.x) + Math.PI / 2 + (Math.random() - 0.5) * 0.4;
+      this.dummy.rotation.y =
+        Math.atan2(-s.pos.z, -s.pos.x) + Math.PI / 2 + (Math.random() - 0.5) * 0.4;
       const sc = 0.9 + Math.random() * 0.25;
       this.dummy.scale.set(sc, sc, sc);
       this.dummy.updateMatrix();
       this.mesh.setMatrixAt(i, this.dummy.matrix);
       // mistura cor de camisa (corpo domina visualmente)
-      color.setHex(Math.random() < 0.75 ? shirt[Math.floor(Math.random() * shirt.length)] : palette[Math.floor(Math.random() * palette.length)]);
+      color.setHex(
+        Math.random() < 0.75
+          ? shirt[Math.floor(Math.random() * shirt.length)]
+          : palette[Math.floor(Math.random() * palette.length)],
+      );
       this.mesh.setColorAt(i, color);
     }
     this.mesh.instanceColor!.needsUpdate = true;
@@ -80,7 +86,10 @@ export class Crowd {
   }
 
   startWave(): void {
-    if (!this.waveActive) { this.waveActive = true; this.wavePos = -Math.PI; }
+    if (!this.waveActive) {
+      this.waveActive = true;
+      this.wavePos = -Math.PI;
+    }
   }
 
   update(dt: number): void {
@@ -103,7 +112,9 @@ export class Crowd {
     const t = this.time;
 
     for (let i = 0; i < this.count; i++) {
-      const bx = this.basePos[i * 3], by = this.basePos[i * 3 + 1], bz = this.basePos[i * 3 + 2];
+      const bx = this.basePos[i * 3],
+        by = this.basePos[i * 3 + 1],
+        bz = this.basePos[i * 3 + 2];
       let bounce = Math.max(0, Math.sin(t * freq + this.phase[i])) * amp;
       if (this.waveActive) {
         const d = Math.abs(angDiff(this.sectionAngle[i], this.wavePos));

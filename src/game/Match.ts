@@ -9,14 +9,37 @@ import { Crowd } from '../world/Crowd';
 import { Referee } from '../world/Referee';
 import { Arena } from '../world/Arena';
 import {
-  COURT, CONTACT, PLAYER, GRAVITY, BALL_RADIUS,
-  TeamSide, otherSide, sideSign, Difficulty, DIFFICULTIES,
-  ATTACK_ZONES, SERVE_SPOT, MATCH_FORMATS, TouchKind,
+  COURT,
+  CONTACT,
+  PLAYER,
+  GRAVITY,
+  BALL_RADIUS,
+  TeamSide,
+  otherSide,
+  sideSign,
+  Difficulty,
+  DIFFICULTIES,
+  ATTACK_ZONES,
+  SERVE_SPOT,
+  MATCH_FORMATS,
+  TouchKind,
 } from '../core/constants';
-import { ballisticArc, ballisticDrive, serveDrive, clamp, lerp, rand, chance, randPick } from '../core/math3d';
+import {
+  ballisticArc,
+  ballisticDrive,
+  serveDrive,
+  clamp,
+  lerp,
+  rand,
+  chance,
+  randPick,
+} from '../core/math3d';
 
 export interface MatchStats {
-  aces: number; blocks: number; longestRally: number; points: [number, number];
+  aces: number;
+  blocks: number;
+  longestRally: number;
+  points: [number, number];
 }
 
 export interface Hooks {
@@ -41,17 +64,21 @@ type CtlMode = 'none' | 'serve' | 'receive' | 'attack' | 'block';
 interface TouchPlan {
   side: TeamSide;
   athlete: Athlete;
-  contactIn: number;       // segundos até o contato ideal
-  point: THREE.Vector3;    // onde a bola estará no contato
-  kind: TouchKind;         // o que este toque deve ser
+  contactIn: number; // segundos até o contato ideal
+  point: THREE.Vector3; // onde a bola estará no contato
+  kind: TouchKind; // o que este toque deve ser
   isHuman: boolean;
   jumpScheduledIn?: number; // p/ ataque IA
   done: boolean;
 }
 
-interface PendingEvent { t: number; fn: () => void }
+interface PendingEvent {
+  t: number;
+  fn: () => void;
+}
 
-const PERFECT_LO = 0.72, PERFECT_HI = 0.92;
+const PERFECT_LO = 0.72,
+  PERFECT_HI = 0.92;
 
 export class Match {
   group = new THREE.Group();
@@ -89,10 +116,10 @@ export class Match {
   private servePower = 0;
   private serveDir = 1;
   private aim = new THREE.Vector3(5.5, 0, 0);
-  private timingQ = -1;          // qualidade do aperto de ESPAÇO na recepção
-  private jumpQ = -1;            // qualidade do timing do pulo no ataque
-  private chosenZone = 0;        // 0 esq, 1 centro, 2 dir
-  private marker: THREE.Mesh;    // anel sob o jogador controlado
+  private timingQ = -1; // qualidade do aperto de ESPAÇO na recepção
+  private jumpQ = -1; // qualidade do timing do pulo no ataque
+  private chosenZone = 0; // 0 esq, 1 centro, 2 dir
+  private marker: THREE.Mesh; // anel sob o jogador controlado
 
   private stats: MatchStats = { aces: 0, blocks: 0, longestRally: 0, points: [0, 0] };
   private setterHold: Athlete | null = null;
@@ -101,7 +128,13 @@ export class Match {
     this.group.add(this.ball.group, this.home.group, this.away.group);
     this.marker = new THREE.Mesh(
       new THREE.RingGeometry(0.42, 0.55, 24),
-      new THREE.MeshBasicMaterial({ color: 0x40ff9f, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false }),
+      new THREE.MeshBasicMaterial({
+        color: 0x40ff9f,
+        transparent: true,
+        opacity: 0.9,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      }),
     );
     this.marker.rotation.x = -Math.PI / 2;
     this.marker.visible = false;
@@ -144,10 +177,12 @@ export class Match {
 
     const team = this.teamOf(this.servingTeam);
     const server = team.server();
-    const spot = this.servingTeam === TeamSide.HOME
-      ? SERVE_SPOT : { x: -SERVE_SPOT.x, z: -SERVE_SPOT.z };
+    const spot =
+      this.servingTeam === TeamSide.HOME ? SERVE_SPOT : { x: -SERVE_SPOT.x, z: -SERVE_SPOT.z };
     server.warpTo(spot.x, spot.z);
-    this.ball.hold(new THREE.Vector3(spot.x + sideSign(otherSide(this.servingTeam)) * 0.25, 1.15, spot.z));
+    this.ball.hold(
+      new THREE.Vector3(spot.x + sideSign(otherSide(this.servingTeam)) * 0.25, 1.15, spot.z),
+    );
 
     this.hooks.camera.servePos.set(spot.x, 1.6, spot.z);
     const humanServes = this.servingTeam === TeamSide.HOME;
@@ -160,7 +195,9 @@ export class Match {
       this.servePower = 0;
       this.serveCharging = false;
       this.aim.set(rand(4, 6.5), 0, rand(-2, 2));
-      this.hooks.hint('SEGURE ESPAÇO para carregar o saque — solte na zona verde · WASD ajusta a mira');
+      this.hooks.hint(
+        'SEGURE ESPAÇO para carregar o saque — solte na zona verde · WASD ajusta a mira',
+      );
       this.hooks.serveMeter(true, 0);
     } else {
       this.ctl = 'none';
@@ -183,7 +220,7 @@ export class Match {
         target = new THREE.Vector3(s * rand(9.6, 11), 0, rand(-4, 4)); // fora, longa
         clearance = rand(0.3, 0.8);
       } else {
-        target = new THREE.Vector3(s * rand(3.5, 7), 0, rand(-3, 3));  // na rede
+        target = new THREE.Vector3(s * rand(3.5, 7), 0, rand(-3, 3)); // na rede
         clearance = -rand(0.18, 0.5);
       }
     } else {
@@ -193,7 +230,12 @@ export class Match {
     this.performServe(server, power, target, clearance);
   }
 
-  private performServe(server: Athlete, power: number, target: THREE.Vector3, clearance: number): void {
+  private performServe(
+    server: Athlete,
+    power: number,
+    target: THREE.Vector3,
+    clearance: number,
+  ): void {
     this.hooks.serveMeter(false);
     this.hooks.effects.showAim(null);
     server.act('serveToss', 0.5);
@@ -230,7 +272,8 @@ export class Match {
     // bola indo para o time que já usou 3 toques (e não pode mais) → ninguém joga, deixa cair
     if (this.possessionTeam === landSide && this.possessionTouches >= 3) return;
 
-    const contactH = nextKind === 'set' ? CONTACT.set : nextKind === 'spike' ? CONTACT.spike : CONTACT.pass;
+    const contactH =
+      nextKind === 'set' ? CONTACT.set : nextKind === 'spike' ? CONTACT.spike : CONTACT.pass;
     let cT = this.ball.timeToDescend(contactH);
     const cPoint = new THREE.Vector3();
     if (cT < 0.05 || cT > landing.time) {
@@ -244,14 +287,21 @@ export class Match {
       const sp = team.setterSpot();
       athlete = this.setterHold ?? team.nearestTo(sp.x, sp.z, this.lastToucher ?? undefined);
     } else if (nextKind === 'spike') {
-      athlete = this.plannedAttacker ?? team.nearestFrontRowTo(cPoint.z, this.lastToucher ?? undefined);
+      athlete =
+        this.plannedAttacker ?? team.nearestFrontRowTo(cPoint.z, this.lastToucher ?? undefined);
     } else {
       athlete = team.nearestTo(cPoint.x, cPoint.z);
     }
 
     const isHuman = landSide === TeamSide.HOME;
     this.plan = {
-      side: landSide, athlete, contactIn: cT, point: cPoint, kind: nextKind, isHuman, done: false,
+      side: landSide,
+      athlete,
+      contactIn: cT,
+      point: cPoint,
+      kind: nextKind,
+      isHuman,
+      done: false,
     };
 
     // IA (ou aproximação automática p/ humano): manda o atleta para o ponto de contato
@@ -300,7 +350,10 @@ export class Match {
       this.controlled = blocker;
       this.hooks.hint('BLOQUEIO: A/D desliza na rede · ESPAÇO pula!');
     } else if (this.plan.side === TeamSide.AWAY) {
-      if (this.ctl !== 'block') { this.ctl = 'none'; this.controlled = null; }
+      if (this.ctl !== 'block') {
+        this.ctl = 'none';
+        this.controlled = null;
+      }
       this.hooks.effects.showLanding(null);
     }
   }
@@ -317,7 +370,11 @@ export class Match {
     if (t <= 0.005) return;
     const y = pos.y + vel.y * t + 0.5 * GRAVITY * t * t;
     const z = pos.z + vel.z * t;
-    if (y > BALL_RADIUS && y < COURT.netHeight + BALL_RADIUS * 0.4 && Math.abs(z) < COURT.halfWidth + 0.5) {
+    if (
+      y > BALL_RADIUS &&
+      y < COURT.netHeight + BALL_RADIUS * 0.4 &&
+      Math.abs(z) < COURT.halfWidth + 0.5
+    ) {
       this.netEventIn = t;
     } else {
       this.crossIn = t;
@@ -360,10 +417,19 @@ export class Match {
     this.lastKind = kind;
 
     switch (kind) {
-      case 'pass': case 'dig': case 'freeball': this.doPass(plan, quality); break;
-      case 'set': this.doSet(plan, quality); break;
-      case 'spike': this.doSpike(plan, quality); break;
-      default: this.doPass(plan, quality);
+      case 'pass':
+      case 'dig':
+      case 'freeball':
+        this.doPass(plan, quality);
+        break;
+      case 'set':
+        this.doSet(plan, quality);
+        break;
+      case 'spike':
+        this.doSpike(plan, quality);
+        break;
+      default:
+        this.doPass(plan, quality);
     }
   }
 
@@ -386,7 +452,11 @@ export class Match {
     } else {
       const noise = (1 - q) * 2.6;
       target = new THREE.Vector3(
-        clamp(sp.x + rand(-noise, noise), side === TeamSide.HOME ? -8.5 : 0.6, side === TeamSide.HOME ? -0.6 : 8.5),
+        clamp(
+          sp.x + rand(-noise, noise),
+          side === TeamSide.HOME ? -8.5 : 0.6,
+          side === TeamSide.HOME ? -0.6 : 8.5,
+        ),
         CONTACT.set,
         clamp(sp.z + rand(-noise, noise), -4, 4),
       );
@@ -395,7 +465,10 @@ export class Match {
     this.ball.launch(this.ball.pos.clone(), v0);
 
     // se o time já gastou os 3 toques, esta bola precisa ter ido para o outro lado — senão cai
-    if (this.possessionTouches >= 3) { this.planNext('pass'); return; }
+    if (this.possessionTouches >= 3) {
+      this.planNext('pass');
+      return;
+    }
 
     // designa levantador para o próximo toque
     this.setterHold = team.nearestTo(sp.x, sp.z, athlete);
@@ -450,8 +523,8 @@ export class Match {
 
     if (isAI && chance(this.diff.attackError)) {
       target = chance(0.5)
-        ? new THREE.Vector3(s * rand(9.5, 11.5), 0, rand(-5, 5))     // pra fora
-        : new THREE.Vector3(s * 0.3, 1.0, rand(-3, 3));               // na rede
+        ? new THREE.Vector3(s * rand(9.5, 11.5), 0, rand(-5, 5)) // pra fora
+        : new THREE.Vector3(s * 0.3, 1.0, rand(-3, 3)); // na rede
     } else if (isAI) {
       const spots = [
         new THREE.Vector3(s * rand(6.5, 8.5), 0, rand(-3.8, -2.2)),
@@ -463,11 +536,7 @@ export class Match {
     } else {
       // humano: mira + erro pela qualidade do pulo
       const err = (1 - q) * 2.4;
-      target = new THREE.Vector3(
-        this.aim.x + rand(-err, err),
-        0,
-        this.aim.z + rand(-err, err),
-      );
+      target = new THREE.Vector3(this.aim.x + rand(-err, err), 0, this.aim.z + rand(-err, err));
     }
 
     const dist = Math.hypot(target.x - this.ball.pos.x, target.z - this.ball.pos.z);
@@ -524,7 +593,11 @@ export class Match {
 
         if (r < prox * 0.5) {
           // STUFF: devolve no chão do atacante
-          const tgt = new THREE.Vector3(sideSign(attackSide) * rand(1, 3.5), 0, bp.z + rand(-1.5, 1.5));
+          const tgt = new THREE.Vector3(
+            sideSign(attackSide) * rand(1, 3.5),
+            0,
+            bp.z + rand(-1.5, 1.5),
+          );
           const { v0 } = ballisticDrive(bp, tgt, 0.32);
           this.ball.launch(bp, v0);
           if (defSide === TeamSide.HOME) this.stats.blocks++;
@@ -535,7 +608,9 @@ export class Match {
         } else if (r < prox * 0.95) {
           // pingo: bola sobe devagar e continua no lado defensor — jogável
           const v = this.ball.vel.clone();
-          v.x *= 0.25; v.z *= 0.4; v.y = Math.abs(v.y) * 0.3 + 3.2;
+          v.x *= 0.25;
+          v.z *= 0.4;
+          v.y = Math.abs(v.y) * 0.3 + 3.2;
           this.ball.launch(bp, v);
           // toque de bloqueio não conta: posse continua limpa p/ defesa
           this.possessionTeam = null;
@@ -544,7 +619,9 @@ export class Match {
         } else {
           // explode no bloqueio pra fora (ponto do atacante)
           const v = this.ball.vel.clone();
-          v.x *= -0.3; v.y = 2; v.z = rand(-6, 6);
+          v.x *= -0.3;
+          v.y = 2;
+          v.z = rand(-6, 6);
           this.ball.launch(bp, v);
           this.planNext('pass');
         }
@@ -557,8 +634,9 @@ export class Match {
   private resolvePoint(): void {
     const landing = this.ball.pos;
     const landSide: TeamSide = landing.x < 0 ? TeamSide.HOME : TeamSide.AWAY;
-    const inCourt = Math.abs(landing.x) <= COURT.halfLength + BALL_RADIUS
-      && Math.abs(landing.z) <= COURT.halfWidth + BALL_RADIUS;
+    const inCourt =
+      Math.abs(landing.x) <= COURT.halfLength + BALL_RADIUS &&
+      Math.abs(landing.z) <= COURT.halfWidth + BALL_RADIUS;
 
     let winner: TeamSide;
     let reason: string;
@@ -566,7 +644,8 @@ export class Match {
       winner = otherSide(landSide);
       reason = landSide === TeamSide.HOME ? 'Bola no seu chão' : 'Bola no chão deles!';
     } else {
-      winner = this.lastTouchTeam !== null ? otherSide(this.lastTouchTeam) : otherSide(this.servingTeam);
+      winner =
+        this.lastTouchTeam !== null ? otherSide(this.lastTouchTeam) : otherSide(this.servingTeam);
       reason = 'Bola fora';
     }
     this.awardPoint(winner, reason);
@@ -586,15 +665,18 @@ export class Match {
     this.hooks.serveMeter(false);
     this.hooks.zoneHint(null);
 
-    const isAce = this.lastKind === 'serve' && winner === this.servingTeam && this.rallyTouches === 0;
+    const isAce =
+      this.lastKind === 'serve' && winner === this.servingTeam && this.rallyTouches === 0;
     this.score[winner]++;
     this.stats.points[winner]++;
     this.stats.longestRally = Math.max(this.stats.longestRally, this.rallyTouches);
 
     // banners com personalidade
     let text = winner === TeamSide.HOME ? 'PONTO SEU!' : 'PONTO DO CPU';
-    if (isAce) { text = winner === TeamSide.HOME ? '🔥 ACE!' : 'ACE DO CPU'; if (winner === TeamSide.HOME) this.stats.aces++; }
-    else if (this.rallyTouches >= 8) text = `QUE RALLY! ${this.rallyTouches} toques`;
+    if (isAce) {
+      text = winner === TeamSide.HOME ? '🔥 ACE!' : 'ACE DO CPU';
+      if (winner === TeamSide.HOME) this.stats.aces++;
+    } else if (this.rallyTouches >= 8) text = `QUE RALLY! ${this.rallyTouches} toques`;
     this.hooks.banner(text, reason);
 
     this.hooks.audio.whistleLong();
@@ -629,7 +711,9 @@ export class Match {
       const leader = h > a ? TeamSide.HOME : a > h ? TeamSide.AWAY : null;
       const lead = Math.max(h, a);
       if (leader !== null && lead >= target - 1) {
-        this.after(1.4, () => this.hooks.banner(leader === TeamSide.HOME ? 'SET POINT — VOCÊ!' : 'SET POINT — CPU', ''));
+        this.after(1.4, () =>
+          this.hooks.banner(leader === TeamSide.HOME ? 'SET POINT — VOCÊ!' : 'SET POINT — CPU', ''),
+        );
       }
     }
   }
@@ -647,7 +731,7 @@ export class Match {
     const needed = Math.ceil(this.format.sets / 2);
     const matchOver = this.sets[winner] >= needed;
     this.hooks.banner(
-      matchOver ? '' : (winner === TeamSide.HOME ? 'SET SEU! 🏐' : 'SET DO CPU'),
+      matchOver ? '' : winner === TeamSide.HOME ? 'SET SEU! 🏐' : 'SET DO CPU',
       matchOver ? '' : `Sets ${this.sets[0]} × ${this.sets[1]}`,
     );
     this.pushScore();
@@ -668,8 +752,21 @@ export class Match {
   }
 
   private pushScore(): void {
-    this.hooks.setScore(this.score[0], this.score[1], this.sets[0], this.sets[1], this.setNumber, this.servingTeam);
-    this.hooks.arena.updateScoreboard(this.score[0], this.score[1], this.sets[0], this.sets[1], this.setNumber);
+    this.hooks.setScore(
+      this.score[0],
+      this.score[1],
+      this.sets[0],
+      this.sets[1],
+      this.setNumber,
+      this.servingTeam,
+    );
+    this.hooks.arena.updateScoreboard(
+      this.score[0],
+      this.score[1],
+      this.sets[0],
+      this.sets[1],
+      this.setNumber,
+    );
   }
 
   // ---------------------------------------------------------------- UPDATE
@@ -727,7 +824,12 @@ export class Match {
     }
 
     // bola no chão durante rally
-    if (this.state === 'rally' && this.ball.inFlight && this.ball.pos.y <= BALL_RADIUS + 0.005 && this.ball.vel.y < 0) {
+    if (
+      this.state === 'rally' &&
+      this.ball.inFlight &&
+      this.ball.pos.y <= BALL_RADIUS + 0.005 &&
+      this.ball.vel.y < 0
+    ) {
       this.hooks.audio.bounce();
       this.hooks.effects.burst(this.ball.pos, 0xd8b06a, 14, 3);
       this.hooks.camera.addShake(0.25);
@@ -741,7 +843,13 @@ export class Match {
     this.away.update(dt, PLAYER.aiSpeed * this.diff.moveSpeed);
 
     // anel do jogador controlado
-    if (this.controlled && (this.ctl === 'receive' || this.ctl === 'attack' || this.ctl === 'block' || this.ctl === 'serve')) {
+    if (
+      this.controlled &&
+      (this.ctl === 'receive' ||
+        this.ctl === 'attack' ||
+        this.ctl === 'block' ||
+        this.ctl === 'serve')
+    ) {
       this.marker.visible = true;
       this.marker.position.set(this.controlled.pos.x, 0.02, this.controlled.pos.z);
     } else {
@@ -770,7 +878,7 @@ export class Match {
 
     const isHuman = plan.isHuman;
     if (d <= CONTACT.reach) {
-      let q = -1;
+      let q: number;
       if (isHuman) {
         if (this.timingQ >= 0) {
           // apertou no tempo: defende, qualidade cai um pouco contra bola forte
@@ -834,8 +942,10 @@ export class Match {
       const { v0 } = ballisticArc(this.ball.pos.clone(), target, 3.2);
       this.ball.launch(this.ball.pos.clone(), v0);
       // conta o toque
-      if (this.possessionTeam !== plan.side) { this.possessionTeam = plan.side; this.possessionTouches = 1; }
-      else this.possessionTouches++;
+      if (this.possessionTeam !== plan.side) {
+        this.possessionTeam = plan.side;
+        this.possessionTouches = 1;
+      } else this.possessionTouches++;
       this.lastTouchTeam = plan.side;
       this.lastKind = 'freeball';
       this.lastToucher = a;
@@ -885,8 +995,14 @@ export class Match {
       }
       if (this.serveCharging) {
         this.servePower += this.serveDir * dt * 1.05;
-        if (this.servePower >= 1) { this.servePower = 1; this.serveDir = -1; }
-        if (this.servePower <= 0) { this.servePower = 0; this.serveDir = 1; }
+        if (this.servePower >= 1) {
+          this.servePower = 1;
+          this.serveDir = -1;
+        }
+        if (this.servePower <= 0) {
+          this.servePower = 0;
+          this.serveDir = 1;
+        }
         this.hooks.serveMeter(true, this.servePower);
         if (input.wasReleased('Space')) {
           this.serveCharging = false;
@@ -927,16 +1043,39 @@ export class Match {
         this.timingQ = clamp(1 - Math.abs(this.plan.contactIn - 0.08) * 3.2, 0, 1);
       }
       // escolha de zona já durante a recepção
-      if (input.wasPressed('KeyA')) { this.chosenZone = 0; this.hooks.zoneHint(0); }
-      if (input.wasPressed('KeyW')) { this.chosenZone = 1; this.hooks.zoneHint(1); }
-      if (input.wasPressed('KeyD')) { this.chosenZone = 2; this.hooks.zoneHint(2); }
+      if (input.wasPressed('KeyA')) {
+        this.chosenZone = 0;
+        this.hooks.zoneHint(0);
+      }
+      if (input.wasPressed('KeyW')) {
+        this.chosenZone = 1;
+        this.hooks.zoneHint(1);
+      }
+      if (input.wasPressed('KeyD')) {
+        this.chosenZone = 2;
+        this.hooks.zoneHint(2);
+      }
     }
 
-    if (this.ctl === 'none' && this.plan && this.plan.kind === 'set' && this.plan.side === TeamSide.HOME) {
+    if (
+      this.ctl === 'none' &&
+      this.plan &&
+      this.plan.kind === 'set' &&
+      this.plan.side === TeamSide.HOME
+    ) {
       // durante o voo até o levantador
-      if (input.wasPressed('KeyA')) { this.chosenZone = 0; this.hooks.zoneHint(0); }
-      if (input.wasPressed('KeyW')) { this.chosenZone = 1; this.hooks.zoneHint(1); }
-      if (input.wasPressed('KeyD')) { this.chosenZone = 2; this.hooks.zoneHint(2); }
+      if (input.wasPressed('KeyA')) {
+        this.chosenZone = 0;
+        this.hooks.zoneHint(0);
+      }
+      if (input.wasPressed('KeyW')) {
+        this.chosenZone = 1;
+        this.hooks.zoneHint(1);
+      }
+      if (input.wasPressed('KeyD')) {
+        this.chosenZone = 2;
+        this.hooks.zoneHint(2);
+      }
     }
 
     if (this.ctl === 'attack' && this.controlled && this.plan && !this.plan.done) {

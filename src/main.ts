@@ -16,9 +16,10 @@ import { TouchControls } from './ui/TouchControls';
 const app = document.getElementById('app')!;
 
 // dispositivo de toque? (celular/tablet) — ?touch=1 força para testes no desktop
-const isTouch = matchMedia('(pointer: coarse)').matches
-  || 'ontouchstart' in window
-  || new URLSearchParams(location.search).has('touch');
+const isTouch =
+  matchMedia('(pointer: coarse)').matches ||
+  'ontouchstart' in window ||
+  new URLSearchParams(location.search).has('touch');
 if (isTouch) document.body.classList.add('touch');
 
 // ---------- renderer ----------
@@ -79,7 +80,12 @@ const match = new Match({
     touch?.show(false);
     menu.showVictory(homeWon, stats, scoreline);
   },
-  audio, effects, camera: director, crowd, referee, arena,
+  audio,
+  effects,
+  camera: director,
+  crowd,
+  referee,
+  arena,
 });
 scene.add(match.group);
 

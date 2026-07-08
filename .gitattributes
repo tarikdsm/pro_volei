@@ -1,0 +1,13 @@
+# Normaliza quebras de linha: LF no repo, evita ruído CRLF entre Mac e Windows.
+* text=auto eol=lf
+
+# Binários: nunca aplicar conversão de fim de linha
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.mp3 binary
+*.wav binary

@@ -1,0 +1,6 @@
+dist
+coverage
+node_modules
+package-lock.json
+# docs em Markdown têm tabelas/alinhamento feitos à mão — não reflowar
+*.md

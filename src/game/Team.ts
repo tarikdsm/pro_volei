@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { PlayerCharacter, CharAction, CharLook } from '../entities/PlayerCharacter';
-import { BASE_SLOTS, COLORS, PLAYER, TeamSide, sideSign, SETTER_SPOT } from '../core/constants';
+import { BASE_SLOTS, COLORS, PLAYER, TeamSide, SETTER_SPOT } from '../core/constants';
 
 const GRAV = -22; // gravidade do pulo dos atletas (mais pesada = pulos secos)
 
@@ -26,7 +26,9 @@ export class Athlete {
     this.char = new PlayerCharacter(look);
   }
 
-  get isAirborne(): boolean { return this.airborne; }
+  get isAirborne(): boolean {
+    return this.airborne;
+  }
 
   moveTo(x: number, z: number): void {
     this.target.set(x, 0, z);
@@ -64,7 +66,7 @@ export class Athlete {
       delta.normalize();
       this.pos.addScaledVector(delta, step);
       moving = step > 0.5 * dt;
-      if (!this.faceNet) this.facing = Math.atan2(delta.x, delta.z) ;
+      if (!this.faceNet) this.facing = Math.atan2(delta.x, delta.z);
       this.char.moveSpeed = speed;
     } else {
       this.char.moveSpeed = 0;
@@ -116,10 +118,12 @@ export class Team {
     const hairs = [0x2b1b12, 0x101010, 0x4e342e, 0x6d4c41, 0x1a1a1a, 0x3e2723];
     // elenco do time humano: Elisa, Heloisa e Isabela + 3 genéricos
     const roster: Partial<CharLook>[] = [
-      { name: 'ELISA', hair: 0xa87848, hairstyle: 'ponytail', female: true, skin: 0xe8b98a },   // castanho claro
-      { name: 'HELOISA', hair: 0x121212, hairstyle: 'long', female: true, skin: 0xd6a77a },     // preto liso
+      { name: 'ELISA', hair: 0xa87848, hairstyle: 'ponytail', female: true, skin: 0xe8b98a }, // castanho claro
+      { name: 'HELOISA', hair: 0x121212, hairstyle: 'long', female: true, skin: 0xd6a77a }, // preto liso
       { name: 'ISABELA', hair: 0xe8c66b, hairstyle: 'ponytail', female: true, skin: 0xf1c9a0 }, // loira
-      {}, {}, {},
+      {},
+      {},
+      {},
     ];
     for (let i = 0; i < 6; i++) {
       const custom = side === TeamSide.HOME ? roster[i] : {};
@@ -141,7 +145,6 @@ export class Team {
   /** posição-base do slot de rodízio i, no referencial mundial deste time */
   slotPos(i: number): { x: number; z: number } {
     const s = BASE_SLOTS[i];
-    const m = sideSign(this.side) === -1 ? 1 : -1;
     // HOME usa como está; AWAY é reflexão pelo centro (x,z → -x,-z)
     return this.side === TeamSide.HOME ? { x: s.x, z: s.z } : { x: -s.x, z: -s.z };
   }
@@ -158,14 +161,24 @@ export class Team {
     for (let i = 0; i < 6; i++) this.slots[i] = old[(i + 5) % 6];
   }
 
-  server(): Athlete { return this.athletes[this.slots[0]]; }
+  server(): Athlete {
+    return this.athletes[this.slots[0]];
+  }
 
   frontRow(): Athlete[] {
-    return [this.athletes[this.slots[3]], this.athletes[this.slots[4]], this.athletes[this.slots[5]]];
+    return [
+      this.athletes[this.slots[3]],
+      this.athletes[this.slots[4]],
+      this.athletes[this.slots[5]],
+    ];
   }
 
   backRow(): Athlete[] {
-    return [this.athletes[this.slots[0]], this.athletes[this.slots[1]], this.athletes[this.slots[2]]];
+    return [
+      this.athletes[this.slots[0]],
+      this.athletes[this.slots[1]],
+      this.athletes[this.slots[2]],
+    ];
   }
 
   /** manda todos para as posições-base (rodízio atual) */
@@ -184,7 +197,10 @@ export class Team {
     for (const a of this.athletes) {
       if (a === exclude) continue;
       const d = (a.pos.x - x) ** 2 + (a.pos.z - z) ** 2;
-      if (d < bestD) { bestD = d; best = a; }
+      if (d < bestD) {
+        bestD = d;
+        best = a;
+      }
     }
     return best;
   }
@@ -195,7 +211,10 @@ export class Team {
     for (const a of this.frontRow()) {
       if (a === exclude) continue;
       const d = Math.abs(a.pos.z - z);
-      if (d < bestD) { bestD = d; best = a; }
+      if (d < bestD) {
+        bestD = d;
+        best = a;
+      }
     }
     return best ?? this.frontRow()[0];
   }

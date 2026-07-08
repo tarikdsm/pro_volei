@@ -22,19 +22,29 @@ export class Input {
     window.addEventListener('blur', () => this.down.clear());
   }
 
-  isDown(key: string): boolean { return this.down.has(key); }
-  wasPressed(key: string): boolean { return this.pressed.has(key); }
-  wasReleased(key: string): boolean { return this.released.has(key); }
+  isDown(key: string): boolean {
+    return this.down.has(key);
+  }
+  wasPressed(key: string): boolean {
+    return this.pressed.has(key);
+  }
+  wasReleased(key: string): boolean {
+    return this.released.has(key);
+  }
 
   // Vetor de movimento WASD/setas: x = frente(+)/trás(-) em direção à rede p/ HOME, z = direita/esquerda
   moveAxis(): { x: number; z: number } {
-    let x = 0, z = 0;
+    let x = 0,
+      z = 0;
     if (this.isDown('KeyW') || this.isDown('ArrowUp')) x += 1;
     if (this.isDown('KeyS') || this.isDown('ArrowDown')) x -= 1;
     if (this.isDown('KeyD') || this.isDown('ArrowRight')) z += 1;
     if (this.isDown('KeyA') || this.isDown('ArrowLeft')) z -= 1;
     const len = Math.hypot(x, z);
-    if (len > 1) { x /= len; z /= len; }
+    if (len > 1) {
+      x /= len;
+      z /= len;
+    }
     return { x, z };
   }
 

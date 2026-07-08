@@ -12,7 +12,10 @@ export class HUD {
   private zonesEl!: HTMLElement;
   private bannerTimer = 0;
 
-  constructor(parent: HTMLElement, private touchMode = false) {
+  constructor(
+    parent: HTMLElement,
+    private touchMode = false,
+  ) {
     this.root = document.createElement('div');
     this.root.id = 'hud';
     this.root.innerHTML = `
@@ -60,15 +63,20 @@ export class HUD {
   setScore(h: number, a: number, hs: number, as: number, setNum: number, serving: TeamSide): void {
     this.scoreEl.textContent = `${h} : ${a}`;
     this.root.querySelector('#score-sets')!.textContent = `Set ${setNum} · ${hs} — ${as}`;
-    (this.root.querySelector('#serve-home') as HTMLElement).style.opacity = serving === TeamSide.HOME ? '1' : '0.12';
-    (this.root.querySelector('#serve-away') as HTMLElement).style.opacity = serving === TeamSide.AWAY ? '1' : '0.12';
+    (this.root.querySelector('#serve-home') as HTMLElement).style.opacity =
+      serving === TeamSide.HOME ? '1' : '0.12';
+    (this.root.querySelector('#serve-away') as HTMLElement).style.opacity =
+      serving === TeamSide.AWAY ? '1' : '0.12';
     this.scoreEl.classList.remove('pop');
     void (this.scoreEl as HTMLElement).offsetWidth;
     this.scoreEl.classList.add('pop');
   }
 
   banner(text: string, sub = ''): void {
-    if (!text && !sub) { this.bannerEl.parentElement!.classList.remove('show'); return; }
+    if (!text && !sub) {
+      this.bannerEl.parentElement!.classList.remove('show');
+      return;
+    }
     this.bannerEl.textContent = text;
     this.bannerSub.textContent = sub;
     const el = this.bannerEl.parentElement!;
@@ -104,7 +112,9 @@ export class HUD {
       const inPerfect = value >= 0.72 && value <= 0.92;
       this.meterFill.style.background = inPerfect
         ? 'linear-gradient(90deg,#43e97b,#38f9d7)'
-        : value > 0.92 ? 'linear-gradient(90deg,#f5576c,#f093fb)' : 'linear-gradient(90deg,#4facfe,#00f2fe)';
+        : value > 0.92
+          ? 'linear-gradient(90deg,#f5576c,#f093fb)'
+          : 'linear-gradient(90deg,#4facfe,#00f2fe)';
     }
   }
 

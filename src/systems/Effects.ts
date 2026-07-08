@@ -21,16 +21,29 @@ export class Effects {
     this.poolCol = new THREE.BufferAttribute(new Float32Array(this.MAX * 3), 3);
     geo.setAttribute('position', this.poolPos);
     geo.setAttribute('color', this.poolCol);
-    this.pool = new THREE.Points(geo, new THREE.PointsMaterial({
-      size: 0.09, vertexColors: true, transparent: true, opacity: 0.95,
-      blending: THREE.AdditiveBlending, depthWrite: false,
-    }));
+    this.pool = new THREE.Points(
+      geo,
+      new THREE.PointsMaterial({
+        size: 0.09,
+        vertexColors: true,
+        transparent: true,
+        opacity: 0.95,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      }),
+    );
     this.pool.frustumCulled = false;
     this.group.add(this.pool);
 
     this.landingRing = new THREE.Mesh(
       new THREE.RingGeometry(0.32, 0.42, 28),
-      new THREE.MeshBasicMaterial({ color: 0xffe14f, transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false }),
+      new THREE.MeshBasicMaterial({
+        color: 0xffe14f,
+        transparent: true,
+        opacity: 0.85,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      }),
     );
     this.landingRing.rotation.x = -Math.PI / 2;
     this.landingRing.visible = false;
@@ -38,7 +51,13 @@ export class Effects {
 
     this.aimMarker = new THREE.Mesh(
       new THREE.RingGeometry(0.2, 0.34, 4),
-      new THREE.MeshBasicMaterial({ color: 0x66e0ff, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false }),
+      new THREE.MeshBasicMaterial({
+        color: 0x66e0ff,
+        transparent: true,
+        opacity: 0.9,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      }),
     );
     this.aimMarker.rotation.x = -Math.PI / 2;
     this.aimMarker.rotation.z = Math.PI / 4;
@@ -54,7 +73,11 @@ export class Effects {
       const up = Math.random() * 0.9 + 0.15;
       this.particles.push({
         pos: at.clone(),
-        vel: new THREE.Vector3(Math.cos(a) * speed * Math.random(), up * speed, Math.sin(a) * speed * Math.random()),
+        vel: new THREE.Vector3(
+          Math.cos(a) * speed * Math.random(),
+          up * speed,
+          Math.sin(a) * speed * Math.random(),
+        ),
         life: 0.55 + Math.random() * 0.3,
         age: 0,
         color: col,
@@ -68,8 +91,16 @@ export class Effects {
     for (let i = 0; i < 160; i++) {
       if (this.particles.length >= this.MAX) break;
       this.particles.push({
-        pos: new THREE.Vector3(centerX + (Math.random() - 0.5) * 12, 9 + Math.random() * 5, (Math.random() - 0.5) * 10),
-        vel: new THREE.Vector3((Math.random() - 0.5) * 1.5, -0.5 - Math.random(), (Math.random() - 0.5) * 1.5),
+        pos: new THREE.Vector3(
+          centerX + (Math.random() - 0.5) * 12,
+          9 + Math.random() * 5,
+          (Math.random() - 0.5) * 10,
+        ),
+        vel: new THREE.Vector3(
+          (Math.random() - 0.5) * 1.5,
+          -0.5 - Math.random(),
+          (Math.random() - 0.5) * 1.5,
+        ),
         life: 4 + Math.random() * 2,
         age: 0,
         color: new THREE.Color(colors[i % colors.length]),
@@ -79,13 +110,19 @@ export class Effects {
   }
 
   showLanding(point: THREE.Vector3 | null): void {
-    if (!point) { this.landingRing.visible = false; return; }
+    if (!point) {
+      this.landingRing.visible = false;
+      return;
+    }
     this.landingRing.visible = true;
     this.landingRing.position.set(point.x, 0.015, point.z);
   }
 
   showAim(point: THREE.Vector3 | null): void {
-    if (!point) { this.aimMarker.visible = false; return; }
+    if (!point) {
+      this.aimMarker.visible = false;
+      return;
+    }
     this.aimMarker.visible = true;
     this.aimMarker.position.set(point.x, 0.02, point.z);
   }
@@ -104,10 +141,18 @@ export class Effects {
     for (let i = this.particles.length - 1; i >= 0; i--) {
       const p = this.particles[i];
       p.age += dt;
-      if (p.age >= p.life) { this.particles.splice(i, 1); continue; }
+      if (p.age >= p.life) {
+        this.particles.splice(i, 1);
+        continue;
+      }
       p.vel.y += p.gravity * dt;
       p.pos.addScaledVector(p.vel, dt);
-      if (p.pos.y < 0.02) { p.pos.y = 0.02; p.vel.y *= -0.3; p.vel.x *= 0.9; p.vel.z *= 0.9; }
+      if (p.pos.y < 0.02) {
+        p.pos.y = 0.02;
+        p.vel.y *= -0.3;
+        p.vel.x *= 0.9;
+        p.vel.z *= 0.9;
+      }
     }
     for (const p of this.particles) {
       const fade = 1 - p.age / p.life;

@@ -50,7 +50,13 @@ export class AudioEngine {
     this.crowdTarget = Math.max(this.crowdTarget, 0.05 + intensity * 0.22);
   }
 
-  private noiseBurst(dur: number, freq: number, q: number, gain: number, type: BiquadFilterType = 'bandpass'): void {
+  private noiseBurst(
+    dur: number,
+    freq: number,
+    q: number,
+    gain: number,
+    type: BiquadFilterType = 'bandpass',
+  ): void {
     if (!this.ctx || !this.enabled) return;
     const ctx = this.ctx;
     const src = ctx.createBufferSource();
@@ -67,7 +73,13 @@ export class AudioEngine {
     src.start(ctx.currentTime, Math.random() * 1.2, dur + 0.05);
   }
 
-  private tone(freq: number, dur: number, gain: number, type: OscillatorType = 'sine', slideTo?: number): void {
+  private tone(
+    freq: number,
+    dur: number,
+    gain: number,
+    type: OscillatorType = 'sine',
+    slideTo?: number,
+  ): void {
     if (!this.ctx || !this.enabled) return;
     const ctx = this.ctx;
     const osc = ctx.createOscillator();
@@ -94,17 +106,20 @@ export class AudioEngine {
     this.tone(2960, 0.9, 0.08, 'square', 2860);
   }
 
-  hitHard(): void { // cortada / saque forte
+  hitHard(): void {
+    // cortada / saque forte
     this.noiseBurst(0.12, 900, 1.2, 0.5);
     this.tone(120, 0.09, 0.4, 'sine', 60);
   }
 
-  hitSoft(): void { // manchete / toque
+  hitSoft(): void {
+    // manchete / toque
     this.noiseBurst(0.08, 600, 1.5, 0.28);
     this.tone(160, 0.06, 0.2, 'sine', 90);
   }
 
-  bounce(): void { // bola no chão
+  bounce(): void {
+    // bola no chão
     this.noiseBurst(0.1, 300, 1, 0.35, 'lowpass');
     this.tone(90, 0.12, 0.45, 'sine', 45);
   }
@@ -122,7 +137,10 @@ export class AudioEngine {
     if (!this.ctx || !this.enabled) return;
     const n = big ? 5 : 3;
     for (let i = 0; i < n; i++) {
-      setTimeout(() => this.noiseBurst(big ? 1.4 : 0.8, 700 + Math.random() * 500, 0.5, big ? 0.26 : 0.15), i * 90);
+      setTimeout(
+        () => this.noiseBurst(big ? 1.4 : 0.8, 700 + Math.random() * 500, 0.5, big ? 0.26 : 0.15),
+        i * 90,
+      );
     }
     this.excite(big ? 1 : 0.55);
   }
@@ -131,7 +149,10 @@ export class AudioEngine {
     if (!this.ctx || !this.enabled) return;
     const claps = Math.floor(dur * 26);
     for (let i = 0; i < claps; i++) {
-      setTimeout(() => this.noiseBurst(0.025, 1800 + Math.random() * 1400, 2.5, 0.09, 'bandpass'), Math.random() * dur * 1000);
+      setTimeout(
+        () => this.noiseBurst(0.025, 1800 + Math.random() * 1400, 2.5, 0.09, 'bandpass'),
+        Math.random() * dur * 1000,
+      );
     }
   }
 

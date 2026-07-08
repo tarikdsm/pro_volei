@@ -13,9 +13,13 @@ export class TouchControls {
   private stickBase: HTMLElement;
   private activeKeys = new Set<string>();
   private stickPointer: number | null = null;
-  private baseCx = 0; private baseCy = 0;
+  private baseCx = 0;
+  private baseCy = 0;
 
-  constructor(parent: HTMLElement, private camMode: CamModeGetter) {
+  constructor(
+    parent: HTMLElement,
+    private camMode: CamModeGetter,
+  ) {
     this.root = document.createElement('div');
     this.root.id = 'touch-controls';
     this.root.innerHTML = `
@@ -56,7 +60,11 @@ export class TouchControls {
       const r = el.getBoundingClientRect();
       this.baseCx = r.left + r.width / 2;
       this.baseCy = r.top + r.height / 2;
-      try { el.setPointerCapture(e.pointerId); } catch { /* eventos sintéticos não capturam */ }
+      try {
+        el.setPointerCapture(e.pointerId);
+      } catch {
+        /* eventos sintéticos não capturam */
+      }
       this.updateStick(e.clientX, e.clientY);
       e.preventDefault();
     });
@@ -79,7 +87,10 @@ export class TouchControls {
     let dx = px - this.baseCx;
     let dy = py - this.baseCy;
     const len = Math.hypot(dx, dy);
-    if (len > R) { dx = (dx / len) * R; dy = (dy / len) * R; }
+    if (len > R) {
+      dx = (dx / len) * R;
+      dy = (dy / len) * R;
+    }
     this.knob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
 
     // eixos de tela → teclas conforme a câmera
@@ -87,18 +98,26 @@ export class TouchControls {
     const serveCam = this.camMode() === 'serveHome';
     const want = new Set<string>();
     if (serveCam) {
-      if (dy < -t) want.add('KeyW');      // cima = mais fundo
+      if (dy < -t) want.add('KeyW'); // cima = mais fundo
       if (dy > t) want.add('KeyS');
-      if (dx > t) want.add('KeyD');       // direita = direita
+      if (dx > t) want.add('KeyD'); // direita = direita
       if (dx < -t) want.add('KeyA');
     } else {
-      if (dx > t) want.add('KeyW');       // direita da tela = rumo à rede (mundo +x)
+      if (dx > t) want.add('KeyW'); // direita da tela = rumo à rede (mundo +x)
       if (dx < -t) want.add('KeyS');
-      if (dy > t) want.add('KeyD');       // baixo da tela = mundo +z
+      if (dy > t) want.add('KeyD'); // baixo da tela = mundo +z
       if (dy < -t) want.add('KeyA');
     }
-    for (const k of this.activeKeys) if (!want.has(k)) { this.key(k, false); this.activeKeys.delete(k); }
-    for (const k of want) if (!this.activeKeys.has(k)) { this.key(k, true); this.activeKeys.add(k); }
+    for (const k of this.activeKeys)
+      if (!want.has(k)) {
+        this.key(k, false);
+        this.activeKeys.delete(k);
+      }
+    for (const k of want)
+      if (!this.activeKeys.has(k)) {
+        this.key(k, true);
+        this.activeKeys.add(k);
+      }
   }
 
   private bindButton(el: HTMLElement, code: string): void {

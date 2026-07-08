@@ -29,7 +29,9 @@ export class Referee {
     this.rightArm.position.set(0, 0.85, 0.2);
 
     this.group.add(torso, head, cap, hips, this.leftArm, this.rightArm);
-    this.group.traverse((o) => { if (o instanceof THREE.Mesh) o.castShadow = true; });
+    this.group.traverse((o) => {
+      if (o instanceof THREE.Mesh) o.castShadow = true;
+    });
 
     // sentado na cadeira do juiz (construída em Court.ts) — encaixa na posição
     this.group.position.set(0, 2.18, -(COURT.halfWidth + 1.55));

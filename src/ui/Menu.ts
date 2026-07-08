@@ -9,7 +9,10 @@ export class Menu {
   onStart: (() => void) | null = null;
   onResume: (() => void) | null = null;
 
-  constructor(parent: HTMLElement, private touchMode = false) {
+  constructor(
+    parent: HTMLElement,
+    private touchMode = false,
+  ) {
     this.root = document.createElement('div');
     this.root.id = 'menu';
     parent.appendChild(this.root);
@@ -36,15 +39,19 @@ export class Menu {
         </div>
         <button id="btn-start" class="big-btn">JOGAR</button>
         <div class="controls-help">
-          ${this.touchMode ? `
+          ${
+            this.touchMode
+              ? `
           <div><b>🏐 botão</b> sacar / passar / pular / bloquear (segure para carregar o saque)</div>
           <div><b>direcional</b> mover e mirar · <b>toque na zona</b> para escolher o ataque</div>
           <div>📱 jogue na horizontal para a melhor experiência</div>
-          ` : `
+          `
+              : `
           <div><b>ESPAÇO</b> sacar / passar / pular / bloquear</div>
           <div><b>WASD</b> mover e mirar · <b>A/W/D</b> escolher zona de ataque</div>
           <div><b>ESC</b> pausa</div>
-          `}
+          `
+          }
         </div>
       </div>`;
     this.bindOpts();
