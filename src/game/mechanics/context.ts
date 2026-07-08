@@ -20,4 +20,5 @@ export interface MechanicsCtx {
   teamOf(side: TeamSide): Team;
   after(t: number, fn: () => void): void;
   planNext(kind: TouchKind): void;
+  startRally(): void; // transição de estado: o saque entrou em jogo
 }

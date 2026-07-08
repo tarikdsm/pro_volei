@@ -9,7 +9,6 @@ import { Crowd } from '../world/Crowd';
 import { Referee } from '../world/Referee';
 import { Arena } from '../world/Arena';
 import {
-  COURT,
   CONTACT,
   PLAYER,
   BALL_RADIUS,
@@ -23,16 +22,7 @@ import {
   MATCH_FORMATS,
   TouchKind,
 } from '../core/constants';
-import {
-  ballisticArc,
-  ballisticDrive,
-  serveDrive,
-  clamp,
-  lerp,
-  rand,
-  chance,
-  randPick,
-} from '../core/math3d';
+import { ballisticArc, ballisticDrive, clamp, lerp, rand, chance, randPick } from '../core/math3d';
 import {
   isSetOver,
   setWinner,
@@ -44,6 +34,7 @@ import {
 import { computeNetCrossing } from './mechanics/net';
 import { RallyState, TouchPlan } from './RallyState';
 import { prepareBlock, resolveBlock } from './mechanics/block';
+import { performServe, aiServe } from './mechanics/serve';
 import { MechanicsCtx } from './mechanics/context';
 
 export interface MatchStats {
@@ -192,59 +183,8 @@ export class Match {
       this.ctl = 'none';
       this.controlled = null;
       this.hooks.hint('Saque do adversário — prepare a recepção!');
-      this.after(rand(1.4, 2.4), () => this.aiServe());
+      this.after(rand(1.4, 2.4), () => aiServe(this.ctx));
     }
-  }
-
-  private aiServe(): void {
-    const team = this.teamOf(this.servingTeam);
-    const server = team.server();
-    const power = rand(this.diff.servePower[0], this.diff.servePower[1]);
-    const err = chance(this.diff.serveError);
-    const s = sideSign(otherSide(this.servingTeam)); // lado alvo
-    let target: THREE.Vector3;
-    let clearance: number;
-    if (err) {
-      if (chance(0.5)) {
-        target = new THREE.Vector3(s * rand(9.6, 11), 0, rand(-4, 4)); // fora, longa
-        clearance = rand(0.3, 0.8);
-      } else {
-        target = new THREE.Vector3(s * rand(3.5, 7), 0, rand(-3, 3)); // na rede
-        clearance = -rand(0.18, 0.5);
-      }
-    } else {
-      target = new THREE.Vector3(s * rand(3.5, 8.4), 0, rand(-3.9, 3.9));
-      clearance = lerp(1.3, 0.16, power) * rand(0.9, 1.1);
-    }
-    this.performServe(server, power, target, clearance);
-  }
-
-  private performServe(
-    server: Athlete,
-    power: number,
-    target: THREE.Vector3,
-    clearance: number,
-  ): void {
-    this.hooks.serveMeter(false);
-    this.hooks.effects.showAim(null);
-    server.act('serveToss', 0.5);
-    const hand = server.reachPoint();
-    this.ball.launch(new THREE.Vector3(hand.x, 1.15, hand.z), new THREE.Vector3(0, 5.6, 0));
-    this.after(0.34, () => server.act('serveHit', 0.5));
-    this.after(0.42, () => {
-      const p0 = this.ball.pos.clone();
-      // trajetória resolvida pela folga sobre a rede: força alta = raspando, baixa = flutuante
-      const { v0 } = serveDrive(p0, target, COURT.netHeight + clearance);
-      this.ball.launch(p0, v0);
-      this.hooks.audio.hitHard();
-      this.state = 'rally';
-      this.rally.lastTouchTeam = this.servingTeam;
-      this.rally.lastKind = 'serve';
-      this.rally.possessionTeam = this.servingTeam;
-      this.rally.possessionTouches = 0;
-      this.hooks.camera.setMode('rally');
-      this.planNext('pass');
-    });
   }
 
   // ---------------------------------------------------------------- PLANEJAMENTO
@@ -885,7 +825,7 @@ export class Match {
           }
           // pouca força morre na rede às vezes
           if (p < 0.25 && chance(0.7)) clearance = -rand(0.2, 0.5);
-          this.performServe(this.controlled!, Math.max(0.3, power), target, clearance);
+          performServe(this.ctx, this.controlled!, Math.max(0.3, power), target, clearance);
         }
       }
     }
@@ -991,6 +931,9 @@ export class Match {
       teamOf: (side) => this.teamOf(side),
       after: (t, fn) => this.after(t, fn),
       planNext: (kind) => this.planNext(kind),
+      startRally: () => {
+        this.state = 'rally';
+      },
     };
   }
 
