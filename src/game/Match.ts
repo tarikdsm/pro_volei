@@ -43,6 +43,7 @@ import {
   resolveRallyOutcome,
 } from './rules/scoring';
 import { computeNetCrossing } from './mechanics/net';
+import { RallyState, TouchPlan } from './RallyState';
 
 export interface MatchStats {
   aces: number;
@@ -70,17 +71,6 @@ export interface Hooks {
 type MState = 'idle' | 'servePrep' | 'rally' | 'point' | 'setEnd' | 'matchEnd';
 type CtlMode = 'none' | 'serve' | 'receive' | 'attack' | 'block';
 
-interface TouchPlan {
-  side: TeamSide;
-  athlete: Athlete;
-  contactIn: number; // segundos até o contato ideal
-  point: THREE.Vector3; // onde a bola estará no contato
-  kind: TouchKind; // o que este toque deve ser
-  isHuman: boolean;
-  jumpScheduledIn?: number; // p/ ataque IA
-  done: boolean;
-}
-
 interface PendingEvent {
   t: number;
   fn: () => void;
@@ -106,17 +96,8 @@ export class Match {
   setNumber = 1;
   servingTeam: TeamSide = TeamSide.HOME;
 
-  // posse e toques
-  private possessionTeam: TeamSide | null = null;
-  private possessionTouches = 0;
-  private lastTouchTeam: TeamSide | null = null;
-  private lastKind: TouchKind = 'serve';
-  private rallyTouches = 0;
-
-  private plan: TouchPlan | null = null;
-  private netEventIn: number | null = null;
-  private crossIn: number | null = null;
-  private prevBallX = 0;
+  // estado do rally (posse, toques, plano do próximo contato, eventos de rede)
+  private rally = new RallyState();
 
   // controle humano
   private ctl: CtlMode = 'none';
@@ -168,12 +149,7 @@ export class Match {
     this.state = 'servePrep';
     this.stateTime = 0;
     this.events = [];
-    this.plan = null;
-    this.netEventIn = null;
-    this.possessionTeam = null;
-    this.possessionTouches = 0;
-    this.rallyTouches = 0;
-    this.lastTouchTeam = null;
+    this.rally.reset();
     this.timingQ = -1;
     this.jumpQ = -1;
     this.chosenZone = randPick([0, 1, 2]);
@@ -258,10 +234,10 @@ export class Match {
       this.ball.launch(p0, v0);
       this.hooks.audio.hitHard();
       this.state = 'rally';
-      this.lastTouchTeam = this.servingTeam;
-      this.lastKind = 'serve';
-      this.possessionTeam = this.servingTeam;
-      this.possessionTouches = 0;
+      this.rally.lastTouchTeam = this.servingTeam;
+      this.rally.lastKind = 'serve';
+      this.rally.possessionTeam = this.servingTeam;
+      this.rally.possessionTouches = 0;
       this.hooks.camera.setMode('rally');
       this.planNext('pass');
     });
@@ -270,7 +246,7 @@ export class Match {
   // ---------------------------------------------------------------- PLANEJAMENTO
   /** Após cada lançamento da bola, agenda o próximo contato e eventos de rede/queda. */
   private planNext(nextKind: TouchKind): void {
-    this.plan = null;
+    this.rally.plan = null;
     this.computeNetEvent();
 
     const landing = this.ball.predictLanding();
@@ -279,7 +255,7 @@ export class Match {
     const landSide: TeamSide = landing.point.x < 0 ? TeamSide.HOME : TeamSide.AWAY;
 
     // bola indo para o time que já usou 3 toques (e não pode mais) → ninguém joga, deixa cair
-    if (this.possessionTeam === landSide && this.possessionTouches >= 3) return;
+    if (this.rally.possessionTeam === landSide && this.rally.possessionTouches >= 3) return;
 
     const contactH =
       nextKind === 'set' ? CONTACT.set : nextKind === 'spike' ? CONTACT.spike : CONTACT.pass;
@@ -303,7 +279,7 @@ export class Match {
     }
 
     const isHuman = landSide === TeamSide.HOME;
-    this.plan = {
+    this.rally.plan = {
       side: landSide,
       athlete,
       contactIn: cT,
@@ -321,7 +297,7 @@ export class Match {
       this.after(delay, () => athlete.moveTo(cPoint.x + backoff * 0.9, cPoint.z));
       if (!isHuman) {
         // IA pula para contato no ápice
-        this.plan.jumpScheduledIn = cT - 0.26;
+        this.rally.plan.jumpScheduledIn = cT - 0.26;
       }
       // câmera de ataque + bloqueio adversário
       this.hooks.camera.setMode('spike');
@@ -339,7 +315,7 @@ export class Match {
         this.controlled = athlete;
         this.timingQ = -1;
         this.hooks.hint('WASD move · ESPAÇO no momento do toque = passe perfeito');
-        this.hooks.effects.showLanding(this.plan.point);
+        this.hooks.effects.showLanding(this.rally.plan.point);
       } else if (nextKind === 'set') {
         this.ctl = 'none';
         this.controlled = null;
@@ -352,13 +328,13 @@ export class Match {
         this.aim.set(rand(4.5, 6.5), 0, rand(-2.5, 2.5));
         this.hooks.hint('ESPAÇO pula (timing = força) · WASD mira a cortada');
       }
-    } else if (this.plan.side === TeamSide.AWAY && nextKind === 'spike') {
+    } else if (this.rally.plan.side === TeamSide.AWAY && nextKind === 'spike') {
       // humano pode bloquear
       this.ctl = 'block';
       const blocker = this.home.nearestFrontRowTo(cPoint.z);
       this.controlled = blocker;
       this.hooks.hint('BLOQUEIO: A/D desliza na rede · ESPAÇO pula!');
-    } else if (this.plan.side === TeamSide.AWAY) {
+    } else if (this.rally.plan.side === TeamSide.AWAY) {
       if (this.ctl !== 'block') {
         this.ctl = 'none';
         this.controlled = null;
@@ -371,11 +347,11 @@ export class Match {
   private plannedAttacker: Athlete | null = null;
 
   private computeNetEvent(): void {
-    this.netEventIn = null;
-    this.crossIn = null;
+    this.rally.netEventIn = null;
+    this.rally.crossIn = null;
     const crossing = computeNetCrossing(this.ball.pos, this.ball.vel);
-    if (crossing.kind === 'net') this.netEventIn = crossing.t;
-    else if (crossing.kind === 'cross') this.crossIn = crossing.t;
+    if (crossing.kind === 'net') this.rally.netEventIn = crossing.t;
+    else if (crossing.kind === 'cross') this.rally.crossIn = crossing.t;
   }
 
   // Bloqueio da IA (ou preparação do lado da IA contra ataque humano)
@@ -397,21 +373,14 @@ export class Match {
     const { athlete, kind, side } = plan;
     plan.done = true;
     this.lastToucher = athlete;
-    this.rallyTouches++;
-    this.hooks.crowd.excite(0.25 + Math.min(0.4, this.rallyTouches * 0.04));
+    this.rally.rallyTouches++;
+    this.hooks.crowd.excite(0.25 + Math.min(0.4, this.rally.rallyTouches * 0.04));
     this.hooks.audio.excite(0.3);
 
     // contagem de toques (bloqueio não conta)
-    if (kind !== 'block') {
-      if (this.possessionTeam !== side) {
-        this.possessionTeam = side;
-        this.possessionTouches = 1;
-      } else {
-        this.possessionTouches++;
-      }
-    }
-    this.lastTouchTeam = side;
-    this.lastKind = kind;
+    if (kind !== 'block') this.rally.countTouch(side);
+    this.rally.lastTouchTeam = side;
+    this.rally.lastKind = kind;
 
     switch (kind) {
       case 'pass':
@@ -462,7 +431,7 @@ export class Match {
     this.ball.launch(this.ball.pos.clone(), v0);
 
     // se o time já gastou os 3 toques, esta bola precisa ter ido para o outro lado — senão cai
-    if (this.possessionTouches >= 3) {
+    if (this.rally.possessionTouches >= 3) {
       this.planNext('pass');
       return;
     }
@@ -543,11 +512,7 @@ export class Match {
     this.hooks.effects.showAim(null);
 
     this.resolveBlock(side);
-    this.planNext(this.possessionTouchesOf(enemy) === 0 ? 'pass' : 'pass');
-  }
-
-  private possessionTouchesOf(side: TeamSide): number {
-    return this.possessionTeam === side ? this.possessionTouches : 0;
+    this.planNext(this.rally.touchesOf(enemy) === 0 ? 'pass' : 'pass');
   }
 
   /** verifica bloqueio no cruzamento da rede (chamado no lançamento da cortada) */
@@ -584,9 +549,9 @@ export class Match {
         this.hooks.camera.addShake(0.6);
         blocker.act('block', 0.5);
         this.lastToucher = blocker;
-        this.lastTouchTeam = defSide;
-        this.lastKind = 'block';
-        this.rallyTouches++;
+        this.rally.lastTouchTeam = defSide;
+        this.rally.lastKind = 'block';
+        this.rally.rallyTouches++;
 
         if (r < prox * 0.5) {
           // STUFF: devolve no chão do atacante
@@ -610,8 +575,8 @@ export class Match {
           v.y = Math.abs(v.y) * 0.3 + 3.2;
           this.ball.launch(bp, v);
           // toque de bloqueio não conta: posse continua limpa p/ defesa
-          this.possessionTeam = null;
-          this.possessionTouches = 0;
+          this.rally.possessionTeam = null;
+          this.rally.possessionTouches = 0;
           this.planNext('pass');
         } else {
           // explode no bloqueio pra fora (ponto do atacante)
@@ -631,7 +596,7 @@ export class Match {
   private resolvePoint(): void {
     const { winner, inCourt, landSide } = resolveRallyOutcome(
       this.ball.pos,
-      this.lastTouchTeam,
+      this.rally.lastTouchTeam,
       this.servingTeam,
     );
     const reason = inCourt
@@ -647,7 +612,7 @@ export class Match {
     this.state = 'point';
     this.stateTime = 0;
     this.events = [];
-    this.plan = null;
+    this.rally.plan = null;
     this.ctl = 'none';
     this.controlled = null;
     this.ball.bouncy = true;
@@ -656,17 +621,17 @@ export class Match {
     this.hooks.serveMeter(false);
     this.hooks.zoneHint(null);
 
-    const ace = isAce(this.lastKind, winner, this.servingTeam, this.rallyTouches);
+    const ace = isAce(this.rally.lastKind, winner, this.servingTeam, this.rally.rallyTouches);
     this.score[winner]++;
     this.stats.points[winner]++;
-    this.stats.longestRally = Math.max(this.stats.longestRally, this.rallyTouches);
+    this.stats.longestRally = Math.max(this.stats.longestRally, this.rally.rallyTouches);
 
     // banners com personalidade
     let text = winner === TeamSide.HOME ? 'PONTO SEU!' : 'PONTO DO CPU';
     if (ace) {
       text = winner === TeamSide.HOME ? '🔥 ACE!' : 'ACE DO CPU';
       if (winner === TeamSide.HOME) this.stats.aces++;
-    } else if (this.rallyTouches >= 8) text = `QUE RALLY! ${this.rallyTouches} toques`;
+    } else if (this.rally.rallyTouches >= 8) text = `QUE RALLY! ${this.rally.rallyTouches} toques`;
     this.hooks.banner(text, reason);
 
     this.hooks.audio.whistleLong();
@@ -772,16 +737,16 @@ export class Match {
     this.updateHumanControl(dt, input);
 
     // contato agendado
-    if (this.plan && !this.plan.done && this.state === 'rally') {
-      this.plan.contactIn -= dt;
+    if (this.rally.plan && !this.rally.plan.done && this.state === 'rally') {
+      this.rally.plan.contactIn -= dt;
 
       // pulo agendado da IA no ataque
-      if (this.plan.jumpScheduledIn !== undefined) {
-        this.plan.jumpScheduledIn -= dt;
-        if (this.plan.jumpScheduledIn <= 0) {
-          this.plan.athlete.act('spikeWindup', 0.4);
-          this.plan.athlete.jump(PLAYER.jumpVel);
-          this.plan.jumpScheduledIn = undefined;
+      if (this.rally.plan.jumpScheduledIn !== undefined) {
+        this.rally.plan.jumpScheduledIn -= dt;
+        if (this.rally.plan.jumpScheduledIn <= 0) {
+          this.rally.plan.athlete.act('spikeWindup', 0.4);
+          this.rally.plan.athlete.jump(PLAYER.jumpVel);
+          this.rally.plan.jumpScheduledIn = undefined;
         }
       }
 
@@ -795,16 +760,16 @@ export class Match {
         }
       }
 
-      if (this.plan.contactIn <= 0) {
-        this.attemptContact(this.plan);
+      if (this.rally.plan.contactIn <= 0) {
+        this.attemptContact(this.rally.plan);
       }
     }
 
     // evento de rede
-    if (this.netEventIn !== null && this.state === 'rally') {
-      this.netEventIn -= dt;
-      if (this.netEventIn <= 0) {
-        this.netEventIn = null;
+    if (this.rally.netEventIn !== null && this.state === 'rally') {
+      this.rally.netEventIn -= dt;
+      if (this.rally.netEventIn <= 0) {
+        this.rally.netEventIn = null;
         this.onNetTouch();
       }
     }
@@ -928,14 +893,11 @@ export class Match {
       const { v0 } = ballisticArc(this.ball.pos.clone(), target, 3.2);
       this.ball.launch(this.ball.pos.clone(), v0);
       // conta o toque
-      if (this.possessionTeam !== plan.side) {
-        this.possessionTeam = plan.side;
-        this.possessionTouches = 1;
-      } else this.possessionTouches++;
-      this.lastTouchTeam = plan.side;
-      this.lastKind = 'freeball';
+      this.rally.countTouch(plan.side);
+      this.rally.lastTouchTeam = plan.side;
+      this.rally.lastKind = 'freeball';
       this.lastToucher = a;
-      this.rallyTouches++;
+      this.rally.rallyTouches++;
       this.hooks.banner('', '');
       this.planNext('pass');
     }
@@ -945,7 +907,7 @@ export class Match {
   private onNetTouch(): void {
     this.hooks.audio.netTouch();
     this.hooks.camera.addShake(0.2);
-    const wasServe = this.lastKind === 'serve';
+    const wasServe = this.rally.lastKind === 'serve';
     // bola morre na rede: cai do lado de quem tocou
     const v = this.ball.vel;
     this.ball.vel.set(-Math.sign(v.x) * Math.abs(v.x) * 0.06, Math.min(v.y, 0.5), v.z * 0.25);
@@ -1016,7 +978,7 @@ export class Match {
       }
     }
 
-    if (this.ctl === 'receive' && this.controlled && this.plan && !this.plan.done) {
+    if (this.ctl === 'receive' && this.controlled && this.rally.plan && !this.rally.plan.done) {
       // movimento direto
       if (axis.x !== 0 || axis.z !== 0) {
         this.controlled.moveTo(
@@ -1025,8 +987,8 @@ export class Match {
         );
       }
       // timing do passe
-      if (input.wasPressed('Space') && this.plan.contactIn < 0.5) {
-        this.timingQ = clamp(1 - Math.abs(this.plan.contactIn - 0.08) * 3.2, 0, 1);
+      if (input.wasPressed('Space') && this.rally.plan.contactIn < 0.5) {
+        this.timingQ = clamp(1 - Math.abs(this.rally.plan.contactIn - 0.08) * 3.2, 0, 1);
       }
       // escolha de zona já durante a recepção
       if (input.wasPressed('KeyA')) {
@@ -1045,9 +1007,9 @@ export class Match {
 
     if (
       this.ctl === 'none' &&
-      this.plan &&
-      this.plan.kind === 'set' &&
-      this.plan.side === TeamSide.HOME
+      this.rally.plan &&
+      this.rally.plan.kind === 'set' &&
+      this.rally.plan.side === TeamSide.HOME
     ) {
       // durante o voo até o levantador
       if (input.wasPressed('KeyA')) {
@@ -1064,7 +1026,7 @@ export class Match {
       }
     }
 
-    if (this.ctl === 'attack' && this.controlled && this.plan && !this.plan.done) {
+    if (this.ctl === 'attack' && this.controlled && this.rally.plan && !this.rally.plan.done) {
       // mira aérea
       this.aim.x = clamp(this.aim.x + axis.x * dt * 6, 1.0, 8.6);
       this.aim.z = clamp(this.aim.z + axis.z * dt * 6, -4.2, 4.2);
@@ -1072,7 +1034,7 @@ export class Match {
 
       if (input.wasPressed('Space') && !this.controlled.isAirborne) {
         // qualidade = quão perto do instante ideal (0.26s antes do contato)
-        this.jumpQ = clamp(1 - Math.abs(this.plan.contactIn - 0.26) * 2.8, 0, 1);
+        this.jumpQ = clamp(1 - Math.abs(this.rally.plan.contactIn - 0.26) * 2.8, 0, 1);
         this.controlled.act('spikeWindup', 0.4);
         this.controlled.jump(PLAYER.jumpVel);
       }
