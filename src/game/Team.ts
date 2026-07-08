@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { PlayerCharacter, CharAction, CharLook } from '../entities/PlayerCharacter';
 import { BASE_SLOTS, COLORS, PLAYER, TeamSide, SETTER_SPOT } from '../core/constants';
+import { rotateSlots } from './rules/rotation';
 
 const GRAV = -22; // gravidade do pulo dos atletas (mais pesada = pulos secos)
 
@@ -157,8 +158,7 @@ export class Team {
 
   /** rodízio no sentido horário (quando o time recupera o saque) */
   rotate(): void {
-    const old = [...this.slots];
-    for (let i = 0; i < 6; i++) this.slots[i] = old[(i + 5) % 6];
+    this.slots = rotateSlots(this.slots);
   }
 
   server(): Athlete {
