@@ -55,10 +55,12 @@ src/
 
 - `Match` fala com UI/áudio/efeitos por uma interface `Hooks` injetada em `main.ts`
   (não acesse o DOM direto de dentro de `game/`). Mantenha essa fronteira.
-- **`src/game/Match.ts` tem ~975 linhas e é a dívida técnica nº 1.** A prioridade atual é
-  quebrá-lo em `rally/ · rules/ · ai/ · mechanics/ · control/`. Ver o plano de refatoração
-  em [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#refatoração-alvo). Faça isso com TDD:
-  extraia helpers puros + testes antes de mover estado.
+- **A Fase 1 (quebrar o `Match.ts`) está concluída:** de ~1100 para ~490 linhas, com a lógica
+  em `RallyState`, `rules/` (scoring, rotation, SetMatch), `mechanics/` (serve, touch, block,
+  net), `control/HumanController` e `ai/AiController`, cada um sobre um contexto injetado
+  (`MechanicsCtx`/`ScoringCtx`). `Match` é o orquestrador fino (state machine + event queue).
+  Ao mexer em `game/`, siga esse padrão: helper puro + teste antes de mover estado, e delegue
+  via contexto em vez de inchar o `Match`. Ver [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Convenções
 

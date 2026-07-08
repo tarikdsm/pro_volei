@@ -41,7 +41,7 @@ injetadas (audio, effects, camera, crowd, referee, arena). O wiring acontece em 
 | `world/` | Cenário estático e ambiente | `Court.ts`, `Arena.ts`, `Crowd.ts` (~1500 instanciados), `Referee.ts` |
 | `entities/` | Atores dinâmicos | `PlayerCharacter.ts` (humanoide + animações paramétricas), `Ball.ts` (rastro, sombra) |
 | `systems/` | Sistemas transversais | `CameraDirector.ts` (câmera broadcast), `Effects.ts` (partículas, confete, shake) |
-| `game/` | Regras, estado e IA | `Team.ts` (atletas, rodízio), `Match.ts` (máquina de estados do rally) |
+| `game/` | Regras, estado, IA e controle | `Match.ts` (orquestrador: state machine + event queue), `RallyState.ts`, `Team.ts`, `rules/` (scoring, rotation, SetMatch), `mechanics/` (serve, touch, block, net, context), `ai/AiController`, `control/HumanController` |
 | `ui/` | Apresentação e input do jogador | `HUD.ts`, `Menu.ts`, `TouchControls.ts` |
 
 ## Física
@@ -65,53 +65,55 @@ O slow-motion é acionado pelos hooks (ex.: spike-cam no contato da cortada).
 
 ---
 
-## Refatoração-alvo
+## Estrutura de `game/` (refatoração concluída)
 
-**Prioridade nº 1 do projeto.** `src/game/Match.ts` (~975 linhas) concentra máquina de estados,
-regras, IA e controle humano num só arquivo. Hoje ele já é organizado por seções comentadas
-(SAQUE · PLANEJAMENTO · TOQUES · PONTO · UPDATE) — essas seções são as costuras naturais.
+A Fase 1 — quebrar o antigo `Match.ts` monolítico (~1100 linhas) — está **concluída**. Hoje o
+`Match` é um orquestrador fino (~490 linhas: state machine + event queue + o loop de `update`) e a
+lógica vive em colaboradores focados, cada um sobre um **contexto injetado** (a fatia do `Match`
+que ele precisa) em vez de acessar o `Match` inteiro.
 
-### Destino proposto
+### Estrutura atual
 
 ```
 src/game/
-├── Match.ts              orquestrador fino: referências, event queue, roda o update loop
-├── RallyState.ts         estado do rally (posse, nº de toques, fase, bola em jogo)
+├── Match.ts              orquestrador: state machine, event queue, update loop, makeCtx/makeScoringCtx
+├── RallyState.ts         estado do rally (posse, nº de toques, plano do contato, eventos de rede)
 ├── rules/
-│   ├── Scoring.ts        awardPoint, rally point, set/match point, vantagem de 2
-│   ├── Rotation.ts       rodízio de 6 posições
-│   └── SetMatch.ts       endSet, endMatch, formatos (15 / melhor de 3 a 25)
-├── ai/
-│   ├── AiController.ts   decisões por dificuldade (quando/como sacar, atacar, bloquear, defender)
-│   └── targeting.ts      escolha de alvos (cantos, longe da defesa)
+│   ├── scoring.ts        funções puras: rally point, set/match point, vantagem de 2, ace, queda
+│   ├── rotation.ts       rodízio de 6 posições
+│   └── SetMatch.ts       orquestração ponto → set → partida sobre ScoringCtx
 ├── mechanics/
-│   ├── Serve.ts          beginServePrep, performServe
-│   ├── Touch.ts          executeTouch, doPass, doSet, doSpike
-│   └── Block.ts          prepareBlock, resolveBlock, computeNetEvent
+│   ├── context.ts        MechanicsCtx — fatia do Match injetada nas mecânicas
+│   ├── serve.ts          performServe, aiServe
+│   ├── touch.ts          executeTouch, doPass, doSet, doSpike (inclui escolha de alvo da IA)
+│   ├── block.ts          geometria pura + prepareBlock, resolveBlock
+│   └── net.ts            geometria de cruzamento da rede
+├── ai/
+│   └── AiController.ts   decisões por dificuldade: aproximação, pulos agendados, qualidade, saque
 └── control/
-    └── HumanController.ts  Input → intenções (mira, timing do toque/pulo, zona de ataque)
+    ├── HumanController.ts  Input → intenções (mira, timing, zona) + estado de controle + marker
+    └── timing.ts           helpers puros timing → qualidade (recepção/pulo)
 ```
 
-### Abordagem (strangler, com TDD)
+> A escolha de alvo da IA ficou em `mechanics/` (já lê `ctx.diff` e nunca depende de `aim`/
+> `chosenZone` do humano), então `ai/targeting.ts` do plano original não foi necessário.
 
-Refatorar um motor de jogo que já funciona é arriscado. Faça incremental e verificável:
+### Padrão a seguir (strangler, com TDD)
 
-1. **Congele o comportamento com testes primeiro.** Antes de mover código, escreva testes de
-   caracterização para regras puras (pontuação, rodízio, vantagem de 2, fim de set/partida).
-   `math3d` já tem testes — use o mesmo padrão.
-2. **Extraia funções puras** (sem estado, sem `this`) para `rules/` e `ai/targeting.ts` e
-   cubra-as. Ex.: "dado placar e formato, o set acabou? quem ganhou?".
-3. **Introduza `RallyState`** como objeto de estado explícito, passado às funções extraídas,
-   em vez de campos espalhados em `Match`.
-4. **Mova a mecânica** (`Serve`/`Touch`/`Block`) para colaboradores que recebem `RallyState`
-   e `Hooks`. `Match` passa a delegar.
-5. **Separe IA e controle humano** (`AiController` vs `HumanController`) — hoje entrelaçados
-   por flags `isHuman` dentro de cada método.
-6. Rode `npm run check` a cada passo. Nenhum passo deve mudar o comportamento observável;
-   quando algo mudar, é bug — investigue (ver skill `superpowers:systematic-debugging`).
+O mesmo método que quebrou o `Match` vale para qualquer mudança em `game/`:
 
-> Meta: nenhum arquivo de `game/` acima de ~250 linhas, cada regra testável isoladamente,
-> IA plugável (facilita ajustar/adicionar dificuldades).
+1. **Congele o comportamento com testes primeiro** — regras/lógica pura ganham teste de
+   caracterização antes de mover (padrão de `math3d`/`scoring`/`timing`).
+2. **Extraia funções puras** (sem estado, sem `this`) e cubra-as.
+3. **Estado explícito** (`RallyState`) em vez de campos espalhados no `Match`.
+4. **Colaboradores sobre contexto injetado** (`MechanicsCtx`/`ScoringCtx`): o `Match` mantém o
+   estado e fornece uma fatia via getters (valores mutáveis) e métodos de intenção (transições
+   de estado) — não exponha os internos crus.
+5. Rode `npm run check` + `/playtest` a cada passo. Nenhum passo muda comportamento observável;
+   se mudar, é bug — investigue (skill `superpowers:systematic-debugging`).
+
+> Meta atingida: cada regra/mecânica testável isoladamente, IA e controle humano plugáveis, e
+> nenhum arquivo de `game/` acima de ~300 linhas exceto o próprio `Match` (o orquestrador).
 
 ## Convenções de código
 
