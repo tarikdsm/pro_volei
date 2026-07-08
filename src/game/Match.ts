@@ -34,6 +34,14 @@ import {
   chance,
   randPick,
 } from '../core/math3d';
+import {
+  isSetOver,
+  setWinner,
+  isMatchOver,
+  setPointLeader,
+  isAce,
+  resolveRallyOutcome,
+} from './rules/scoring';
 
 export interface MatchStats {
   aces: number;
@@ -632,22 +640,16 @@ export class Match {
 
   // ---------------------------------------------------------------- PONTO
   private resolvePoint(): void {
-    const landing = this.ball.pos;
-    const landSide: TeamSide = landing.x < 0 ? TeamSide.HOME : TeamSide.AWAY;
-    const inCourt =
-      Math.abs(landing.x) <= COURT.halfLength + BALL_RADIUS &&
-      Math.abs(landing.z) <= COURT.halfWidth + BALL_RADIUS;
-
-    let winner: TeamSide;
-    let reason: string;
-    if (inCourt) {
-      winner = otherSide(landSide);
-      reason = landSide === TeamSide.HOME ? 'Bola no seu chão' : 'Bola no chão deles!';
-    } else {
-      winner =
-        this.lastTouchTeam !== null ? otherSide(this.lastTouchTeam) : otherSide(this.servingTeam);
-      reason = 'Bola fora';
-    }
+    const { winner, inCourt, landSide } = resolveRallyOutcome(
+      this.ball.pos,
+      this.lastTouchTeam,
+      this.servingTeam,
+    );
+    const reason = inCourt
+      ? landSide === TeamSide.HOME
+        ? 'Bola no seu chão'
+        : 'Bola no chão deles!'
+      : 'Bola fora';
     this.awardPoint(winner, reason);
   }
 
@@ -665,15 +667,14 @@ export class Match {
     this.hooks.serveMeter(false);
     this.hooks.zoneHint(null);
 
-    const isAce =
-      this.lastKind === 'serve' && winner === this.servingTeam && this.rallyTouches === 0;
+    const ace = isAce(this.lastKind, winner, this.servingTeam, this.rallyTouches);
     this.score[winner]++;
     this.stats.points[winner]++;
     this.stats.longestRally = Math.max(this.stats.longestRally, this.rallyTouches);
 
     // banners com personalidade
     let text = winner === TeamSide.HOME ? 'PONTO SEU!' : 'PONTO DO CPU';
-    if (isAce) {
+    if (ace) {
       text = winner === TeamSide.HOME ? '🔥 ACE!' : 'ACE DO CPU';
       if (winner === TeamSide.HOME) this.stats.aces++;
     } else if (this.rallyTouches >= 8) text = `QUE RALLY! ${this.rallyTouches} toques`;
@@ -700,21 +701,18 @@ export class Match {
     // fim de set?
     const target = this.format.pointsPerSet;
     const [h, a] = this.score;
-    const setOver = (h >= target || a >= target) && Math.abs(h - a) >= 2;
+    const setOver = isSetOver(h, a, target);
     this.after(2.6, () => {
-      if (setOver) this.endSet(h > a ? TeamSide.HOME : TeamSide.AWAY);
+      if (setOver) this.endSet(setWinner(h, a));
       else this.beginServePrep();
     });
 
     // set point / match point aviso
-    if (!setOver) {
-      const leader = h > a ? TeamSide.HOME : a > h ? TeamSide.AWAY : null;
-      const lead = Math.max(h, a);
-      if (leader !== null && lead >= target - 1) {
-        this.after(1.4, () =>
-          this.hooks.banner(leader === TeamSide.HOME ? 'SET POINT — VOCÊ!' : 'SET POINT — CPU', ''),
-        );
-      }
+    const spLeader = setPointLeader(h, a, target);
+    if (spLeader !== null) {
+      this.after(1.4, () =>
+        this.hooks.banner(spLeader === TeamSide.HOME ? 'SET POINT — VOCÊ!' : 'SET POINT — CPU', ''),
+      );
     }
   }
 
@@ -728,8 +726,7 @@ export class Match {
     this.hooks.crowd.excite(1);
     this.hooks.crowd.startWave();
 
-    const needed = Math.ceil(this.format.sets / 2);
-    const matchOver = this.sets[winner] >= needed;
+    const matchOver = isMatchOver(this.sets[winner], this.format.sets);
     this.hooks.banner(
       matchOver ? '' : winner === TeamSide.HOME ? 'SET SEU! 🏐' : 'SET DO CPU',
       matchOver ? '' : `Sets ${this.sets[0]} × ${this.sets[1]}`,
