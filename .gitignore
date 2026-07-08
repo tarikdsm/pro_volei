@@ -5,3 +5,5 @@ dist/
 
 # Artefatos de teste do Playwright MCP (skill /playtest): snapshots, screenshots, logs
 .playwright-mcp/
+playwright-report/
+test-results/

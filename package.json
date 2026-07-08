@@ -15,6 +15,9 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:e2e:smoke": "playwright test tests/e2e/smoke.spec.ts",
+    "test:e2e:perf": "playwright test tests/e2e/performance.spec.ts",
     "check": "npm run typecheck && npm run lint && npm run format:check && npm run test"
   },
   "engines": {
@@ -26,6 +29,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.61.1",
     "@types/three": "^0.185.0",
     "eslint": "^10.6.0",
     "eslint-config-prettier": "^10.1.8",
