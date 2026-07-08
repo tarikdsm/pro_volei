@@ -26,10 +26,24 @@ export interface CharLook {
   female?: boolean;
 }
 
+// Superfície visual mínima que a lógica de Athlete/Team consome do personagem.
+// Manter enxuta permite injetar um dublê nos testes (Node não tem DOM/canvas,
+// que o PlayerCharacter real usa em makeJerseyTexture).
+export interface CharVisual {
+  root: THREE.Object3D;
+  moveSpeed: number;
+  jumpY: number;
+  setAction(a: CharAction): void;
+  update(dt: number): void;
+}
+
+// Fábrica de personagem visual (default no browser = new PlayerCharacter).
+export type CharFactory = (look: CharLook) => CharVisual;
+
 // Humanoide low-poly procedural com juntas animadas por código (sem assets externos).
 // Convenção: frente do personagem = local +z (padrão Three.js). Braços no eixo x,
 // número no peito (+z) e nome+número nas costas (−z).
-export class PlayerCharacter {
+export class PlayerCharacter implements CharVisual {
   root = new THREE.Group(); // no chão, rotação = direção que encara
   private body = new THREE.Group(); // sobe ao pular
   private torso!: THREE.Group;

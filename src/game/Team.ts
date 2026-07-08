@@ -1,5 +1,11 @@
 import * as THREE from 'three';
-import { PlayerCharacter, CharAction, CharLook } from '../entities/PlayerCharacter';
+import {
+  PlayerCharacter,
+  CharAction,
+  CharLook,
+  CharVisual,
+  CharFactory,
+} from '../entities/PlayerCharacter';
 import { BASE_SLOTS, COLORS, PLAYER, TeamSide, SETTER_SPOT } from '../core/constants';
 import { rotateSlots } from './rules/rotation';
 
@@ -7,7 +13,7 @@ const GRAV = -22; // gravidade do pulo dos atletas (mais pesada = pulos secos)
 
 // Atleta: casca lógica sobre o personagem visual — movimento, pulo, ação com duração.
 export class Athlete {
-  char: PlayerCharacter;
+  char: CharVisual;
   pos = new THREE.Vector3();
   target = new THREE.Vector3();
   facing = 0;
@@ -23,8 +29,10 @@ export class Athlete {
     public side: TeamSide,
     public index: number,
     look: CharLook,
+    // Fábrica injetável do visual; default preserva o comportamento do browser.
+    makeChar: CharFactory = (l) => new PlayerCharacter(l),
   ) {
-    this.char = new PlayerCharacter(look);
+    this.char = makeChar(look);
   }
 
   get isAirborne(): boolean {
@@ -114,7 +122,11 @@ export class Team {
   /** slots[i] = índice do atleta na posição de rodízio i */
   slots: number[] = [0, 1, 2, 3, 4, 5];
 
-  constructor(public side: TeamSide) {
+  constructor(
+    public side: TeamSide,
+    // Injeta a fábrica visual (testes passam um dublê; browser usa o default).
+    makeChar?: CharFactory,
+  ) {
     const skins = [0xd6a77a, 0x8d5524, 0xc68642, 0xe0ac69, 0xf1c27d, 0xb07b52];
     const hairs = [0x2b1b12, 0x101010, 0x4e342e, 0x6d4c41, 0x1a1a1a, 0x3e2723];
     // elenco do time humano: Elisa, Heloisa e Isabela + 3 genéricos
@@ -136,7 +148,7 @@ export class Team {
         number: i + (side === TeamSide.HOME ? 1 : 7),
         ...custom,
       };
-      const a = new Athlete(side, i, look);
+      const a = new Athlete(side, i, look, makeChar);
       this.athletes.push(a);
       this.group.add(a.char.root);
     }
