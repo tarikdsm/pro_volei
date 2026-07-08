@@ -4,11 +4,13 @@ import {
   ballisticArc,
   positionAt,
   timeToHeight,
+  integrateBallistic,
   clamp,
   lerp,
   easeOutCubic,
   easeInOutCubic,
 } from './math3d';
+import { GRAVITY } from './constants';
 
 describe('clamp', () => {
   it('mantém valores dentro do intervalo', () => {
@@ -71,5 +73,61 @@ describe('timeToHeight', () => {
     const pos = new THREE.Vector3(0, 0, 0);
     const vel = new THREE.Vector3(0, 1, 0); // subindo devagar, gravidade puxa de volta
     expect(timeToHeight(pos, vel, 100)).toBe(-1);
+  });
+});
+
+describe('integrateBallistic', () => {
+  // A integração passo-a-passo deve coincidir com a forma analítica positionAt
+  // para qualquer dt — é o que garante que a bola real pousa/cruza a rede onde
+  // as previsões (predictLanding, computeNetCrossing) já indicam. O antigo Euler
+  // semi-implícito acumulava erro 0.5*g*T*dt e deixaria a bola mais baixa.
+  it('coincide com positionAt integrando a 60 fps (T=1.5)', () => {
+    const p0 = new THREE.Vector3(-6, 2.3, 3);
+    const v0 = new THREE.Vector3(4, 8, -1);
+    const pos = p0.clone();
+    const vel = v0.clone();
+    const dt = 1 / 60;
+    for (let i = 0; i < 90; i++) integrateBallistic(pos, vel, dt); // T = 90/60 = 1.5s
+    const expected = positionAt(p0, v0, 1.5, new THREE.Vector3());
+    expect(pos.x).toBeCloseTo(expected.x, 6);
+    expect(pos.y).toBeCloseTo(expected.y, 6);
+    expect(pos.z).toBeCloseTo(expected.z, 6);
+  });
+
+  it('coincide com positionAt mesmo no cap de dt=0.05 (T=1.5)', () => {
+    const p0 = new THREE.Vector3(-6, 2.3, 3);
+    const v0 = new THREE.Vector3(4, 8, -1);
+    const pos = p0.clone();
+    const vel = v0.clone();
+    const dt = 0.05;
+    for (let i = 0; i < 30; i++) integrateBallistic(pos, vel, dt); // T = 30*0.05 = 1.5s
+    const expected = positionAt(p0, v0, 1.5, new THREE.Vector3());
+    expect(pos.x).toBeCloseTo(expected.x, 6);
+    expect(pos.y).toBeCloseTo(expected.y, 6);
+    expect(pos.z).toBeCloseTo(expected.z, 6);
+  });
+
+  it('atualiza a velocidade vertical corretamente (vy = v0y + g*T)', () => {
+    const v0 = new THREE.Vector3(4, 8, -1);
+    const pos = new THREE.Vector3(-6, 2.3, 3);
+    const vel = v0.clone();
+    const dt = 1 / 60;
+    for (let i = 0; i < 90; i++) integrateBallistic(pos, vel, dt);
+    expect(vel.y).toBeCloseTo(v0.y + GRAVITY * 1.5, 6);
+    expect(vel.x).toBeCloseTo(v0.x, 6); // horizontais intactas (sem aceleração)
+    expect(vel.z).toBeCloseTo(v0.z, 6);
+  });
+
+  it('integra x e z de forma exata mesmo com velocidade horizontal', () => {
+    const p0 = new THREE.Vector3(1, 0.5, -2);
+    const v0 = new THREE.Vector3(-3, 5, 2.5);
+    const pos = p0.clone();
+    const vel = v0.clone();
+    const dt = 0.05;
+    for (let i = 0; i < 20; i++) integrateBallistic(pos, vel, dt); // T = 1.0s
+    const expected = positionAt(p0, v0, 1.0, new THREE.Vector3());
+    expect(pos.x).toBeCloseTo(expected.x, 6);
+    expect(pos.z).toBeCloseTo(expected.z, 6);
+    expect(pos.y).toBeCloseTo(expected.y, 6);
   });
 });

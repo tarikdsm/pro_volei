@@ -78,6 +78,18 @@ export function positionAt(
   return out;
 }
 
+// Integração balística EXATA de um passo dt (muta pos/vel in-place).
+// Avança pos com o termo de aceleração completo (pos.y += vel.y*dt + ½·g·dt²) ANTES
+// de atualizar vel.y — assim o passo-a-passo coincide com positionAt para qualquer dt
+// (após N passos, y_N = y0 + v0·T + ½·g·T², erro zero). Substitui o antigo Euler
+// semi-implícito, que atualizava vel.y primeiro e deixava a bola mais baixa que o arco previsto.
+export function integrateBallistic(pos: THREE.Vector3, vel: THREE.Vector3, dt: number): void {
+  pos.x += vel.x * dt;
+  pos.y += vel.y * dt + 0.5 * GRAVITY * dt * dt;
+  pos.z += vel.z * dt;
+  vel.y += GRAVITY * dt;
+}
+
 export function clamp(v: number, min: number, max: number): number {
   return v < min ? min : v > max ? max : v;
 }

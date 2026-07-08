@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { BALL_RADIUS, GRAVITY, COURT } from '../core/constants';
-import { positionAt, timeToHeight } from '../core/math3d';
+import { BALL_RADIUS, COURT } from '../core/constants';
+import { positionAt, timeToHeight, integrateBallistic } from '../core/math3d';
 
 // Bola com gomos (textura canvas), rastro luminoso e sombra projetada no chão.
 export class Ball {
@@ -76,8 +76,7 @@ export class Ball {
 
   step(dt: number): void {
     if (this.inFlight) {
-      this.vel.y += GRAVITY * dt;
-      this.pos.addScaledVector(this.vel, dt);
+      integrateBallistic(this.pos, this.vel, dt);
       this.mesh.rotation.x += this.spin.x * dt;
       this.mesh.rotation.y += this.spin.y * dt;
       this.mesh.rotation.z += this.spin.z * dt;
