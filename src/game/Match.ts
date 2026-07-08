@@ -34,9 +34,9 @@ import { computeNetCrossing } from './mechanics/net';
 import { RallyState, TouchPlan } from './RallyState';
 import { prepareBlock } from './mechanics/block';
 import { executeTouch } from './mechanics/touch';
-import { aiServe } from './mechanics/serve';
 import { MechanicsCtx } from './mechanics/context';
 import { HumanController } from './control/HumanController';
+import { AiController } from './ai/AiController';
 
 export interface MatchStats {
   aces: number;
@@ -90,6 +90,8 @@ export class Match {
 
   // controle humano (estado de interação + input por frame + marker)
   private human = new HumanController();
+  // decisões da IA (agendamento de aproximação/pulo, qualidade, saque)
+  private ai = new AiController();
 
   private stats: MatchStats = { aces: 0, blocks: 0, longestRally: 0, points: [0, 0] };
 
@@ -148,7 +150,7 @@ export class Match {
     } else {
       this.human.awaitOpponentServe();
       this.hooks.hint('Saque do adversário — prepare a recepção!');
-      this.after(rand(1.4, 2.4), () => aiServe(this.ctx));
+      this.after(rand(1.4, 2.4), () => this.ai.serve(this.ctx));
     }
   }
 
@@ -200,33 +202,33 @@ export class Match {
       done: false,
     };
 
-    // IA (ou aproximação automática p/ humano): manda o atleta para o ponto de contato
-    const delay = isHuman ? 0 : this.diff.reactionDelay;
-    if (nextKind === 'spike') {
-      // atacante corre para trás do ponto de contato; o pulo leva até ele
-      const backoff = sideSign(landSide) * 0.85;
-      this.after(delay, () => athlete.moveTo(cPoint.x + backoff * 0.9, cPoint.z));
-      if (!isHuman) {
-        // IA pula para contato no ápice
-        this.rally.plan.jumpScheduledIn = cT - 0.26;
+    // aproximação: a IA agenda o deslocamento (reactionDelay) e o pulo no ataque; o humano recebe
+    // um nudge inicial (delay 0) e assume com WASD — o levantador humano é automático.
+    if (isHuman) {
+      if (nextKind === 'spike') {
+        const backoff = sideSign(landSide) * 0.85;
+        this.after(0, () => athlete.moveTo(cPoint.x + backoff * 0.9, cPoint.z));
+      } else if (nextKind === 'set') {
+        athlete.moveTo(cPoint.x, cPoint.z);
+      } else {
+        this.after(0, () => athlete.moveTo(cPoint.x, cPoint.z));
       }
-      // câmera de ataque + bloqueio adversário
-      this.hooks.camera.setMode('spike');
-      prepareBlock(this.ctx, otherSide(landSide), cPoint.z, cT);
-    } else if (nextKind !== 'set' || !isHuman) {
-      this.after(delay, () => athlete.moveTo(cPoint.x, cPoint.z));
     } else {
-      athlete.moveTo(cPoint.x, cPoint.z); // levantador humano é automático
+      this.ai.scheduleApproach(this.ctx, this.rally.plan);
     }
 
-    // controle: humano assume seu lado; a IA já teve a aproximação/pulo agendados acima
+    // spike: câmera de ataque + preparação do bloqueio adversário (mecânica; independe do atacante)
+    if (nextKind === 'spike') {
+      this.hooks.camera.setMode('spike');
+      prepareBlock(this.ctx, otherSide(landSide), cPoint.z, cT);
+    }
+
+    // controle: humano assume seu lado; contra a cortada da IA, pode bloquear
     if (isHuman) {
       this.human.onAssigned(this.ctx, this.rally.plan);
     } else if (nextKind === 'spike') {
-      // AWAY ataca: humano pode bloquear
       this.human.assignBlock(this.home.nearestFrontRowTo(cPoint.z), this.ctx);
     } else {
-      // AWAY com a bola num contato não-bloqueável: humano ocioso
       this.human.idle(this.ctx);
     }
   }
@@ -384,25 +386,8 @@ export class Match {
     if (this.rally.plan && !this.rally.plan.done && this.state === 'rally') {
       this.rally.plan.contactIn -= dt;
 
-      // pulo agendado da IA no ataque
-      if (this.rally.plan.jumpScheduledIn !== undefined) {
-        this.rally.plan.jumpScheduledIn -= dt;
-        if (this.rally.plan.jumpScheduledIn <= 0) {
-          this.rally.plan.athlete.act('spikeWindup', 0.4);
-          this.rally.plan.athlete.jump(PLAYER.jumpVel);
-          this.rally.plan.jumpScheduledIn = undefined;
-        }
-      }
-
-      // bloqueadores IA pulam
-      for (let i = this.rally.blockers.length - 1; i >= 0; i--) {
-        this.rally.blockers[i].jumpIn -= dt;
-        if (this.rally.blockers[i].jumpIn <= 0) {
-          this.rally.blockers[i].athlete.act('block', 0.7);
-          this.rally.blockers[i].athlete.jump(PLAYER.blockJumpVel);
-          this.rally.blockers.splice(i, 1);
-        }
-      }
+      // pulos agendados da IA (atacante no ápice + bloqueadores)
+      this.ai.updateScheduledJumps(dt, this.ctx);
 
       if (this.rally.plan.contactIn <= 0) {
         this.attemptContact(this.rally.plan);
@@ -462,17 +447,9 @@ export class Match {
 
     const isHuman = plan.isHuman;
     if (d <= CONTACT.reach) {
-      let q: number;
-      if (isHuman) {
-        q = this.human.reachQuality(hard, medium, this.ctx);
-      } else {
-        // IA: contra bola forte, defesa depende da dificuldade
-        if (hard && !chance(this.diff.digChance)) {
-          q = chance(0.55) ? rand(0.03, 0.12) : -1;
-        } else {
-          q = rand(this.diff.passQuality[0], this.diff.passQuality[1]) * (hard ? 0.75 : 1);
-        }
-      }
+      const q = isHuman
+        ? this.human.reachQuality(hard, medium, this.ctx)
+        : this.ai.reachQuality(this.ctx, hard);
       if (q >= 0) executeTouch(this.ctx, plan, q);
       else a.act('dive', 0.8); // tentou e não conseguiu
     } else if (d <= CONTACT.lungeReach) {
@@ -494,7 +471,7 @@ export class Match {
     const airborne = a.isAirborne && a.jumpY > 0.2;
 
     if (airborne && d <= 1.0) {
-      const q = isHuman ? this.human.spikeQuality() : rand(0.6, 1);
+      const q = isHuman ? this.human.spikeQuality() : this.ai.spikeQuality();
       executeTouch(this.ctx, plan, q);
     } else if (d <= CONTACT.lungeReach) {
       // não pulou/perdeu o tempo: bola de graça por cima (com risco de sair)
