@@ -43,7 +43,8 @@ import {
 } from './rules/scoring';
 import { computeNetCrossing } from './mechanics/net';
 import { RallyState, TouchPlan } from './RallyState';
-import { blockCrossing, blockerReaches, blockProximity } from './mechanics/block';
+import { prepareBlock, resolveBlock } from './mechanics/block';
+import { MechanicsCtx } from './mechanics/context';
 
 export interface MatchStats {
   aces: number;
@@ -112,6 +113,10 @@ export class Match {
   private marker: THREE.Mesh; // anel sob o jogador controlado
 
   private stats: MatchStats = { aces: 0, blocks: 0, longestRally: 0, points: [0, 0] };
+
+  // contexto injetado nas funções de mecânica (mechanics/*), montado no construtor
+  private ctx!: MechanicsCtx;
+
   constructor(private hooks: Hooks) {
     this.group.add(this.ball.group, this.home.group, this.away.group);
     this.marker = new THREE.Mesh(
@@ -128,6 +133,7 @@ export class Match {
     this.marker.visible = false;
     this.group.add(this.marker);
     this.ball.hold(new THREE.Vector3(0, 1.2, 0));
+    this.ctx = this.makeCtx();
   }
 
   startMatch(diffIdx: number, fmtIdx: number): void {
@@ -301,7 +307,7 @@ export class Match {
       }
       // câmera de ataque + bloqueio adversário
       this.hooks.camera.setMode('spike');
-      this.prepareBlock(otherSide(landSide), cPoint.z, cT);
+      prepareBlock(this.ctx, otherSide(landSide), cPoint.z, cT);
     } else if (nextKind !== 'set' || !isHuman) {
       this.after(delay, () => athlete.moveTo(cPoint.x, cPoint.z));
     } else {
@@ -349,19 +355,6 @@ export class Match {
     const crossing = computeNetCrossing(this.ball.pos, this.ball.vel);
     if (crossing.kind === 'net') this.rally.netEventIn = crossing.t;
     else if (crossing.kind === 'cross') this.rally.crossIn = crossing.t;
-  }
-
-  // Bloqueio da IA (ou preparação do lado da IA contra ataque humano)
-  private prepareBlock(side: TeamSide, z: number, contactIn: number): void {
-    this.rally.blockers = [];
-    const team = this.teamOf(side);
-    const isAI = side === TeamSide.AWAY;
-    const blocker = team.nearestFrontRowTo(z);
-    const bx = sideSign(side) * 0.72;
-    blocker.moveTo(bx, clamp(z, -COURT.halfWidth + 0.4, COURT.halfWidth - 0.4));
-    if (isAI && chance(this.diff.blockChance)) {
-      this.rally.blockers.push({ athlete: blocker, jumpIn: contactIn + rand(0.0, 0.12) });
-    }
   }
 
   // ---------------------------------------------------------------- TOQUES
@@ -507,78 +500,8 @@ export class Match {
     this.ball.launch(this.ball.pos.clone(), v0);
     this.hooks.effects.showAim(null);
 
-    this.resolveBlock(side);
+    resolveBlock(this.ctx, side);
     this.planNext(this.rally.touchesOf(enemy) === 0 ? 'pass' : 'pass');
-  }
-
-  /** verifica bloqueio no cruzamento da rede (chamado no lançamento da cortada) */
-  private resolveBlock(attackSide: TeamSide): void {
-    const defSide = otherSide(attackSide);
-    const cross = blockCrossing(this.ball.pos, this.ball.vel);
-    if (!cross) return;
-
-    // candidatos: bloqueadores da linha de frente que estarão no ar
-    const team = this.teamOf(defSide);
-    const isHumanDef = defSide === TeamSide.HOME;
-    for (const blocker of team.frontRow()) {
-      // no momento do cruzamento o bloqueador precisa estar no ar
-      const willBeAirborne = isHumanDef
-        ? blocker.isAirborne && blocker.jumpY > 0.18
-        : this.rally.blockers.some((b) => b.athlete === blocker);
-      if (!willBeAirborne) continue;
-      if (!blockerReaches(blocker.pos.x, blocker.pos.z, blocker.jumpY, cross)) continue;
-
-      // BLOQUEIO! resolve no instante do cruzamento (prox congelada no agendamento)
-      const prox = blockProximity(blocker.pos.z, cross.z);
-      this.after(cross.t, () => {
-        const r = Math.random();
-        const bp = this.ball.pos.clone();
-        this.hooks.audio.block();
-        this.hooks.effects.burst(bp, 0x9fd8ff, 20, 6);
-        this.hooks.camera.addShake(0.6);
-        blocker.act('block', 0.5);
-        this.rally.lastToucher = blocker;
-        this.rally.lastTouchTeam = defSide;
-        this.rally.lastKind = 'block';
-        this.rally.rallyTouches++;
-
-        if (r < prox * 0.5) {
-          // STUFF: devolve no chão do atacante
-          const tgt = new THREE.Vector3(
-            sideSign(attackSide) * rand(1, 3.5),
-            0,
-            bp.z + rand(-1.5, 1.5),
-          );
-          const { v0 } = ballisticDrive(bp, tgt, 0.32);
-          this.ball.launch(bp, v0);
-          if (defSide === TeamSide.HOME) this.stats.blocks++;
-          this.hooks.banner(defSide === TeamSide.HOME ? 'MONSTER BLOCK!' : 'BLOQUEADO!');
-          this.hooks.crowd.excite(1);
-          this.hooks.audio.cheer(true);
-          this.planNext('dig');
-        } else if (r < prox * 0.95) {
-          // pingo: bola sobe devagar e continua no lado defensor — jogável
-          const v = this.ball.vel.clone();
-          v.x *= 0.25;
-          v.z *= 0.4;
-          v.y = Math.abs(v.y) * 0.3 + 3.2;
-          this.ball.launch(bp, v);
-          // toque de bloqueio não conta: posse continua limpa p/ defesa
-          this.rally.possessionTeam = null;
-          this.rally.possessionTouches = 0;
-          this.planNext('pass');
-        } else {
-          // explode no bloqueio pra fora (ponto do atacante)
-          const v = this.ball.vel.clone();
-          v.x *= -0.3;
-          v.y = 2;
-          v.z = rand(-6, 6);
-          this.ball.launch(bp, v);
-          this.planNext('pass');
-        }
-      });
-      return; // um bloqueador resolve
-    }
   }
 
   // ---------------------------------------------------------------- PONTO
@@ -1039,6 +962,36 @@ export class Match {
         this.controlled.jump(PLAYER.blockJumpVel);
       }
     }
+  }
+
+  /** Monta o contexto passado às funções de mecânica; getters mantêm vivos os valores mutáveis. */
+  private makeCtx(): MechanicsCtx {
+    // arrows capturam `this` (Match) lexicamente; getters mantêm vivos os valores mutáveis
+    const diff = () => this.diff;
+    const servingTeam = () => this.servingTeam;
+    const chosenZone = () => this.chosenZone;
+    const stats = () => this.stats;
+    return {
+      ball: this.ball,
+      rally: this.rally,
+      hooks: this.hooks,
+      aim: this.aim,
+      get diff() {
+        return diff();
+      },
+      get servingTeam() {
+        return servingTeam();
+      },
+      get chosenZone() {
+        return chosenZone();
+      },
+      get stats() {
+        return stats();
+      },
+      teamOf: (side) => this.teamOf(side),
+      after: (t, fn) => this.after(t, fn),
+      planNext: (kind) => this.planNext(kind),
+    };
   }
 
   private teamOf(side: TeamSide): Team {
