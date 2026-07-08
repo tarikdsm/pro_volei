@@ -1,0 +1,1083 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Code Review Amplo - Pro Volei - 2026-07-08</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f5f7fb;
+        --panel: #ffffff;
+        --ink: #18202d;
+        --muted: #617089;
+        --line: #d8e0ec;
+        --brand: #1657b8;
+        --brand-2: #0f8a6c;
+        --critical: #701414;
+        --high: #b42318;
+        --medium: #b65f00;
+        --low: #246b52;
+        --nit: #5c6780;
+        --code: #eef3f8;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font:
+          15px/1.55 system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          sans-serif;
+      }
+
+      main {
+        max-width: 1180px;
+        margin: 0 auto;
+        padding: 34px 22px 64px;
+      }
+
+      header {
+        padding: 30px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+      }
+
+      h1,
+      h2,
+      h3 {
+        line-height: 1.2;
+        margin: 0;
+      }
+
+      h1 {
+        font-size: clamp(30px, 5vw, 48px);
+        letter-spacing: -0.02em;
+      }
+
+      h2 {
+        margin-top: 34px;
+        margin-bottom: 12px;
+        font-size: 24px;
+      }
+
+      h3 {
+        margin-top: 0;
+        margin-bottom: 8px;
+        font-size: 18px;
+      }
+
+      p {
+        margin: 0 0 12px;
+      }
+
+      a {
+        color: var(--brand);
+      }
+
+      code {
+        padding: 2px 5px;
+        border-radius: 5px;
+        background: var(--code);
+        font-family: 'Cascadia Mono', Consolas, monospace;
+        font-size: 0.92em;
+      }
+
+      .meta {
+        margin-top: 18px;
+        color: var(--muted);
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+        margin-top: 18px;
+      }
+
+      .metric,
+      .panel,
+      .finding {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+      }
+
+      .metric {
+        padding: 16px;
+      }
+
+      .metric strong {
+        display: block;
+        font-size: 24px;
+      }
+
+      .metric span {
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .panel {
+        padding: 20px;
+        margin-bottom: 14px;
+      }
+
+      .toc {
+        columns: 2;
+        padding-left: 20px;
+      }
+
+      .toc li {
+        break-inside: avoid;
+        margin-bottom: 4px;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+      }
+
+      th,
+      td {
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--line);
+        text-align: left;
+        vertical-align: top;
+      }
+
+      th {
+        background: #edf3fb;
+        color: #263348;
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+
+      tr:last-child td {
+        border-bottom: 0;
+      }
+
+      .badge {
+        display: inline-block;
+        min-width: 72px;
+        padding: 3px 8px;
+        border-radius: 999px;
+        color: white;
+        font-size: 12px;
+        font-weight: 700;
+        text-align: center;
+        text-transform: uppercase;
+      }
+
+      .sev-critical {
+        background: var(--critical);
+      }
+
+      .sev-high {
+        background: var(--high);
+      }
+
+      .sev-medium {
+        background: var(--medium);
+      }
+
+      .sev-low {
+        background: var(--low);
+      }
+
+      .sev-nit {
+        background: var(--nit);
+      }
+
+      .finding {
+        padding: 20px;
+        margin: 14px 0;
+      }
+
+      .finding-head {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 10px;
+      }
+
+      .finding-title {
+        font-weight: 800;
+        font-size: 18px;
+      }
+
+      .refs {
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .refs code {
+        color: #23314a;
+      }
+
+      .two-col {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+      }
+
+      .callout {
+        border-left: 4px solid var(--brand);
+        background: #edf5ff;
+        padding: 14px 16px;
+        border-radius: 6px;
+        margin: 14px 0;
+      }
+
+      .ok {
+        color: var(--brand-2);
+        font-weight: 700;
+      }
+
+      .warn {
+        color: var(--medium);
+        font-weight: 700;
+      }
+
+      ul {
+        margin: 8px 0 0;
+        padding-left: 21px;
+      }
+
+      li {
+        margin-bottom: 5px;
+      }
+
+      footer {
+        margin-top: 34px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      @media (max-width: 820px) {
+        main {
+          padding: 18px 12px 44px;
+        }
+
+        header {
+          padding: 20px;
+        }
+
+        .grid,
+        .two-col {
+          grid-template-columns: 1fr;
+        }
+
+        .toc {
+          columns: 1;
+        }
+
+        table {
+          font-size: 13px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>Code Review Amplo - Pro Volei</h1>
+        <p class="meta">
+          Data: 2026-07-08. Escopo: projeto inteiro em
+          <code>D:\Projetos TI\Games\pro_volei</code>. Relatório gerado em HTML conforme solicitado.
+        </p>
+        <p>
+          Auditoria orquestrada com agentes <code>gpt-5.5</code> em
+          <code>reasoning_effort=xhigh</code>, cada um focado em um eixo independente: regras reais
+          de voleibol, física/robustez, render/performance, UI/input/audio, IA/gameplay,
+          segurança/deploy e arquitetura/testes. Os achados abaixo foram deduplicados por causa raiz
+          e priorizados por impacto.
+        </p>
+        <div class="grid" aria-label="Resumo numerico">
+          <div class="metric"><strong>0</strong><span>críticos</span></div>
+          <div class="metric"><strong>4</strong><span>altos</span></div>
+          <div class="metric"><strong>19</strong><span>médios</span></div>
+          <div class="metric"><strong>12</strong><span>baixos / melhorias</span></div>
+        </div>
+      </header>
+
+      <section id="sumario">
+        <h2>Sumário Executivo</h2>
+        <div class="panel">
+          <p>
+            O projeto está em bom estado de engenharia para um jogo browser procedural: TypeScript
+            strict, build Vite limpo, testes puros relevantes, arquitetura recente de
+            <code>Match</code> modularizada e runtime sem assets remotos. Os checks principais
+            passaram.
+          </p>
+          <p>
+            Os riscos mais importantes estão concentrados na simulação do rally. A bola é prevista
+            por solvers analíticos, mas integrada por Euler semi-implícito, e os eventos de contato,
+            rede e bloqueio são resolvidos antes da posição visual/física avançar no frame. Isso
+            pode deslocar contatos e decisões de rede em lances rápidos. Em paralelo, o lifecycle de
+            bloqueio mistura agendamento com elegibilidade, permitindo bloqueios antes do salto ou
+            perdendo bloqueios já saltados.
+          </p>
+          <p>
+            Em regras reais de voleibol, os principais desvios são cobertura pós-bloqueio, bola fora
+            das antenas, primeiro saque entre sets e reset de line-up. Para as regras oficiais, a
+            referência consultada foi a página da FIVB para
+            <a href="https://www.fivb.com/volleyball/the-game/official-volleyball-rules/"
+              >Official Volleyball Rules 2025-2028</a
+            >, incluindo o PDF oficial
+            <a
+              href="https://www.fivb.com/wp-content/uploads/2025/01/FIVB-Volleyball_Rules2025_2028-EN-v05.pdf"
+              >FIVB-Volleyball_Rules2025_2028</a
+            >.
+          </p>
+        </div>
+      </section>
+
+      <section id="verificacao">
+        <h2>Verificação Executada</h2>
+        <div class="two-col">
+          <div class="panel">
+            <h3>Passou</h3>
+            <ul>
+              <li>
+                <span class="ok">OK</span> <code>npm run check</code>: typecheck, lint, Prettier e
+                60 testes Vitest em 7 arquivos.
+              </li>
+              <li>
+                <span class="ok">OK</span> <code>npm run build</code>: build Vite de produção gerado
+                com sucesso.
+              </li>
+              <li>
+                <span class="ok">OK</span> <code>npm audit --omit=dev --audit-level=moderate</code>:
+                0 vulnerabilidades reportadas.
+              </li>
+              <li>
+                <span class="ok">OK</span> screenshots Playwright CLI do menu desktop e touch
+                carregaram <code>#btn-start</code> sem erro de navegação.
+              </li>
+              <li>
+                <span class="ok">OK</span> após correção, o Playwright MCP foi configurado com
+                <code>--isolated</code> em <code>.mcp.json</code> e validado com navegação,
+                snapshot, clique em <code>JOGAR</code>, screenshot e leitura de console.
+              </li>
+            </ul>
+          </div>
+          <div class="panel">
+            <h3>Automação adicionada</h3>
+            <ul>
+              <li>
+                <span class="ok">OK</span> <code>npm run test:e2e</code>: 2 testes Chromium via
+                <code>@playwright/test</code> passaram, com servidor Vite iniciado por
+                <code>webServer</code>.
+              </li>
+              <li>
+                <span class="ok">OK</span> smoke automatizado abre o jogo, valida
+                <code>canvas</code>/<code>#menu</code>, clica em <code>JOGAR</code>, valida
+                <code>#hud</code>/<code>#scoreboard</code>, exercita <code>Space</code> e WASD,
+                anexa screenshot e falha em erro de console ou <code>pageerror</code>.
+              </li>
+              <li>
+                <span class="ok">OK</span> profiling real coletado em Chromium headless
+                instrumentado: FPS médio 9,0; p95 de frame 116,8 ms; heap CDP usado 17,0 MB; heap
+                total 32,0 MB; média 535,9 draw calls/frame; pico 549 draw calls/frame.
+              </li>
+            </ul>
+            <p>
+              Observação: esses números viram baseline reprodutível de laboratório, mas ainda não
+              são orçamento final de performance para hardware alvo.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section id="mapa">
+        <h2>Mapa de Achados</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Sev.</th>
+              <th>Área</th>
+              <th>Achado</th>
+              <th>Arquivos principais</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="badge sev-high">alto</span></td>
+              <td>Física</td>
+              <td>Integração da bola diverge dos solvers analíticos.</td>
+              <td><code>src/entities/Ball.ts:79</code>, <code>src/core/math3d.ts:77</code></td>
+            </tr>
+            <tr>
+              <td><span class="badge sev-high">alto</span></td>
+              <td>Física</td>
+              <td>Contato, rede e bloqueio usam posição stale do frame anterior.</td>
+              <td><code>src/game/Match.ts:241</code>, <code>src/game/Match.ts:288</code></td>
+            </tr>
+            <tr>
+              <td><span class="badge sev-high">alto</span></td>
+              <td>Regras / IA</td>
+              <td>Lifecycle de bloqueio da CPU está invertido e pode vazar entre rallies.</td>
+              <td>
+                <code>src/game/mechanics/block.ts:74</code>,
+                <code>src/game/ai/AiController.ts:45</code>, <code>src/game/RallyState.ts:52</code>
+              </td>
+            </tr>
+            <tr>
+              <td><span class="badge sev-high">alto</span></td>
+              <td>Regras</td>
+              <td>Bloqueio "stuff" não reseta posse e impede cobertura legal.</td>
+              <td>
+                <code>src/game/mechanics/block.ts:104</code>, <code>src/game/Match.ts:163</code>
+              </td>
+            </tr>
+            <tr>
+              <td><span class="badge sev-medium">médio</span></td>
+              <td>Regras</td>
+              <td>Cruzamento fora das antenas é tratado como jogável.</td>
+              <td>
+                <code>src/game/mechanics/net.ts:27</code>,
+                <code>src/game/mechanics/net.test.ts:28</code>
+              </td>
+            </tr>
+            <tr>
+              <td><span class="badge sev-medium">médio</span></td>
+              <td>Game feel</td>
+              <td>WASD move e troca zona de ataque durante recepção.</td>
+              <td>
+                <code>src/game/control/HumanController.ts:223</code>,
+                <code>src/ui/TouchControls.ts:106</code>
+              </td>
+            </tr>
+            <tr>
+              <td><span class="badge sev-medium">médio</span></td>
+              <td>Performance</td>
+              <td>Torcida reenvia matrizes de instância em todo frame.</td>
+              <td><code>src/world/Crowd.ts:114</code>, <code>src/world/Crowd.ts:130</code></td>
+            </tr>
+            <tr>
+              <td><span class="badge sev-medium">médio</span></td>
+              <td>Segurança dev</td>
+              <td>Hook local de formatação interpola path em shell.</td>
+              <td><code>.claude/hooks/format-on-save.mjs:15</code></td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="achados-altos">
+        <h2>Achados Altos</h2>
+
+        <article class="finding">
+          <div class="finding-head">
+            <span class="badge sev-high">alto</span>
+            <span class="finding-title">Integração da bola diverge dos solvers analíticos</span>
+          </div>
+          <p class="refs">
+            Evidências: <code>src/entities/Ball.ts:79</code>, <code>src/entities/Ball.ts:80</code>,
+            <code>src/core/math3d.ts:77</code>, <code>src/game/Match.ts:158</code>,
+            <code>src/game/Match.ts:168</code>, <code>src/main.ts:130</code>.
+          </p>
+          <p>
+            As previsões de landing, contato e rede usam cinemática analítica, mas
+            <code>Ball.step()</code> atualiza a velocidade vertical antes da posição. Isso é Euler
+            semi-implícito e deixa a bola real mais baixa que a trajetória prevista. Com o cap de
+            <code>dt</code> em 0,05s, o erro pode ficar visível em saques/cortadas e afetar IA,
+            marcador de queda e decisões de contato.
+          </p>
+          <p>
+            Direção de correção: avançar posição com
+            <code>pos += vel * dt + 0.5 * g * dt * dt</code> e só depois atualizar <code>vel</code>,
+            ou tornar a bola 100% analítica por lançamento com tempo acumulado. Adicionar teste
+            comparando <code>Ball.step()</code> com <code>positionAt()</code> para
+            <code>dt=1/60</code> e <code>dt=0.05</code>.
+          </p>
+        </article>
+
+        <article class="finding">
+          <div class="finding-head">
+            <span class="badge sev-high">alto</span>
+            <span class="finding-title"
+              >Eventos de contato, rede e bloqueio usam posição stale</span
+            >
+          </div>
+          <p class="refs">
+            Evidências: <code>src/game/Match.ts:241</code>, <code>src/game/Match.ts:260</code>,
+            <code>src/game/Match.ts:267</code>, <code>src/game/Match.ts:288</code>,
+            <code>src/game/mechanics/touch.ts:76</code>,
+            <code>src/game/mechanics/block.ts:99</code>.
+          </p>
+          <p>
+            O update processa eventos agendados e timers antes de avançar a bola. Quando um evento
+            vence dentro do frame, o contato é resolvido a partir da posição do frame anterior, não
+            do instante exato do evento. Em bola rápida, isso pode deslocar o contato em quase um
+            metro no pior caso do cap de 20 FPS.
+          </p>
+          <p>
+            Direção de correção: tratar eventos contínuos por subpasso, dividindo o
+            <code>dt</code> em "até o evento" e "resto"; como melhoria inicial, snapar a bola para
+            <code>plan.point</code> ou para o ponto analítico de cruzamento antes de resolver
+            contato/rede/bloqueio.
+          </p>
+        </article>
+
+        <article class="finding">
+          <div class="finding-head">
+            <span class="badge sev-high">alto</span>
+            <span class="finding-title">Lifecycle de bloqueio da CPU está invertido</span>
+          </div>
+          <p class="refs">
+            Evidências: <code>src/game/mechanics/block.ts:73</code>,
+            <code>src/game/mechanics/block.ts:74</code>,
+            <code>src/game/mechanics/block.ts:89</code>,
+            <code>src/game/mechanics/block.ts:91</code>,
+            <code>src/game/ai/AiController.ts:40</code>,
+            <code>src/game/ai/AiController.ts:45</code>, <code>src/game/RallyState.ts:52</code>.
+          </p>
+          <p>
+            A lista <code>rally.blockers</code> representa ao mesmo tempo "bloqueio agendado" e
+            "bloqueador elegível". O <code>AiController</code> remove o bloqueador da lista quando
+            ele pula, enquanto <code>resolveBlock()</code> considera elegível quem ainda está na
+            lista. Na prática, um bloqueador que ainda não pulou pode bloquear, e um que pulou pode
+            deixar de contar. Como <code>RallyState.reset()</code> não limpa <code>blockers</code>,
+            um agendamento pode sobreviver entre pontos.
+          </p>
+          <p>
+            Direção de correção: modelar um estado explícito por bloqueador (<code>scheduled</code>,
+            <code>airborne</code>, <code>resolved</code>) e limpar todos os campos de planejamento
+            em <code>RallyState.reset()</code>. A elegibilidade deve ser calculada no instante do
+            cruzamento, usando altura real ou prevista.
+          </p>
+        </article>
+
+        <article class="finding">
+          <div class="finding-head">
+            <span class="badge sev-high">alto</span>
+            <span class="finding-title"
+              >Bloqueio "stuff" impede cobertura legal do ataque bloqueado</span
+            >
+          </div>
+          <p class="refs">
+            Evidências: <code>src/game/mechanics/block.ts:104</code>,
+            <code>src/game/mechanics/block.ts:122</code>, <code>src/game/Match.ts:163</code>.
+          </p>
+          <p>
+            No ramo de block stuff, o código marca <code>lastTouchTeam = defSide</code> e agenda
+            <code>planNext('dig')</code>, mas não limpa a posse. Como o ataque normalmente chegou à
+            cortada no terceiro toque, <code>planNext()</code> pode ver a bola voltando ao mesmo
+            lado do atacante com <code>possessionTouches >= 3</code> e não agenda defesa. No
+            voleibol, o toque de bloqueio não conta, e a equipe que recebe a bola após o bloqueio
+            pode jogar nova sequência de até três toques.
+          </p>
+          <p>
+            Direção de correção: sempre que um contato de bloqueio mantém o rally vivo, reiniciar a
+            posse antes de <code>ctx.planNext(...)</code>, não apenas no ramo "pingo".
+          </p>
+        </article>
+      </section>
+
+      <section id="achados-medios">
+        <h2>Achados Médios</h2>
+
+        <article class="finding">
+          <div class="finding-head">
+            <span class="badge sev-medium">médio</span>
+            <span class="finding-title"
+              >Bloqueio pode substituir bola que deveria bater na rede</span
+            >
+          </div>
+          <p class="refs">
+            Evidências: <code>src/game/mechanics/touch.ts:136</code>,
+            <code>src/game/mechanics/touch.ts:139</code>, <code>src/game/mechanics/net.ts:27</code>,
+            <code>src/game/mechanics/block.ts:51</code>, <code>src/game/Match.ts:267</code>.
+          </p>
+          <p>
+            Ataques da IA que erram "na rede" miram baixo, mas <code>blockerReaches()</code> aceita
+            qualquer cruzamento abaixo do alcance, sem limite inferior relativo à fita. Como eventos
+            de bloqueio e rede competem por agenda, um bloqueio pode apagar uma bola que deveria ser
+            falta de rede.
+          </p>
+          <p>
+            Correção: priorizar <code>computeNetCrossing(...).kind === 'net'</code> para o mesmo
+            cruzamento ou impedir bloqueio quando a bola está na faixa de colisão da rede.
+          </p>
+        </article>
+
+        <article class="finding">
+          <div class="finding-head">
+            <span class="badge sev-medium">médio</span>
+            <span class="finding-title">Cruzamento fora das antenas é tratado como jogável</span>
+          </div>
+          <p class="refs">
+            Evidências: <code>src/game/mechanics/net.ts:27</code>,
+            <code>src/game/mechanics/net.ts:31</code>,
+            <code>src/game/mechanics/net.test.ts:28</code>.
+          </p>
+          <p>
+            O teste atual declara que bola fora da largura da rede "passa pela lateral" e o código
+            retorna <code>cross</code>. Pelas regras oficiais, a bola enviada para a quadra
+            adversária deve cruzar pelo espaço de cruzamento entre antenas; há exceções para
+            recuperação no espaço livre, mas não para pontuar uma bola enviada fora da antena e que
+            depois cai dentro.
+          </p>
+          <p>
+            Correção: representar <code>outOfAntenna</code>/<code>externalSpace</code> em
+            <code>computeNetCrossing()</code> e decidir ponto ou recuperação conforme toque e lado.
+          </p>
+        </article>
+
+        <article class="finding">
+          <div class="finding-head">
+            <span class="badge sev-medium">médio</span>
+            <span class="finding-title"
+              >Primeiro saque do set seguinte usa vencedor do set anterior</span
+            >
+          </div>
+          <p class="refs">
+            Evidências: <code>src/game/rules/SetMatch.ts:139</code>,
+            <code>src/game/rules/SetMatch.ts:142</code>.
+          </p>
+          <p>
+            Ao abrir novo set, o código usa <code>ctx.servingTeam = winner</code>. Para um formato
+            "melhor de 3", isso altera a posse inicial entre sets. A regra oficial alterna o
+            primeiro saque dos sets não decisivos a partir do primeiro sacador do set anterior; o
+            set decisivo deve ter uma política explícita.
+          </p>
+          <p>
+            Correção: persistir <code>firstServerOfSet</code>, alternar em sets não decisivos e
+            sortear/definir explicitamente o set decisivo.
+          </p>
+        </article>
+
+        <article class="finding">
+          <div class="finding-head">
+            <span class="badge sev-medium">médio</span>
+            <span class="finding-title">Rodízio/line-up carrega estado entre partidas</span>
+          </div>
+          <p class="refs">
+            Evidências: <code>src/game/Match.ts:103</code>, <code>src/game/Match.ts:106</code>,
+            <code>src/game/Team.ts:115</code>, <code>src/game/Team.ts:160</code>.
+          </p>
+          <p>
+            <code>startMatch()</code> reseta placar, sets e estatísticas, mas não restaura
+            <code>Team.slots</code>. Uma nova partida iniciada após rotações herda o rodízio da
+            partida anterior.
+          </p>
+          <p>
+            Correção: adicionar <code>Team.resetLineup()</code> e chamá-lo em
+            <code>startMatch()</code>; documentar se o line-up deve resetar também entre sets.
+          </p>
+        </article>
+
+        <article class="finding">
+          <div class="finding-head">
+            <span class="badge sev-medium">médio</span>
+            <span class="finding-title">WASD move e troca zona de ataque durante recepção</span>
+          </div>
+          <p class="refs">
+            Evidências: <code>src/core/Input.ts:39</code>,
+            <code>src/game/control/HumanController.ts:223</code>,
+            <code>src/game/control/HumanController.ts:228</code>,
+            <code>src/ui/TouchControls.ts:106</code>.
+          </p>
+          <p>
+            No estado <code>receive</code>, <code>W/A/D</code> controlam movimento e também trocam a
+            zona de ataque. No touch, o joystick sintetiza as mesmas teclas, então mover o jogador
+            muda a zona acidentalmente.
+          </p>
+          <p>
+            Correção: permitir troca de zona só no levantamento, ou separar entradas: setas/joystick
+            para movimento e botões/HUD para zona.
+          </p>
+        </article>
+
+        <article class="finding">
+          <div class="finding-head">
+            <span class="badge sev-medium">médio</span>
+            <span class="finding-title">Câmera entra em modo spike e não volta ao rally</span>
+          </div>
+          <p class="refs">
+            Evidências: <code>src/game/Match.ts:215</code>,
+            <code>src/game/mechanics/touch.ts:160</code>,
+            <code>src/game/mechanics/touch.ts:161</code>,
+            <code>src/game/mechanics/serve.ts:33</code>.
+          </p>
+          <p>
+            <code>planNext('spike')</code> muda a câmera para <code>spike</code>. Depois da cortada,
+            <code>doSpike()</code> chama bloqueio e planeja passe, mas não retorna a câmera para
+            <code>rally</code>. Isso pode deixar a defesa e o levantamento em enquadramento
+            dramático demais.
+          </p>
+          <p>
+            Correção: retornar ao modo <code>rally</code> após o golpe/slow motion ou fazer
+            <code>planNext()</code> restaurar <code>rally</code> quando
+            <code>nextKind !== 'spike'</code>.
+          </p>
+        </article>
+
+        <article class="finding">
+          <div class="finding-head">
+            <span class="badge sev-medium">médio</span>
+            <span class="finding-title">Pausa e fim de partida têm estados inconsistentes</span>
+          </div>
+          <p class="refs">
+            Evidências: <code>src/main.ts:78</code>, <code>src/main.ts:101</code>,
+            <code>src/main.ts:111</code>, <code>src/main.ts:112</code>,
+            <code>src/main.ts:143</code>, <code>src/main.ts:153</code>,
+            <code>src/game/control/HumanController.ts:174</code>.
+          </p>
+          <p>
+            O listener de <code>Escape</code> alterna pausa sem ignorar <code>e.repeat</code>. Além
+            disso, durante pausa <code>match.update()</code> não roda, mas
+            <code>input.endFrame()</code> limpa releases; soltar <code>Space</code> pausado pode
+            manter o saque carregando ao retomar. No fim da partida, <code>playing</code> não volta
+            a <code>false</code>, então <code>Escape</code> ainda pode abrir pausa sobre a tela
+            final.
+          </p>
+          <p>
+            Correção: trocar booleans soltos por estado de app (<code>title</code>,
+            <code>playing</code>, <code>paused</code>, <code>ended</code>), ignorar
+            <code>e.repeat</code>, e expor um reset/cancelamento de input ao pausar.
+          </p>
+        </article>
+
+        <article class="finding">
+          <div class="finding-head">
+            <span class="badge sev-medium">médio</span>
+            <span class="finding-title">AudioContext não recupera estado suspended</span>
+          </div>
+          <p class="refs">
+            Evidências: <code>src/core/AudioEngine.ts:13</code>,
+            <code>src/core/AudioEngine.ts:14</code>, <code>src/main.ts:98</code>.
+          </p>
+          <p>
+            <code>AudioEngine.init()</code> retorna cedo se o contexto já existe e não chama
+            <code>ctx.resume()</code>. Em Safari/iOS ou após background da aba, o contexto pode
+            ficar suspenso e o áudio permanecer mudo.
+          </p>
+          <p>
+            Correção: tornar init/resume idempotente e chamar <code>ctx.resume()</code> em gestos do
+            usuário, retorno de pausa e <code>visibilitychange</code>.
+          </p>
+        </article>
+
+        <article class="finding">
+          <div class="finding-head">
+            <span class="badge sev-medium">médio</span>
+            <span class="finding-title">Torcida atualiza todas as instâncias em todo frame</span>
+          </div>
+          <p class="refs">
+            Evidências: <code>src/main.ts:146</code>, <code>src/world/Crowd.ts:114</code>,
+            <code>src/world/Crowd.ts:128</code>, <code>src/world/Crowd.ts:130</code>.
+          </p>
+          <p>
+            <code>crowd.update()</code> percorre todas as instâncias e força upload de
+            <code>instanceMatrix</code> em todo frame, inclusive menu e pausa. É o maior objeto
+            visual do jogo e vira custo fixo de CPU/GPU.
+          </p>
+          <p>
+            Correção: reduzir tick no mobile, animar subconjunto/LOD, congelar em baixa empolgação
+            ou mover animação para shader/atributos.
+          </p>
+        </article>
+
+        <article class="finding">
+          <div class="finding-head">
+            <span class="badge sev-medium">médio</span>
+            <span class="finding-title"
+              >Shadow pass inclui meshes pequenos e planos transparentes</span
+            >
+          </div>
+          <p class="refs">
+            Evidências: <code>src/main.ts:29</code>, <code>src/main.ts:30</code>,
+            <code>src/world/Arena.ts:138</code>, <code>src/entities/PlayerCharacter.ts:70</code>,
+            <code>src/entities/PlayerCharacter.ts:78</code>,
+            <code>src/entities/PlayerCharacter.ts:181</code>.
+          </p>
+          <p>
+            As sombras globais estão ligadas com PCFSoft e o personagem marca todos os
+            <code>Mesh</code> como <code>castShadow</code>, incluindo planos transparentes de número
+            e nome. Isso aumenta draw calls no shadow pass.
+          </p>
+          <p>
+            Correção: habilitar sombra só em corpo/cabeça/membros relevantes e excluir planos
+            transparentes; no perfil touch, considerar sombra blob/contact shadow.
+          </p>
+        </article>
+
+        <article class="finding">
+          <div class="finding-head">
+            <span class="badge sev-medium">médio</span>
+            <span class="finding-title">Alocações por frame em atleta e hot paths visuais</span>
+          </div>
+          <p class="refs">
+            Evidências: <code>src/game/Team.ts:60</code>, <code>src/game/Team.ts:230</code>,
+            <code>src/game/Match.ts:290</code>, <code>src/game/Match.ts:291</code>.
+          </p>
+          <p>
+            <code>Athlete.update()</code> cria um <code>Vector3</code> por atleta por frame. Com 12
+            atletas, isso gera pressão de GC constante durante rallies. Itens relacionados de menor
+            impacto aparecem no rastro da bola e câmera.
+          </p>
+          <p>
+            Correção: reutilizar um <code>private delta = new THREE.Vector3()</code> por atleta e
+            revisar hot paths para buffers/ring buffers.
+          </p>
+        </article>
+
+        <article class="finding">
+          <div class="finding-head">
+            <span class="badge sev-medium">médio</span>
+            <span class="finding-title">Hook local de formatação permite command injection</span>
+          </div>
+          <p class="refs">
+            Evidências: <code>.claude/hooks/format-on-save.mjs:15</code>,
+            <code>.claude/settings.json:4</code>.
+          </p>
+          <p>
+            O hook interpola <code>file_path</code> em string de shell:
+            <code>npx prettier --write "${file}"</code>. Um path malicioso pode executar comando
+            local no ambiente de desenvolvimento/agente.
+          </p>
+          <p>
+            Correção: usar <code>execFileSync</code>/<code>spawnSync</code> com array de argumentos,
+            validar <code>path.resolve(file)</code> dentro do repo e chamar o Prettier local sem
+            shell.
+          </p>
+        </article>
+
+        <article class="finding">
+          <div class="finding-head">
+            <span class="badge sev-medium">médio</span>
+            <span class="finding-title">MCP Playwright usa pacote mutável fora do lockfile</span>
+          </div>
+          <p class="refs">Evidências: <code>.mcp.json:4</code>, <code>.mcp.json:5</code>.</p>
+          <p>
+            <code>npx @playwright/mcp@latest</code> executa a versão mais recente no momento do uso,
+            sem pin no <code>package-lock.json</code>. Isso aumenta risco de supply chain e
+            reprodutibilidade.
+          </p>
+          <p>
+            Correção: usar versão exata ou adicionar como <code>devDependency</code> e executar o
+            binário local via <code>npm ci</code>.
+          </p>
+        </article>
+
+        <article class="finding">
+          <div class="finding-head">
+            <span class="badge sev-medium">médio</span>
+            <span class="finding-title">Team/Athlete mistura lógica testável com render/DOM</span>
+          </div>
+          <p class="refs">
+            Evidências: <code>src/game/Team.ts:2</code>, <code>src/game/Team.ts:27</code>,
+            <code>src/game/Team.ts:139</code>, <code>src/entities/PlayerCharacter.ts:422</code>,
+            <code>vitest.config.ts:5</code>.
+          </p>
+          <p>
+            <code>Team</code> cria <code>PlayerCharacter</code>, que cria textura por
+            <code>document.createElement</code>. Como os testes rodam em Node, isso dificulta testes
+            diretos de seleção de atleta, rodízio visual/lógico e partes de <code>Match</code>.
+          </p>
+          <p>
+            Correção: separar modelo lógico de atleta/time do visual ou injetar factory visual com
+            dublê para testes Node.
+          </p>
+        </article>
+      </section>
+
+      <section id="achados-baixos">
+        <h2>Achados Baixos e Melhorias Materiais</h2>
+        <div class="panel">
+          <ul>
+            <li>
+              <strong>Contato consecutivo do mesmo atleta em pass replanejado</strong> -
+              <code>src/game/Match.ts:177</code>, <code>src/game/Match.ts:186</code>. Em rebotes de
+              rede ou passes ruins no mesmo lado, <code>pass</code> não exclui
+              <code>lastToucher</code>. Excluir quando <code>lastTouchTeam === landSide</code> e
+              <code>lastKind !== 'block'</code>.
+            </li>
+            <li>
+              <strong>Tuning espalhado fora de constants</strong> -
+              <code>src/game/mechanics/block.ts:14</code>,
+              <code>src/game/control/timing.ts:8</code>,
+              <code>src/game/control/HumanController.ts:192</code>. Mover para grupos
+              <code>BLOCK</code>, <code>TIMING</code> e <code>SERVE_TUNING</code>.
+            </li>
+            <li>
+              <strong>Controles touch não semânticos</strong> -
+              <code>src/ui/TouchControls.ts:25</code>, <code>src/ui/TouchControls.ts:124</code>,
+              <code>src/ui/HUD.ts:31</code>. Usar <code>button</code> ou adicionar
+              <code>role</code>, <code>tabindex</code>, <code>aria-label</code> e handlers de
+              teclado.
+            </li>
+            <li>
+              <strong>Layout touch não usa safe areas</strong> - <code>src/style.css:233</code>,
+              <code>src/style.css:257</code>, <code>src/style.css:327</code>. Usar
+              <code>env(safe-area-inset-*)</code> e evitar <code>calc(100vw - 400px)</code> em telas
+              estreitas.
+            </li>
+            <li>
+              <strong>Debug global em produção</strong> - <code>src/main.ts:92</code>,
+              <code>src/main.ts:93</code>. Expor <code>window.__match</code> apenas em
+              <code>import.meta.env.DEV</code> ou flag explícita.
+            </li>
+            <li>
+              <strong>Dev server exposto na LAN por padrão</strong> - <code>vite.config.ts:5</code>.
+              Preferir localhost e criar <code>dev:lan</code> separado para testes mobile.
+            </li>
+            <li>
+              <strong>Deploy manual sem gate reprodutível</strong> - <code>package.json:10</code>,
+              <code>docs/deployment/web.md:17</code>. Preferir GitHub Actions Pages com
+              <code>npm ci</code>, <code>npm run check</code> e artifact.
+            </li>
+            <li>
+              <strong>README usa badges remotos</strong> - <code>README.md:13</code>. Não afeta o
+              runtime, mas quebra offline/privacidade se a regra também valer para docs.
+            </li>
+            <li>
+              <strong>Rastro da bola aloca e faz shift</strong> -
+              <code>src/entities/Ball.ts:105</code>, <code>src/entities/Ball.ts:106</code>,
+              <code>src/entities/Ball.ts:110</code>. Usar ring buffer fixo.
+            </li>
+            <li>
+              <strong>Câmera aloca offset e recalcula projeção sempre</strong> -
+              <code>src/systems/CameraDirector.ts:125</code>,
+              <code>src/systems/CameraDirector.ts:135</code>. Prealocar offset e atualizar matriz só
+              quando FOV mudar.
+            </li>
+            <li>
+              <strong>Partículas fazem upload mesmo sem partículas</strong> -
+              <code>src/systems/Effects.ts:145</code>, <code>src/systems/Effects.ts:163</code>. Usar
+              swap-remove/free-list e marcar buffers apenas quando necessário.
+            </li>
+            <li>
+              <strong>Roadmap e estado morto geram drift</strong> - <code>docs/ROADMAP.md:22</code>,
+              <code>docs/ARCHITECTURE.md:68</code>, <code>src/core/constants.ts:29</code>,
+              <code>src/core/constants.ts:41</code>. Atualizar roadmap da Fase 1 e remover/unificar
+              enums não usados.
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="testes">
+        <h2>Lacunas de Teste Prioritárias</h2>
+        <div class="panel">
+          <ol>
+            <li>
+              <strong>Física da bola:</strong> teste <code>Ball.step()</code> contra
+              <code>positionAt()</code>; teste evento com <code>contactIn &lt; dt</code>; teste de
+              prioridade rede vs bloqueio.
+            </li>
+            <li>
+              <strong>Bloqueio:</strong> lifecycle de <code>rally.blockers</code>, reset entre
+              pontos, elegibilidade de blocker já no ar, block stuff defendível e posse nova após
+              bloqueio.
+            </li>
+            <li>
+              <strong>SetMatch:</strong> <code>awardPoint()</code>/<code>endSet()</code> para
+              side-out, rodízio, alternância de saque, set point, match point e fim de partida.
+            </li>
+            <li>
+              <strong>Input/UI:</strong> pausa segurando <code>Esc</code>, soltar ação durante
+              pausa, fim de partida com <code>Esc</code>, conflito WASD/zona e controles touch
+              sintéticos.
+            </li>
+            <li>
+              <strong>Arquitetura testável:</strong> separar <code>Team/Athlete</code> do visual
+              para permitir testes Node de seleção de jogadores, front row, server e reset de
+              line-up.
+            </li>
+            <li>
+              <strong>Browser smoke:</strong> evoluir o <code>@playwright/test</code> existente para
+              cobrir pausa, touch, fim de set/partida e regressões visuais em viewports críticos.
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <section id="plano">
+        <h2>Plano de Correção Recomendado</h2>
+        <div class="panel">
+          <h3>Pacote 1 - Integridade do rally</h3>
+          <ul>
+            <li>Unificar física analítica/integrada da bola.</li>
+            <li>Resolver eventos contínuos no instante correto.</li>
+            <li>Corrigir lifecycle de bloqueio e reset completo de <code>RallyState</code>.</li>
+            <li>Adicionar testes de regressão para os quatro achados altos.</li>
+          </ul>
+        </div>
+        <div class="panel">
+          <h3>Pacote 2 - Regras reais e game feel</h3>
+          <ul>
+            <li>Modelar crossing space/antenas e saque entre sets.</li>
+            <li>Resetar ou documentar line-up por partida/set.</li>
+            <li>Separar WASD de seleção de zona e restaurar câmera para rally após ataque.</li>
+            <li>
+              Adicionar telemetria local simples de rallies, erros, ataques, defesas e bloqueios.
+            </li>
+          </ul>
+        </div>
+        <div class="panel">
+          <h3>Pacote 3 - Performance e hardening</h3>
+          <ul>
+            <li>Reduzir custo da torcida, sombras e alocações por frame.</li>
+            <li>Corrigir hook de formatação e pin do MCP Playwright.</li>
+            <li>Adicionar CSP inicial e pipeline reprodutível de Pages.</li>
+            <li>
+              Evoluir o profiling Playwright para orçamento de performance com
+              <code>renderer.info</code>, frame time, heap e thresholds por hardware alvo.
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="fontes">
+        <h2>Fontes e Contexto</h2>
+        <div class="panel">
+          <ul>
+            <li><code>CLAUDE.md</code> - fonte única de instruções do projeto.</li>
+            <li>
+              <code>docs/ARCHITECTURE.md</code>, <code>README.md</code>,
+              <code>CONTRIBUTING.md</code>, <code>docs/ROADMAP.md</code>.
+            </li>
+            <li>
+              <code>src/**</code>, testes Vitest e configs <code>package.json</code>,
+              <code>vite.config.ts</code>, <code>vitest.config.ts</code>,
+              <code>tsconfig.json</code>, <code>eslint.config.js</code>.
+            </li>
+            <li>
+              Regras oficiais: FIVB
+              <a href="https://www.fivb.com/volleyball/the-game/official-volleyball-rules/"
+                >Official Volleyball Rules</a
+              >
+              e PDF
+              <a
+                href="https://www.fivb.com/wp-content/uploads/2025/01/FIVB-Volleyball_Rules2025_2028-EN-v05.pdf"
+                >2025-2028 Current Edition English</a
+              >.
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <footer>
+        Relatório de code review amplo. Não foram aplicadas correções de código nesta auditoria; o
+        objetivo foi identificar riscos, lacunas e prioridades com evidência rastreável.
+      </footer>
+    </main>
+  </body>
+</html>
