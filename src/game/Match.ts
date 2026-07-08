@@ -21,7 +21,7 @@ import {
   MATCH_FORMATS,
   TouchKind,
 } from '../core/constants';
-import { ballisticArc, clamp, lerp, rand, chance, randPick } from '../core/math3d';
+import { ballisticArc, clamp, rand, chance } from '../core/math3d';
 import {
   isSetOver,
   setWinner,
@@ -34,8 +34,9 @@ import { computeNetCrossing } from './mechanics/net';
 import { RallyState, TouchPlan } from './RallyState';
 import { prepareBlock } from './mechanics/block';
 import { executeTouch } from './mechanics/touch';
-import { performServe, aiServe } from './mechanics/serve';
+import { aiServe } from './mechanics/serve';
 import { MechanicsCtx } from './mechanics/context';
+import { HumanController } from './control/HumanController';
 
 export interface MatchStats {
   aces: number;
@@ -61,15 +62,11 @@ export interface Hooks {
 }
 
 type MState = 'idle' | 'servePrep' | 'rally' | 'point' | 'setEnd' | 'matchEnd';
-type CtlMode = 'none' | 'serve' | 'receive' | 'attack' | 'block';
 
 interface PendingEvent {
   t: number;
   fn: () => void;
 }
-
-const PERFECT_LO = 0.72,
-  PERFECT_HI = 0.92;
 
 export class Match {
   group = new THREE.Group();
@@ -91,17 +88,8 @@ export class Match {
   // estado do rally (posse, toques, plano do próximo contato, eventos de rede)
   private rally = new RallyState();
 
-  // controle humano
-  private ctl: CtlMode = 'none';
-  private controlled: Athlete | null = null;
-  private serveCharging = false;
-  private servePower = 0;
-  private serveDir = 1;
-  private aim = new THREE.Vector3(5.5, 0, 0);
-  private timingQ = -1; // qualidade do aperto de ESPAÇO na recepção
-  private jumpQ = -1; // qualidade do timing do pulo no ataque
-  private chosenZone = 0; // 0 esq, 1 centro, 2 dir
-  private marker: THREE.Mesh; // anel sob o jogador controlado
+  // controle humano (estado de interação + input por frame + marker)
+  private human = new HumanController();
 
   private stats: MatchStats = { aces: 0, blocks: 0, longestRally: 0, points: [0, 0] };
 
@@ -110,19 +98,7 @@ export class Match {
 
   constructor(private hooks: Hooks) {
     this.group.add(this.ball.group, this.home.group, this.away.group);
-    this.marker = new THREE.Mesh(
-      new THREE.RingGeometry(0.42, 0.55, 24),
-      new THREE.MeshBasicMaterial({
-        color: 0x40ff9f,
-        transparent: true,
-        opacity: 0.9,
-        side: THREE.DoubleSide,
-        depthWrite: false,
-      }),
-    );
-    this.marker.rotation.x = -Math.PI / 2;
-    this.marker.visible = false;
-    this.group.add(this.marker);
+    this.group.add(this.human.marker);
     this.ball.hold(new THREE.Vector3(0, 1.2, 0));
     this.ctx = this.makeCtx();
   }
@@ -145,9 +121,7 @@ export class Match {
     this.stateTime = 0;
     this.events = [];
     this.rally.reset();
-    this.timingQ = -1;
-    this.jumpQ = -1;
-    this.chosenZone = randPick([0, 1, 2]);
+    this.human.resetForServe();
     this.hooks.zoneHint(null);
     this.hooks.effects.showLanding(null);
     this.hooks.effects.showAim(null);
@@ -170,18 +144,9 @@ export class Match {
     this.after(0.5, () => this.hooks.audio.whistle());
 
     if (humanServes) {
-      this.ctl = 'serve';
-      this.controlled = server;
-      this.servePower = 0;
-      this.serveCharging = false;
-      this.aim.set(rand(4, 6.5), 0, rand(-2, 2));
-      this.hooks.hint(
-        'SEGURE ESPAÇO para carregar o saque — solte na zona verde · WASD ajusta a mira',
-      );
-      this.hooks.serveMeter(true, 0);
+      this.human.beginServe(server, this.ctx);
     } else {
-      this.ctl = 'none';
-      this.controlled = null;
+      this.human.awaitOpponentServe();
       this.hooks.hint('Saque do adversário — prepare a recepção!');
       this.after(rand(1.4, 2.4), () => aiServe(this.ctx));
     }
@@ -254,38 +219,15 @@ export class Match {
       athlete.moveTo(cPoint.x, cPoint.z); // levantador humano é automático
     }
 
-    // controle humano
+    // controle: humano assume seu lado; a IA já teve a aproximação/pulo agendados acima
     if (isHuman) {
-      if (nextKind === 'pass' || nextKind === 'dig' || nextKind === 'freeball') {
-        this.ctl = 'receive';
-        this.controlled = athlete;
-        this.timingQ = -1;
-        this.hooks.hint('WASD move · ESPAÇO no momento do toque = passe perfeito');
-        this.hooks.effects.showLanding(this.rally.plan.point);
-      } else if (nextKind === 'set') {
-        this.ctl = 'none';
-        this.controlled = null;
-        this.hooks.hint('Escolha o ataque: A esquerda · W centro · D direita');
-        this.hooks.zoneHint(this.chosenZone);
-      } else if (nextKind === 'spike') {
-        this.ctl = 'attack';
-        this.controlled = athlete;
-        this.jumpQ = -1;
-        this.aim.set(rand(4.5, 6.5), 0, rand(-2.5, 2.5));
-        this.hooks.hint('ESPAÇO pula (timing = força) · WASD mira a cortada');
-      }
-    } else if (this.rally.plan.side === TeamSide.AWAY && nextKind === 'spike') {
-      // humano pode bloquear
-      this.ctl = 'block';
-      const blocker = this.home.nearestFrontRowTo(cPoint.z);
-      this.controlled = blocker;
-      this.hooks.hint('BLOQUEIO: A/D desliza na rede · ESPAÇO pula!');
-    } else if (this.rally.plan.side === TeamSide.AWAY) {
-      if (this.ctl !== 'block') {
-        this.ctl = 'none';
-        this.controlled = null;
-      }
-      this.hooks.effects.showLanding(null);
+      this.human.onAssigned(this.ctx, this.rally.plan);
+    } else if (nextKind === 'spike') {
+      // AWAY ataca: humano pode bloquear
+      this.human.assignBlock(this.home.nearestFrontRowTo(cPoint.z), this.ctx);
+    } else {
+      // AWAY com a bola num contato não-bloqueável: humano ocioso
+      this.human.idle(this.ctx);
     }
   }
 
@@ -316,8 +258,7 @@ export class Match {
     this.stateTime = 0;
     this.events = [];
     this.rally.plan = null;
-    this.ctl = 'none';
-    this.controlled = null;
+    this.human.release();
     this.ball.bouncy = true;
     this.hooks.effects.showLanding(null);
     this.hooks.effects.showAim(null);
@@ -437,7 +378,7 @@ export class Match {
     }
 
     // entrada humana
-    this.updateHumanControl(dt, input);
+    this.human.update(dt, input, this.ctx);
 
     // contato agendado
     if (this.rally.plan && !this.rally.plan.done && this.state === 'rally') {
@@ -496,19 +437,8 @@ export class Match {
     this.home.update(dt, this.humanSpeed());
     this.away.update(dt, PLAYER.aiSpeed * this.diff.moveSpeed);
 
-    // anel do jogador controlado
-    if (
-      this.controlled &&
-      (this.ctl === 'receive' ||
-        this.ctl === 'attack' ||
-        this.ctl === 'block' ||
-        this.ctl === 'serve')
-    ) {
-      this.marker.visible = true;
-      this.marker.position.set(this.controlled.pos.x, 0.02, this.controlled.pos.z);
-    } else {
-      this.marker.visible = false;
-    }
+    // anel do jogador controlado (após o movimento dos times integrar)
+    this.human.updateMarker();
   }
 
   private humanSpeed(): number {
@@ -534,20 +464,7 @@ export class Match {
     if (d <= CONTACT.reach) {
       let q: number;
       if (isHuman) {
-        if (this.timingQ >= 0) {
-          // apertou no tempo: defende, qualidade cai um pouco contra bola forte
-          q = (0.45 + 0.55 * this.timingQ) * (hard ? 0.8 : 1);
-          if (this.timingQ > 0.8 && !hard) this.hooks.banner('PERFEITO!', '');
-          if (this.timingQ > 0.7 && hard) this.hooks.banner('DEFESAÇA!', '');
-        } else {
-          // sem apertar: o toque automático falha contra bolas rápidas
-          const missP = hard ? 0.6 : medium ? 0.28 : 0;
-          if (chance(missP)) {
-            q = chance(0.5) ? rand(0.02, 0.12) : -1; // escorrega ou perde limpo
-          } else {
-            q = hard ? 0.3 : 0.45;
-          }
-        }
+        q = this.human.reachQuality(hard, medium, this.ctx);
       } else {
         // IA: contra bola forte, defesa depende da dificuldade
         if (hard && !chance(this.diff.digChance)) {
@@ -568,7 +485,7 @@ export class Match {
       }
     }
     // fora de alcance: nada acontece — a bola vai cair e o ponto será resolvido
-    this.timingQ = -1;
+    this.human.clearTiming();
   }
 
   private attemptSpikeContact(plan: TouchPlan, d: number): void {
@@ -577,12 +494,7 @@ export class Match {
     const airborne = a.isAirborne && a.jumpY > 0.2;
 
     if (airborne && d <= 1.0) {
-      let q: number;
-      if (isHuman) {
-        q = this.jumpQ >= 0 ? this.jumpQ : 0.4;
-      } else {
-        q = rand(0.6, 1);
-      }
+      const q = isHuman ? this.human.spikeQuality() : rand(0.6, 1);
       executeTouch(this.ctx, plan, q);
     } else if (d <= CONTACT.lungeReach) {
       // não pulou/perdeu o tempo: bola de graça por cima (com risco de sair)
@@ -604,7 +516,7 @@ export class Match {
       this.hooks.banner('', '');
       this.planNext('pass');
     }
-    this.jumpQ = -1;
+    this.human.clearJump();
   }
 
   private onNetTouch(): void {
@@ -629,144 +541,18 @@ export class Match {
     this.planNext('pass');
   }
 
-  // ---------------------------------------------------------------- CONTROLE HUMANO
-  private updateHumanControl(dt: number, input: Input): void {
-    const axis = input.moveAxis();
-
-    if (this.ctl === 'serve' && this.controlled) {
-      // mira
-      this.aim.x = clamp(this.aim.x + axis.x * dt * 5, 1.2, 8.6);
-      this.aim.z = clamp(this.aim.z + axis.z * dt * 5, -4.2, 4.2);
-      this.hooks.effects.showAim(this.aim);
-
-      if (input.wasPressed('Space')) {
-        this.serveCharging = true;
-        this.servePower = 0;
-        this.serveDir = 1;
-      }
-      if (this.serveCharging) {
-        this.servePower += this.serveDir * dt * 1.05;
-        if (this.servePower >= 1) {
-          this.servePower = 1;
-          this.serveDir = -1;
-        }
-        if (this.servePower <= 0) {
-          this.servePower = 0;
-          this.serveDir = 1;
-        }
-        this.hooks.serveMeter(true, this.servePower);
-        if (input.wasReleased('Space')) {
-          this.serveCharging = false;
-          this.ctl = 'none';
-          const p = this.servePower;
-          const target = this.aim.clone();
-          let power = p;
-          // folga sobre a rede: força alta = raspando na fita, baixa = flutuante
-          let clearance = lerp(1.3, 0.16, p) * rand(0.92, 1.08);
-          if (p > PERFECT_HI) {
-            // arriscou demais: pode sair longa
-            if (chance((p - PERFECT_HI) * 4)) {
-              target.x = rand(9.6, 11.5);
-              clearance = rand(0.25, 0.6);
-            }
-          } else if (p >= PERFECT_LO) {
-            this.hooks.banner('SAQUE PERFEITO!', '');
-            power = 0.95;
-            clearance = rand(0.16, 0.28);
-          }
-          // pouca força morre na rede às vezes
-          if (p < 0.25 && chance(0.7)) clearance = -rand(0.2, 0.5);
-          performServe(this.ctx, this.controlled!, Math.max(0.3, power), target, clearance);
-        }
-      }
-    }
-
-    if (this.ctl === 'receive' && this.controlled && this.rally.plan && !this.rally.plan.done) {
-      // movimento direto
-      if (axis.x !== 0 || axis.z !== 0) {
-        this.controlled.moveTo(
-          this.controlled.pos.x + axis.x * 1.2,
-          this.controlled.pos.z + axis.z * 1.2,
-        );
-      }
-      // timing do passe
-      if (input.wasPressed('Space') && this.rally.plan.contactIn < 0.5) {
-        this.timingQ = clamp(1 - Math.abs(this.rally.plan.contactIn - 0.08) * 3.2, 0, 1);
-      }
-      // escolha de zona já durante a recepção
-      if (input.wasPressed('KeyA')) {
-        this.chosenZone = 0;
-        this.hooks.zoneHint(0);
-      }
-      if (input.wasPressed('KeyW')) {
-        this.chosenZone = 1;
-        this.hooks.zoneHint(1);
-      }
-      if (input.wasPressed('KeyD')) {
-        this.chosenZone = 2;
-        this.hooks.zoneHint(2);
-      }
-    }
-
-    if (
-      this.ctl === 'none' &&
-      this.rally.plan &&
-      this.rally.plan.kind === 'set' &&
-      this.rally.plan.side === TeamSide.HOME
-    ) {
-      // durante o voo até o levantador
-      if (input.wasPressed('KeyA')) {
-        this.chosenZone = 0;
-        this.hooks.zoneHint(0);
-      }
-      if (input.wasPressed('KeyW')) {
-        this.chosenZone = 1;
-        this.hooks.zoneHint(1);
-      }
-      if (input.wasPressed('KeyD')) {
-        this.chosenZone = 2;
-        this.hooks.zoneHint(2);
-      }
-    }
-
-    if (this.ctl === 'attack' && this.controlled && this.rally.plan && !this.rally.plan.done) {
-      // mira aérea
-      this.aim.x = clamp(this.aim.x + axis.x * dt * 6, 1.0, 8.6);
-      this.aim.z = clamp(this.aim.z + axis.z * dt * 6, -4.2, 4.2);
-      this.hooks.effects.showAim(this.aim);
-
-      if (input.wasPressed('Space') && !this.controlled.isAirborne) {
-        // qualidade = quão perto do instante ideal (0.26s antes do contato)
-        this.jumpQ = clamp(1 - Math.abs(this.rally.plan.contactIn - 0.26) * 2.8, 0, 1);
-        this.controlled.act('spikeWindup', 0.4);
-        this.controlled.jump(PLAYER.jumpVel);
-      }
-    }
-
-    if (this.ctl === 'block' && this.controlled) {
-      // desliza na rede
-      if (axis.z !== 0) {
-        this.controlled.moveTo(-0.72, clamp(this.controlled.pos.z + axis.z * 1.2, -4.2, 4.2));
-      }
-      if (input.wasPressed('Space') && !this.controlled.isAirborne) {
-        this.controlled.act('block', 0.8);
-        this.controlled.jump(PLAYER.blockJumpVel);
-      }
-    }
-  }
-
   /** Monta o contexto passado às funções de mecânica; getters mantêm vivos os valores mutáveis. */
   private makeCtx(): MechanicsCtx {
     // arrows capturam `this` (Match) lexicamente; getters mantêm vivos os valores mutáveis
     const diff = () => this.diff;
     const servingTeam = () => this.servingTeam;
-    const chosenZone = () => this.chosenZone;
+    const chosenZone = () => this.human.chosenZone;
     const stats = () => this.stats;
     return {
       ball: this.ball,
       rally: this.rally,
       hooks: this.hooks,
-      aim: this.aim,
+      aim: this.human.aim,
       get diff() {
         return diff();
       },
