@@ -28,5 +28,10 @@ export default tseslint.config(
       'no-constant-condition': ['error', { checkLoops: false }],
     },
   },
+  {
+    // arquivos que rodam em Node: configs de build e hooks do Claude Code
+    files: ['**/*.mjs', '**/*.cjs', '*.config.{js,ts}', 'eslint.config.js'],
+    languageOptions: { globals: { ...globals.node } },
+  },
   prettier,
 );
