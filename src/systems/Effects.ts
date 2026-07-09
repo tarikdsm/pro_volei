@@ -137,12 +137,14 @@ export class Effects {
       this.aimMarker.rotation.z += dt * 1.5;
     }
 
-    let n = 0;
     for (let i = this.particles.length - 1; i >= 0; i--) {
       const p = this.particles[i];
       p.age += dt;
       if (p.age >= p.life) {
-        this.particles.splice(i, 1);
+        // swap-remove O(1): a partícula da cauda já foi processada neste frame reverso
+        const last = this.particles.length - 1;
+        this.particles[i] = this.particles[last];
+        this.particles.pop();
         continue;
       }
       p.vel.y += p.gravity * dt;
@@ -154,14 +156,19 @@ export class Effects {
         p.vel.z *= 0.9;
       }
     }
-    for (const p of this.particles) {
+    const n = this.particles.length;
+    for (let i = 0; i < n; i++) {
+      const p = this.particles[i];
       const fade = 1 - p.age / p.life;
-      this.poolPos.setXYZ(n, p.pos.x, p.pos.y, p.pos.z);
-      this.poolCol.setXYZ(n, p.color.r * fade, p.color.g * fade, p.color.b * fade);
-      n++;
+      this.poolPos.setXYZ(i, p.pos.x, p.pos.y, p.pos.z);
+      this.poolCol.setXYZ(i, p.color.r * fade, p.color.g * fade, p.color.b * fade);
     }
-    this.poolPos.needsUpdate = true;
-    this.poolCol.needsUpdate = true;
+    // só re-envia os buffers à GPU quando há partículas vivas (evita upload ocioso todo frame)
+    if (n > 0) {
+      this.poolPos.needsUpdate = true;
+      this.poolCol.needsUpdate = true;
+    }
+    // setDrawRange fica fora do guard: zera o range no frame em que as partículas somem
     this.pool.geometry.setDrawRange(0, n);
   }
 }
