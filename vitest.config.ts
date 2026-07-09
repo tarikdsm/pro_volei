@@ -5,6 +5,8 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     environment: 'node',
-    include: ['src/**/*.{test,spec}.ts'],
+    // Lógica pura em src/ + o teste do artefato de baseline em tests/perf/.
+    // NÃO inclui tests/e2e/ (harness Playwright roda fora do `npm run check`).
+    include: ['src/**/*.{test,spec}.ts', 'tests/perf/**/*.{test,spec}.ts'],
   },
 });

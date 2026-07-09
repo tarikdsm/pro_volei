@@ -12,15 +12,16 @@ export default defineConfig({
   reporter: [['list']],
   outputDir: '.playwright-mcp/test-results',
   use: {
-    baseURL: 'http://127.0.0.1:5173',
+    // porta dedicada 5199 — a 5173 colide com o outro projeto do usuário
+    baseURL: 'http://127.0.0.1:5199',
     screenshot: 'only-on-failure',
     trace: 'retain-on-failure',
     video: 'off',
     viewport: { width: 1280, height: 800 },
   },
   webServer: {
-    command: 'npm run dev -- --host 127.0.0.1 --port 5173 --strictPort',
-    url: 'http://127.0.0.1:5173',
+    command: 'npm run dev -- --host 127.0.0.1 --port 5199 --strictPort',
+    url: 'http://127.0.0.1:5199',
     timeout: 60_000,
     reuseExistingServer: !process.env.CI,
   },

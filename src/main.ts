@@ -98,6 +98,9 @@ scene.add(match.group);
 
 // acesso de depuração no console do browser
 (window as unknown as { __match: Match }).__match = match;
+// hook de perf: expõe o renderer para o harness de baseline ler renderer.info.render
+// (draw calls / triângulos por frame). Só leitura; não altera o jogo.
+(window as unknown as { __renderer: THREE.WebGLRenderer }).__renderer = renderer;
 
 menu.onStart = () => {
   audio.init();

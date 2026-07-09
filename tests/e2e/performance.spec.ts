@@ -1,11 +1,14 @@
 import { expect, test } from '@playwright/test';
-import { writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { dirname, resolve as resolvePath } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   collectBrowserProblems,
   exerciseServeControls,
   expectNoBrowserProblems,
   openGameAndStartMatch,
 } from './gameHarness';
+import { validateBaseline } from '../perf/schema';
 
 type RenderStats = {
   samples: number[];
@@ -17,11 +20,14 @@ type BrowserPerfMetrics = {
   durationMs: number;
   frameCount: number;
   averageFps: number;
+  p50FrameMs: number;
   p95FrameMs: number;
   p99FrameMs: number;
   averageDrawCallsPerFrame: number;
   maxDrawCallsPerFrame: number;
   drawCallSampleCount: number;
+  rendererInfoCallsAvg: number;
+  rendererInfoTrianglesAvg: number;
   heapUsedBytes: number | null;
   heapDeltaBytes: number | null;
 };
@@ -112,11 +118,20 @@ test('coleta perfil real de FPS, heap e draw calls no jogo', async ({
     };
     type StatsWindow = Window & typeof globalThis & { __pwRenderStats?: RenderStats };
 
+    type RendererWindow = Window &
+      typeof globalThis & {
+        __renderer?: { info?: { render?: { calls?: number; triangles?: number } } };
+      };
+
     const durationMs = 5_000;
     const perf = performance as MemoryPerformance;
     const win = window as StatsWindow;
+    const rendererWin = window as RendererWindow;
     const startHeap = perf.memory?.usedJSHeapSize ?? null;
     const frameIntervals: number[] = [];
+    // amostras de renderer.info.render (autoReset do Three dá o valor por frame)
+    const rendererCalls: number[] = [];
+    const rendererTriangles: number[] = [];
     const start = performance.now();
     let previous = start;
 
@@ -124,6 +139,12 @@ test('coleta perfil real de FPS, heap e draw calls no jogo', async ({
       const tick = (now: number): void => {
         frameIntervals.push(now - previous);
         previous = now;
+
+        const render = rendererWin.__renderer?.info?.render;
+        if (render) {
+          if (typeof render.calls === 'number') rendererCalls.push(render.calls);
+          if (typeof render.triangles === 'number') rendererTriangles.push(render.triangles);
+        }
 
         if (now - start >= durationMs) resolve();
         else requestAnimationFrame(tick);
@@ -137,11 +158,16 @@ test('coleta perfil real de FPS, heap e draw calls no jogo', async ({
     const drawCallSamples = win.__pwRenderStats?.samples ?? [];
     const drawCallTotal = drawCallSamples.reduce((total, sample) => total + sample, 0);
     const endHeap = perf.memory?.usedJSHeapSize ?? null;
+    const average = (values: number[]): number =>
+      values.length > 0 ? values.reduce((total, value) => total + value, 0) / values.length : 0;
 
     return {
       durationMs: Math.round(elapsed),
       frameCount: frameIntervals.length,
       averageFps: Number((frameIntervals.length / (elapsed / 1_000)).toFixed(1)),
+      p50FrameMs: Number(
+        (sortedIntervals[Math.floor(sortedIntervals.length * 0.5)] ?? 0).toFixed(2),
+      ),
       p95FrameMs: Number(
         (sortedIntervals[Math.floor(sortedIntervals.length * 0.95)] ?? 0).toFixed(2),
       ),
@@ -153,6 +179,8 @@ test('coleta perfil real de FPS, heap e draw calls no jogo', async ({
       ),
       maxDrawCallsPerFrame: drawCallSamples.length > 0 ? Math.max(...drawCallSamples) : 0,
       drawCallSampleCount: drawCallSamples.length,
+      rendererInfoCallsAvg: Number(average(rendererCalls).toFixed(1)),
+      rendererInfoTrianglesAvg: Number(average(rendererTriangles).toFixed(0)),
       heapUsedBytes: endHeap,
       heapDeltaBytes: endHeap !== null && startHeap !== null ? endHeap - startHeap : null,
     };
@@ -164,43 +192,68 @@ test('coleta perfil real de FPS, heap e draw calls no jogo', async ({
   await cdp.detach();
 
   const cdpMetricByName = new Map(cdpMetrics.metrics.map((metric) => [metric.name, metric.value]));
-  const metrics = {
+  const baseline = {
     collectedAt: new Date().toISOString(),
-    project: testInfo.project.name,
-    viewport: page.viewportSize(),
-    fps: {
-      average: browserMetrics.averageFps,
-      p95FrameMs: browserMetrics.p95FrameMs,
-      p99FrameMs: browserMetrics.p99FrameMs,
+    environment: {
+      project: testInfo.project.name,
+      headless: true,
+      viewport: page.viewportSize(),
+      note:
+        'Baseline INFORMATIVO em Chromium headless. NÃO é orçamento de hardware nem gate de CI; ' +
+        'use só para comparar antes/depois das otimizações de perf.',
+    },
+    frameTime: {
+      averageFps: browserMetrics.averageFps,
+      p50Ms: browserMetrics.p50FrameMs,
+      p95Ms: browserMetrics.p95FrameMs,
+      p99Ms: browserMetrics.p99FrameMs,
       frameCount: browserMetrics.frameCount,
       durationMs: browserMetrics.durationMs,
+    },
+    rendering: {
+      drawCallsPerFrameAvg: browserMetrics.averageDrawCallsPerFrame,
+      drawCallsPerFrameMax: browserMetrics.maxDrawCallsPerFrame,
+      rendererInfoCallsAvg: browserMetrics.rendererInfoCallsAvg,
+      rendererInfoTrianglesAvg: browserMetrics.rendererInfoTrianglesAvg,
+      sampleCount: browserMetrics.drawCallSampleCount,
     },
     heap: {
       browserUsedBytes: browserMetrics.heapUsedBytes,
       browserDeltaBytes: browserMetrics.heapDeltaBytes,
-      cdpUsedBytes: cdpMetricByName.get('JSHeapUsedSize') ?? null,
+      cdpUsedBytes: cdpMetricByName.get('JSHeapUsedSize') ?? 0,
       cdpTotalBytes: cdpMetricByName.get('JSHeapTotalSize') ?? null,
-    },
-    rendering: {
-      averageDrawCallsPerFrame: browserMetrics.averageDrawCallsPerFrame,
-      maxDrawCallsPerFrame: browserMetrics.maxDrawCallsPerFrame,
-      drawCallSampleCount: browserMetrics.drawCallSampleCount,
     },
   };
 
+  const problems = validateBaseline(baseline);
+  expect(problems, `baseline fora do contrato: ${problems.join('; ')}`).toEqual([]);
+
+  const baselineJson = `${JSON.stringify(baseline, null, 2)}\n`;
+
+  // artefato versionado e regenerável: docs/perf/baseline-latest.json
+  const specDir = dirname(fileURLToPath(import.meta.url));
+  const versionedFile = resolvePath(specDir, '../../docs/perf/baseline-latest.json');
+  await mkdir(dirname(versionedFile), { recursive: true });
+  await writeFile(versionedFile, baselineJson, 'utf8');
+
+  // cópia efêmera anexada ao relatório do Playwright
   const metricsFile = testInfo.outputPath('performance-metrics.json');
-  await writeFile(metricsFile, `${JSON.stringify(metrics, null, 2)}\n`, 'utf8');
+  await writeFile(metricsFile, baselineJson, 'utf8');
   await testInfo.attach('performance-metrics', {
     path: metricsFile,
     contentType: 'application/json',
   });
-  console.info(`PERF_METRICS ${JSON.stringify(metrics)}`);
+  console.info(`PERF_METRICS ${JSON.stringify(baseline)}`);
 
   expect(browserMetrics.frameCount).toBeGreaterThan(10);
   expect(browserMetrics.averageFps).toBeGreaterThan(0);
+  expect(browserMetrics.p50FrameMs).toBeGreaterThan(0);
   expect(browserMetrics.p95FrameMs).toBeGreaterThan(0);
   expect(browserMetrics.averageDrawCallsPerFrame).toBeGreaterThan(0);
   expect(browserMetrics.maxDrawCallsPerFrame).toBeGreaterThan(0);
+  // confirma que o hook window.__renderer respondeu (renderer.info.render por frame)
+  expect(browserMetrics.rendererInfoCallsAvg).toBeGreaterThan(0);
+  expect(browserMetrics.rendererInfoTrianglesAvg).toBeGreaterThan(0);
   expect(cdpMetricByName.get('JSHeapUsedSize') ?? 0).toBeGreaterThan(0);
   await expectNoBrowserProblems(browserProblems, testInfo);
 });
