@@ -148,3 +148,15 @@ export const COLORS = {
   lines: 0xf5f5f5,
   net: 0xeeeeee,
 };
+
+// Torcida instanciada (~1300 pessoas). O loop de animação recompõe a matriz de cada
+// pessoa e reenvia o buffer à GPU — custo fixo por frame. O throttle por tick fixo
+// desacopla esse custo do FPS: a animação é reconstruída `tickHz` vezes por segundo,
+// não a cada frame. Valores "Low" = celular (menos gente e reconstrução menos frequente).
+export const CROWD = {
+  density: 1, // fração de assentos ocupados no desktop
+  densityLow: 0.55, // fração de assentos ocupados no celular
+  tickHz: 20, // reconstruções da animação por segundo (desktop)
+  tickHzLow: 12, // reconstruções da animação por segundo (celular)
+  idleFreezeBelow: 0, // se > 0, congela a animação quando a empolgação fica abaixo deste limiar (0 = desligado)
+};

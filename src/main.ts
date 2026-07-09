@@ -13,6 +13,7 @@ import { HUD } from './ui/HUD';
 import { Menu } from './ui/Menu';
 import { TouchControls } from './ui/TouchControls';
 import { AppState, nextAppState } from './ui/appState';
+import { CROWD } from './core/constants';
 
 const app = document.getElementById('app')!;
 
@@ -41,7 +42,11 @@ scene.fog = new THREE.Fog(0x0e151f, 45, 90);
 // ---------- mundo (qualidade reduzida no celular) ----------
 const court = new Court();
 const arena = new Arena(isTouch);
-const crowd = new Crowd(arena, isTouch ? 0.55 : 1);
+const crowd = new Crowd(
+  arena,
+  isTouch ? CROWD.densityLow : CROWD.density,
+  isTouch ? CROWD.tickHzLow : CROWD.tickHz,
+);
 const referee = new Referee();
 const effects = new Effects();
 scene.add(court.group, arena.group, crowd.mesh, referee.group, effects.group);
