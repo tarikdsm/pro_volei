@@ -7,12 +7,14 @@ export default defineConfig({
     environment: 'node',
     // Lógica pura em src/ + o teste do artefato de baseline em tests/perf/ +
     // os testes-guarda de config em tests/config/ (ex.: pin do MCP) +
+    // os testes-guarda de docs em tests/docs/ (ex.: sem assets remotos no markdown) +
     // os hooks de dev em .claude/hooks/ (validação de path, lógica de string pura).
     // NÃO inclui tests/e2e/ (harness Playwright roda fora do `npm run check`).
     include: [
       'src/**/*.{test,spec}.ts',
       'tests/perf/**/*.{test,spec}.ts',
       'tests/config/**/*.{test,spec}.ts',
+      'tests/docs/**/*.{test,spec}.ts',
       '.claude/hooks/**/*.{test,spec}.mjs',
     ],
   },

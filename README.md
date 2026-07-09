@@ -10,8 +10,6 @@ Funciona no desktop (teclado) e no **celular (controles de toque)** — melhor n
 O time da casa conta com **Elisa** (#1, rabo de cavalo castanho claro), **Heloisa**
 (#2, cabelo preto liso) e **Isabela** (#3, loira) — nomes estampados nas costas das camisas.
 
-![stack](https://img.shields.io/badge/Three.js-r185-blue) ![lang](https://img.shields.io/badge/TypeScript-strict-blue)
-
 ## Como rodar localmente
 
 ```bash
