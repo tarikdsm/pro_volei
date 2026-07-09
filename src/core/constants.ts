@@ -13,6 +13,9 @@ export const COURT = {
 export const GRAVITY = -13.0;
 export const BALL_RADIUS = 0.105;
 
+// Nº máximo de pontos do rastro luminoso da bola (capacidade do ring buffer).
+export const TRAIL_MAX_POINTS = 26;
+
 export enum TeamSide {
   HOME = 0,
   AWAY = 1,

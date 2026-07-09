@@ -1,6 +1,7 @@
 import * as THREE from 'three';
-import { BALL_RADIUS, COURT } from '../core/constants';
+import { BALL_RADIUS, COURT, TRAIL_MAX_POINTS } from '../core/constants';
 import { positionAt, timeToHeight, integrateBallistic } from '../core/math3d';
+import { TrailBuffer } from './TrailBuffer';
 
 // Bola com gomos (textura canvas), rastro luminoso e sombra projetada no chão.
 export class Ball {
@@ -8,7 +9,7 @@ export class Ball {
   mesh: THREE.Mesh;
   private shadow: THREE.Mesh;
   private trail: THREE.Line;
-  private trailPts: THREE.Vector3[] = [];
+  private trailPts = new TrailBuffer(TRAIL_MAX_POINTS);
 
   pos = new THREE.Vector3(0, 1, 0);
   vel = new THREE.Vector3();
@@ -41,9 +42,11 @@ export class Ball {
 
     // rastro
     const trailGeo = new THREE.BufferGeometry();
-    const maxPts = 26;
-    trailGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(maxPts * 3), 3));
-    const colors = new Float32Array(maxPts * 3);
+    trailGeo.setAttribute(
+      'position',
+      new THREE.BufferAttribute(new Float32Array(TRAIL_MAX_POINTS * 3), 3),
+    );
+    const colors = new Float32Array(TRAIL_MAX_POINTS * 3);
     trailGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     this.trail = new THREE.Line(
       trailGeo,
@@ -100,18 +103,17 @@ export class Ball {
     const scale = Math.max(0.4, 1.6 - this.pos.y * 0.12);
     this.shadow.scale.set(scale, scale, 1);
 
-    // rastro
+    // rastro (ring buffer pré-alocado: sem clone()/shift() por frame)
     if (this.inFlight && this.vel.length() > 6) {
-      this.trailPts.push(this.pos.clone());
+      this.trailPts.push(this.pos);
     } else if (this.trailPts.length) {
       this.trailPts.shift();
     }
-    if (this.trailPts.length > 26) this.trailPts.shift();
     const posAttr = this.trail.geometry.attributes.position as THREE.BufferAttribute;
     const colAttr = this.trail.geometry.attributes.color as THREE.BufferAttribute;
     const n = this.trailPts.length;
-    for (let i = 0; i < 26; i++) {
-      const p = this.trailPts[Math.min(i, n - 1)] ?? this.pos;
+    for (let i = 0; i < TRAIL_MAX_POINTS; i++) {
+      const p = n > 0 ? this.trailPts.at(Math.min(i, n - 1)) : this.pos;
       posAttr.setXYZ(i, p.x, p.y, p.z);
       const a = n > 1 ? i / (n - 1) : 0;
       colAttr.setXYZ(i, a * 1.0, a * 0.85, a * 0.3);
