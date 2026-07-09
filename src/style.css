@@ -228,10 +228,11 @@ body,
   pointer-events: none;
   z-index: 15;
 }
+/* safe areas: recua controles do notch/home indicator (viewport-fit=cover) */
 #tc-stick {
   position: absolute;
-  left: 22px;
-  bottom: 24px;
+  left: calc(22px + env(safe-area-inset-left, 0px));
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
   width: 128px;
   height: 128px;
   border-radius: 50%;
@@ -254,8 +255,8 @@ body,
 }
 #tc-action {
   position: absolute;
-  right: 26px;
-  bottom: 30px;
+  right: calc(26px + env(safe-area-inset-right, 0px));
+  bottom: calc(30px + env(safe-area-inset-bottom, 0px));
   width: 96px;
   height: 96px;
   border-radius: 50%;
@@ -277,8 +278,8 @@ body,
 }
 #tc-pause {
   position: absolute;
-  right: 18px;
-  top: 14px;
+  right: calc(18px + env(safe-area-inset-right, 0px));
+  top: calc(14px + env(safe-area-inset-top, 0px));
   width: 44px;
   height: 44px;
   border-radius: 12px;
@@ -325,16 +326,20 @@ body.touch .opts button {
   padding: 14px 22px;
 }
 body.touch #hint {
-  bottom: 14px;
+  bottom: calc(14px + env(safe-area-inset-bottom, 0px));
   font-size: 12px;
-  max-width: calc(100vw - 400px);
+  /* piso via max() para o hint nunca colapsar; 100dvw evita brigar com a UI dinâmica do browser */
+  max-width: max(
+    180px,
+    calc(100dvw - 400px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px))
+  );
   padding: 8px 16px;
 }
 body.touch #zones {
-  bottom: 104px;
+  bottom: calc(104px + env(safe-area-inset-bottom, 0px));
 }
 body.touch #meter {
-  bottom: 56px;
+  bottom: calc(56px + env(safe-area-inset-bottom, 0px));
   width: min(300px, 38vw);
 }
 
