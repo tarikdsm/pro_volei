@@ -81,6 +81,7 @@ src/
 - **Windows/Mac:** se `git` reclamar de *dubious ownership*, rode
   `git config --global --add safe.directory "<caminho do repo>"`. `.gitattributes` força LF
   para evitar ruído de CRLF entre as máquinas.
-- **Debug no browser:** o objeto da partida é exposto em `window.__match` no console.
+- **Debug no browser:** o objeto da partida é exposto em `window.__match` no console (em dev
+  sempre; no build de produção só com `?debug` na URL, no mesmo estilo do `?touch=1`).
 - **Celular:** `?touch=1` na URL força os controles de toque no desktop para teste.
 - Qualidade gráfica cai automaticamente em telas de toque (pixel ratio, tamanho da torcida).

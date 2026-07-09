@@ -71,7 +71,8 @@ npm run check        # tudo acima — o portão de qualidade
 
 ## Debug
 
-- `window.__match` expõe a partida no console do browser.
+- `window.__match` expõe a partida no console do browser (em dev sempre; no build publicado só
+  com `?debug` na URL).
 - `?touch=1` na URL força os controles de toque no desktop.
 - Para investigar bug de comportamento, use a skill `superpowers:systematic-debugging`
   (achar a causa raiz antes de propor conserto).

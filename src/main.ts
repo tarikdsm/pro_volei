@@ -14,6 +14,7 @@ import { Menu } from './ui/Menu';
 import { TouchControls } from './ui/TouchControls';
 import { AppState, nextAppState } from './ui/appState';
 import { CROWD } from './core/constants';
+import { exporDebugHabilitado } from './core/debug';
 
 const app = document.getElementById('app')!;
 
@@ -101,11 +102,15 @@ const match = new Match({
 });
 scene.add(match.group);
 
-// acesso de depuração no console do browser
-(window as unknown as { __match: Match }).__match = match;
-// hook de perf: expõe o renderer para o harness de baseline ler renderer.info.render
-// (draw calls / triângulos por frame). Só leitura; não altera o jogo.
-(window as unknown as { __renderer: THREE.WebGLRenderer }).__renderer = renderer;
+// ganchos de depuração globais: em dev sempre; no build de produção só com ?debug na URL
+// (mesmo opt-in do ?touch=1), para não vazar a superfície de depuração no bundle publicado.
+if (exporDebugHabilitado({ dev: import.meta.env.DEV, search: location.search })) {
+  // acesso de depuração no console do browser
+  (window as unknown as { __match?: Match }).__match = match;
+  // hook de perf: expõe o renderer para o harness de baseline ler renderer.info.render
+  // (draw calls / triângulos por frame). Só leitura; não altera o jogo.
+  (window as unknown as { __renderer?: THREE.WebGLRenderer }).__renderer = renderer;
+}
 
 menu.onStart = () => {
   audio.init();
