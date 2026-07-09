@@ -1,7 +1,15 @@
 // Bloqueio: geometria pura do cruzamento (onde/quando a cortada cruza a rede e se um
 // bloqueador chega nela) + a mecânica de preparar/resolver o bloqueio sobre o MechanicsCtx.
 import * as THREE from 'three';
-import { CONTACT, COURT, GRAVITY, TeamSide, otherSide, sideSign } from '../../core/constants';
+import {
+  BLOCK,
+  CONTACT,
+  COURT,
+  GRAVITY,
+  TeamSide,
+  otherSide,
+  sideSign,
+} from '../../core/constants';
 import { ballisticDrive, rand, chance, clamp } from '../../core/math3d';
 import { computeNetCrossing } from './net';
 import type { MechanicsCtx } from './context';
@@ -12,13 +20,6 @@ interface Vec3 {
   z: number;
 }
 
-/** Janela de tempo (s) após o contato em que o bloqueio ainda pode acontecer. */
-const BLOCK_WINDOW = 0.8;
-/** Distância máx. na rede (eixo x) para o bloqueador contar como "na rede". */
-const NEAR_NET_X = 1.4;
-/** Distância máx. em z entre bloqueador e ponto de cruzamento para alcançar a bola. */
-const BLOCK_Z_REACH = 0.85;
-
 export interface BlockCrossing {
   t: number; // instante do cruzamento
   y: number; // altura da bola no cruzamento
@@ -28,12 +29,12 @@ export interface BlockCrossing {
 /**
  * Quando/onde a bola cruza o plano da rede (x = 0) dentro da janela de bloqueio.
  * `null` se não cruza a tempo: sem componente horizontal, cruzamento no passado
- * ou tarde demais (fora de {@link BLOCK_WINDOW}).
+ * ou tarde demais (fora de {@link BLOCK}.window).
  */
 export function blockCrossing(pos: Vec3, vel: Vec3): BlockCrossing | null {
   if (Math.abs(vel.x) < 0.01) return null;
   const t = -pos.x / vel.x;
-  if (t <= 0 || t > BLOCK_WINDOW) return null;
+  if (t <= 0 || t > BLOCK.window) return null;
   const y = pos.y + vel.y * t + 0.5 * GRAVITY * t * t;
   const z = pos.z + vel.z * t;
   return { t, y, z };
@@ -57,16 +58,16 @@ export function blockerReaches(
   jumpY: number,
   cross: BlockCrossing,
 ): boolean {
-  const nearNet = Math.abs(blockerX) < NEAR_NET_X;
+  const nearNet = Math.abs(blockerX) < BLOCK.nearNetX;
   const zDist = Math.abs(blockerZ - cross.z);
-  if (!nearNet || zDist > BLOCK_Z_REACH) return false;
-  const reach = CONTACT.blockReach + jumpY * 0.5;
+  if (!nearNet || zDist > BLOCK.zReach) return false;
+  const reach = CONTACT.blockReach + jumpY * BLOCK.jumpReachFactor;
   return cross.y <= reach;
 }
 
 /** Proximidade [0..1] do bloqueador ao ponto de cruzamento (1 = em cima, 0 = no limite). */
 export function blockProximity(blockerZ: number, crossZ: number): number {
-  return 1 - Math.abs(blockerZ - crossZ) / BLOCK_Z_REACH;
+  return 1 - Math.abs(blockerZ - crossZ) / BLOCK.zReach;
 }
 
 // Bloqueio da IA (ou preparação do lado da IA contra ataque humano)
@@ -80,12 +81,12 @@ export function prepareBlock(
   const team = ctx.teamOf(side);
   const isAI = side === TeamSide.AWAY;
   const blocker = team.nearestFrontRowTo(z);
-  const bx = sideSign(side) * 0.72;
+  const bx = sideSign(side) * BLOCK.netX;
   blocker.moveTo(bx, clamp(z, -COURT.halfWidth + 0.4, COURT.halfWidth - 0.4));
   if (isAI && chance(ctx.diff.blockChance)) {
     ctx.rally.blockers.push({
       athlete: blocker,
-      jumpIn: contactIn + rand(0.0, 0.12),
+      jumpIn: contactIn + rand(BLOCK.jumpDelayRange[0], BLOCK.jumpDelayRange[1]),
       jumped: false,
     });
   }
@@ -132,7 +133,7 @@ export function resolveBlock(ctx: MechanicsCtx, attackSide: TeamSide): void {
       ctx.rally.possessionTeam = null;
       ctx.rally.possessionTouches = 0;
 
-      if (r < prox * 0.5) {
+      if (r < prox * BLOCK.stuffThreshold) {
         // STUFF: devolve no chão do atacante
         const tgt = new THREE.Vector3(
           sideSign(attackSide) * rand(1, 3.5),
@@ -146,7 +147,7 @@ export function resolveBlock(ctx: MechanicsCtx, attackSide: TeamSide): void {
         ctx.hooks.crowd.excite(1);
         ctx.hooks.audio.cheer(true);
         ctx.planNext('dig');
-      } else if (r < prox * 0.95) {
+      } else if (r < prox * BLOCK.softThreshold) {
         // pingo: bola sobe devagar e continua no lado defensor — jogável
         const v = ctx.ball.vel.clone();
         v.x *= 0.25;

@@ -9,7 +9,7 @@ import {
   BlockCrossing,
 } from './block';
 import { RallyState } from '../RallyState';
-import { TeamSide, COURT } from '../../core/constants';
+import { TeamSide, COURT, BLOCK } from '../../core/constants';
 import type { MechanicsCtx } from './context';
 import type { Athlete } from '../Team';
 
@@ -31,8 +31,15 @@ describe('blockCrossing', () => {
     expect(blockCrossing({ x: -2, y: 2.5, z: 0 }, { x: -5, y: 1, z: 0 })).toBeNull();
   });
 
-  it('null quando o cruzamento é tarde demais (fora da janela de 0.8s)', () => {
-    expect(blockCrossing({ x: -9, y: 2.5, z: 0 }, { x: 1, y: 1, z: 0 })).toBeNull();
+  it('null quando o cruzamento é tarde demais (fora da janela de bloqueio)', () => {
+    // vel.x=1 → t = |pos.x|; logo pos.x além de -BLOCK.window cai fora da janela
+    const late = -(BLOCK.window + 0.1);
+    expect(blockCrossing({ x: late, y: 2.5, z: 0 }, { x: 1, y: 1, z: 0 })).toBeNull();
+  });
+
+  it('resolve logo dentro da janela de bloqueio', () => {
+    const inWindow = -(BLOCK.window - 0.1);
+    expect(blockCrossing({ x: inWindow, y: 2.5, z: 0 }, { x: 1, y: 1, z: 0 })).not.toBeNull();
   });
 });
 
@@ -40,19 +47,27 @@ describe('blockerReaches', () => {
   const cross: BlockCrossing = { t: 0.2, y: 2.4, z: 0.5 };
 
   it('alcança: na rede, perto em z e bola dentro do alcance', () => {
-    expect(blockerReaches(0.72, 0.6, 0.5, cross)).toBe(true);
+    expect(blockerReaches(BLOCK.netX, 0.6, 0.5, cross)).toBe(true);
   });
 
-  it('não alcança longe da rede (|x| ≥ 1.4)', () => {
-    expect(blockerReaches(2.0, 0.6, 0.5, cross)).toBe(false);
+  it('alcança logo dentro do limite de rede (|x| < nearNetX)', () => {
+    expect(blockerReaches(BLOCK.nearNetX - 0.01, 0.6, 0.5, cross)).toBe(true);
   });
 
-  it('não alcança longe em z (zDist > 0.85)', () => {
-    expect(blockerReaches(0.72, 2.0, 0.5, cross)).toBe(false);
+  it('não alcança longe da rede (|x| ≥ nearNetX)', () => {
+    expect(blockerReaches(BLOCK.nearNetX, 0.6, 0.5, cross)).toBe(false);
+  });
+
+  it('não alcança longe em z (zDist > zReach)', () => {
+    expect(blockerReaches(BLOCK.netX, cross.z + BLOCK.zReach + 0.01, 0.5, cross)).toBe(false);
+  });
+
+  it('alcança logo dentro do limite em z (zDist < zReach)', () => {
+    expect(blockerReaches(BLOCK.netX, cross.z + BLOCK.zReach - 0.01, 0.5, cross)).toBe(true);
   });
 
   it('não alcança bola alta demais (acima do reach)', () => {
-    expect(blockerReaches(0.72, 0.6, 0, { t: 0.2, y: 4.0, z: 0.5 })).toBe(false);
+    expect(blockerReaches(BLOCK.netX, 0.6, 0, { t: 0.2, y: 4.0, z: 0.5 })).toBe(false);
   });
 });
 
@@ -61,12 +76,12 @@ describe('blockProximity', () => {
     expect(blockProximity(0.5, 0.5)).toBeCloseTo(1);
   });
 
-  it('0 no limite do alcance em z (0.85)', () => {
-    expect(blockProximity(1.35, 0.5)).toBeCloseTo(0);
+  it('0 no limite do alcance em z (zReach)', () => {
+    expect(blockProximity(0.5 + BLOCK.zReach, 0.5)).toBeCloseTo(0);
   });
 
   it('0.5 na metade do alcance', () => {
-    expect(blockProximity(0.925, 0.5)).toBeCloseTo(0.5);
+    expect(blockProximity(0.5 + BLOCK.zReach / 2, 0.5)).toBeCloseTo(0.5);
   });
 });
 
@@ -97,7 +112,7 @@ describe('isBlockable', () => {
     const cross = blockCrossing(pos, vel);
     expect(cross).not.toBeNull();
     // blockerReaches devolveria true (bloqueador na rede alcança geometricamente)…
-    expect(blockerReaches(0.72, cross!.z, 0.5, cross!)).toBe(true);
+    expect(blockerReaches(BLOCK.netX, cross!.z, 0.5, cross!)).toBe(true);
     // …mas isBlockable é false, então resolveBlock retorna cedo e a rede resolve a falta.
     expect(isBlockable(pos, vel)).toBe(false);
   });
@@ -124,7 +139,7 @@ describe('resolveBlock — snap ao ponto analítico de cruzamento (x = 0)', () =
     const blocker = {
       isAirborne: true,
       jumpY: 0.5,
-      pos: new THREE.Vector3(-0.72, 0, 0.5), // na rede e alinhado em z ao cruzamento
+      pos: new THREE.Vector3(-BLOCK.netX, 0, 0.5), // na rede e alinhado em z ao cruzamento
       act: noop,
     } as unknown as Athlete;
     const team = { frontRow: () => [blocker] };
@@ -215,7 +230,7 @@ describe('resolveBlock — posse após bloqueio', () => {
     const blocker = {
       isAirborne: true,
       jumpY: 0.5,
-      pos: new THREE.Vector3(-0.72, 0, 0.5),
+      pos: new THREE.Vector3(-BLOCK.netX, 0, 0.5),
       act: noop,
     } as unknown as Athlete;
     const team = { frontRow: () => [blocker] };

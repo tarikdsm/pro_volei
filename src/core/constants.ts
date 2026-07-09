@@ -110,6 +110,41 @@ export const CONTACT = {
   lungeReach: 2.0, // raio de "peixinho" (toque fraco)
 };
 
+// Geometria e janela do bloqueio (mechanics/block.ts). blockChance/digChance NÃO ficam
+// aqui — são probabilidade por dificuldade e vivem em Difficulty/DIFFICULTIES.
+export const BLOCK = {
+  window: 0.8, // janela de tempo (s) após o contato em que o bloqueio ainda pode acontecer
+  nearNetX: 1.4, // distância máx. na rede (|x|) para o bloqueador contar como "na rede"
+  zReach: 0.85, // distância máx. em z entre bloqueador e ponto de cruzamento para alcançar
+  netX: 0.72, // x do bloqueador na rede (espelhado por sideSign)
+  jumpReachFactor: 0.5, // ganho de alcance por metro de altura do pulo
+  jumpDelayRange: [0.0, 0.12] as const, // faixa de atraso (s) do pulo agendado da IA
+  stuffThreshold: 0.5, // limiar de prox p/ STUFF (devolve no chão do atacante)
+  softThreshold: 0.95, // limiar de prox p/ pingo jogável (acima disso, explode pra fora)
+} as const;
+
+// Sweet-spots e curvas do timing humano (control/timing.ts).
+export const HUMAN_TIMING = {
+  receiveSweet: 0.08, // instante ideal (s antes do contato) do toque na recepção
+  receiveSlope: 3.2, // queda de qualidade por s de erro na recepção
+  jumpSweet: 0.26, // instante ideal (s antes do contato) do pulo no ataque
+  jumpSlope: 2.8, // queda de qualidade por s de erro no pulo
+  contactBase: 0.45, // qualidade mínima do toque (timing zerado)
+  contactSpan: 0.55, // ganho de qualidade do toque com timing perfeito
+  hardPenalty: 0.8, // fator sobre bola forte (penaliza 20%)
+} as const;
+
+// Limiares e curvas do saque humano (control/HumanController.ts).
+export const SERVE_TUNING = {
+  perfectLo: 0.72, // início da zona verde (saque perfeito)
+  perfectHi: 0.92, // fim da zona verde (acima arrisca sair longo)
+  chargeRate: 1.05, // velocidade de carga/descarga do medidor por s
+  clearanceHi: 1.3, // folga sobre a rede com força mínima (flutuante)
+  clearanceLo: 0.16, // folga sobre a rede com força máxima (raspando a fita)
+  clearanceJitter: [0.92, 1.08] as const, // ruído multiplicativo da folga
+  perfectPower: 0.95, // potência aplicada num saque perfeito
+} as const;
+
 // Posições-base por slot de rodízio (para o lado HOME, x negativo).
 // Slots: 0..5 = posições 1(fundo-dir), 6(fundo-centro), 5(fundo-esq), 4(frente-esq), 3(frente-centro), 2(frente-dir)
 // Do ponto de vista de quem olha para a rede no lado HOME: +z é a direita.

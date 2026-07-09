@@ -3,7 +3,7 @@
 // via ctx (aim/chosenZone). Extraído do Match (1.5b).
 import * as THREE from 'three';
 import { Input } from '../../core/Input';
-import { PLAYER, TeamSide } from '../../core/constants';
+import { BLOCK, PLAYER, SERVE_TUNING, TeamSide } from '../../core/constants';
 import { clamp, lerp, rand, chance, randPick } from '../../core/math3d';
 import { Athlete } from '../Team';
 import { TouchPlan } from '../RallyState';
@@ -12,9 +12,6 @@ import type { MechanicsCtx } from '../mechanics/context';
 import { receiveTimingQuality, jumpTimingQuality, humanContactQuality } from './timing';
 
 export type CtlMode = 'none' | 'serve' | 'receive' | 'attack' | 'block';
-
-const PERFECT_LO = 0.72;
-const PERFECT_HI = 0.92;
 
 export class HumanController {
   private ctl: CtlMode = 'none';
@@ -187,7 +184,7 @@ export class HumanController {
         this.serveDir = 1;
       }
       if (this.serveCharging) {
-        this.servePower += this.serveDir * dt * 1.05;
+        this.servePower += this.serveDir * dt * SERVE_TUNING.chargeRate;
         if (this.servePower >= 1) {
           this.servePower = 1;
           this.serveDir = -1;
@@ -204,16 +201,18 @@ export class HumanController {
           const target = this.aim.clone();
           let power = p;
           // folga sobre a rede: força alta = raspando na fita, baixa = flutuante
-          let clearance = lerp(1.3, 0.16, p) * rand(0.92, 1.08);
-          if (p > PERFECT_HI) {
+          let clearance =
+            lerp(SERVE_TUNING.clearanceHi, SERVE_TUNING.clearanceLo, p) *
+            rand(SERVE_TUNING.clearanceJitter[0], SERVE_TUNING.clearanceJitter[1]);
+          if (p > SERVE_TUNING.perfectHi) {
             // arriscou demais: pode sair longa
-            if (chance((p - PERFECT_HI) * 4)) {
+            if (chance((p - SERVE_TUNING.perfectHi) * 4)) {
               target.x = rand(9.6, 11.5);
               clearance = rand(0.25, 0.6);
             }
-          } else if (p >= PERFECT_LO) {
+          } else if (p >= SERVE_TUNING.perfectLo) {
             ctx.hooks.banner('SAQUE PERFEITO!', '');
-            power = 0.95;
+            power = SERVE_TUNING.perfectPower;
             clearance = rand(0.16, 0.28);
           }
           // pouca força morre na rede às vezes
@@ -278,7 +277,7 @@ export class HumanController {
     if (this.ctl === 'block' && this.controlled) {
       // desliza na rede
       if (axis.z !== 0) {
-        this.controlled.moveTo(-0.72, clamp(this.controlled.pos.z + axis.z * 1.2, -4.2, 4.2));
+        this.controlled.moveTo(-BLOCK.netX, clamp(this.controlled.pos.z + axis.z * 1.2, -4.2, 4.2));
       }
       if (input.wasPressed('Space') && !this.controlled.isAirborne) {
         this.controlled.act('block', 0.8);

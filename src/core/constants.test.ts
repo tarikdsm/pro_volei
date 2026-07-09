@@ -1,0 +1,65 @@
+import { describe, it, expect } from 'vitest';
+import { BLOCK, HUMAN_TIMING, SERVE_TUNING } from './constants';
+
+// Invariantes baratas de tuning: guardam contra edições que quebrem os pressupostos das
+// fórmulas de bloqueio/timing/saque (thresholds em [0,1], slopes > 0, ranges ordenados).
+describe('BLOCK — invariantes de tuning', () => {
+  it('limiares de proximidade em [0,1] e stuff antes de soft', () => {
+    for (const t of [BLOCK.stuffThreshold, BLOCK.softThreshold]) {
+      expect(t).toBeGreaterThanOrEqual(0);
+      expect(t).toBeLessThanOrEqual(1);
+    }
+    expect(BLOCK.stuffThreshold).toBeLessThan(BLOCK.softThreshold);
+  });
+
+  it('geometria e alcance positivos', () => {
+    expect(BLOCK.window).toBeGreaterThan(0);
+    expect(BLOCK.nearNetX).toBeGreaterThan(0);
+    expect(BLOCK.zReach).toBeGreaterThan(0);
+    expect(BLOCK.netX).toBeGreaterThan(0);
+    expect(BLOCK.jumpReachFactor).toBeGreaterThan(0);
+  });
+
+  it('faixa de atraso do pulo bem-ordenada e não-negativa', () => {
+    expect(BLOCK.jumpDelayRange[0]).toBeGreaterThanOrEqual(0);
+    expect(BLOCK.jumpDelayRange[0]).toBeLessThanOrEqual(BLOCK.jumpDelayRange[1]);
+  });
+});
+
+describe('HUMAN_TIMING — invariantes de tuning', () => {
+  it('slopes positivos (senão a qualidade nunca decai)', () => {
+    expect(HUMAN_TIMING.receiveSlope).toBeGreaterThan(0);
+    expect(HUMAN_TIMING.jumpSlope).toBeGreaterThan(0);
+  });
+
+  it('sweet-spots não-negativos', () => {
+    expect(HUMAN_TIMING.receiveSweet).toBeGreaterThanOrEqual(0);
+    expect(HUMAN_TIMING.jumpSweet).toBeGreaterThanOrEqual(0);
+  });
+
+  it('qualidade do toque permanece em [0,1] e penalidade em (0,1]', () => {
+    expect(HUMAN_TIMING.contactBase).toBeGreaterThanOrEqual(0);
+    expect(HUMAN_TIMING.contactBase + HUMAN_TIMING.contactSpan).toBeLessThanOrEqual(1);
+    expect(HUMAN_TIMING.hardPenalty).toBeGreaterThan(0);
+    expect(HUMAN_TIMING.hardPenalty).toBeLessThanOrEqual(1);
+  });
+});
+
+describe('SERVE_TUNING — invariantes de tuning', () => {
+  it('zona perfeita bem-ordenada dentro de [0,1]', () => {
+    expect(SERVE_TUNING.perfectLo).toBeGreaterThan(0);
+    expect(SERVE_TUNING.perfectLo).toBeLessThan(SERVE_TUNING.perfectHi);
+    expect(SERVE_TUNING.perfectHi).toBeLessThanOrEqual(1);
+  });
+
+  it('folga sobre a rede cai com a força (hi > lo)', () => {
+    expect(SERVE_TUNING.clearanceHi).toBeGreaterThan(SERVE_TUNING.clearanceLo);
+  });
+
+  it('jitter ordenado e taxa/potência positivas', () => {
+    expect(SERVE_TUNING.clearanceJitter[0]).toBeLessThanOrEqual(SERVE_TUNING.clearanceJitter[1]);
+    expect(SERVE_TUNING.chargeRate).toBeGreaterThan(0);
+    expect(SERVE_TUNING.perfectPower).toBeGreaterThan(0);
+    expect(SERVE_TUNING.perfectPower).toBeLessThanOrEqual(1);
+  });
+});
