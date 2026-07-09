@@ -82,9 +82,12 @@ describe('isBlockable', () => {
     expect(isBlockable({ x: -3, y: 2, z: 0 }, { x: 3, y: 7.5, z: 0 })).toBe(true);
   });
 
-  it('bola larga (fora da largura da rede) não é considerada falta de rede', () => {
-    // z além de halfWidth: passa pela lateral → 'cross', continua bloqueável (gated por z)
-    expect(isBlockable({ x: -1, y: 1, z: COURT.halfWidth + 1 }, { x: 1, y: 6.5, z: 0 })).toBe(true);
+  it('bola larga (fora do corredor das antenas) não é bloqueável → falta de antena', () => {
+    // z além de halfWidth: cruza fora do corredor das antenas → 'outAntenna' (falta de quem
+    // enviou), não 'cross'. Logo não é bloqueável — a falta de antena resolve o lance.
+    expect(isBlockable({ x: -1, y: 1, z: COURT.halfWidth + 1 }, { x: 1, y: 6.5, z: 0 })).toBe(
+      false,
+    );
   });
 
   it('o guard (isBlockable), não a geometria, é o que barra o bloqueio indevido', () => {

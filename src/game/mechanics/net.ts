@@ -5,7 +5,8 @@ import { COURT, BALL_RADIUS, GRAVITY } from '../../core/constants';
 export type NetCrossing =
   | { kind: 'none' }
   | { kind: 'net'; t: number; y: number; z: number }
-  | { kind: 'cross'; t: number; y: number; z: number };
+  | { kind: 'cross'; t: number; y: number; z: number }
+  | { kind: 'outAntenna'; t: number; y: number; z: number };
 
 interface Vec3 {
   x: number;
@@ -17,7 +18,8 @@ interface Vec3 {
  * Quando e como a bola cruza o plano da rede (x = 0), dada posição e velocidade atuais.
  * - `none`: não vai cruzar (sem componente horizontal ou cruzamento no passado);
  * - `net`: cruza na faixa de altura/largura da rede (bate na rede);
- * - `cross`: passa limpo (por cima ou pela lateral).
+ * - `cross`: passa limpo POR CIMA, dentro do corredor entre as antenas;
+ * - `outAntenna`: cruza fora do corredor entre as antenas (falta de quem enviou).
  */
 export function computeNetCrossing(pos: Vec3, vel: Vec3): NetCrossing {
   if (Math.abs(vel.x) < 0.01) return { kind: 'none' };
@@ -25,10 +27,12 @@ export function computeNetCrossing(pos: Vec3, vel: Vec3): NetCrossing {
   if (t <= 0.005) return { kind: 'none' };
   const y = pos.y + vel.y * t + 0.5 * GRAVITY * t * t;
   const z = pos.z + vel.z * t;
+  // corredor legal de cruzamento: as antenas ficam nas linhas laterais (z = ±halfWidth).
+  // Qualquer cruzamento acima do chão porém fora desse corredor é falta de "fora da antena".
+  const overFloor = y > BALL_RADIUS;
+  if (overFloor && Math.abs(z) > COURT.halfWidth) return { kind: 'outAntenna', t, y, z };
   const hitsNet =
-    y > BALL_RADIUS &&
-    y < COURT.netHeight + BALL_RADIUS * 0.4 &&
-    Math.abs(z) < COURT.halfWidth + 0.5;
+    y > BALL_RADIUS && y < COURT.netHeight + BALL_RADIUS * 0.4 && Math.abs(z) <= COURT.halfWidth;
   return hitsNet ? { kind: 'net', t, y, z } : { kind: 'cross', t, y, z };
 }
 

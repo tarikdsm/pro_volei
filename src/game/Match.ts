@@ -30,6 +30,7 @@ import { MechanicsCtx } from './mechanics/context';
 import { HumanController } from './control/HumanController';
 import { AiController } from './ai/AiController';
 import { resolvePoint, awardPoint, pushScore, ScoringCtx } from './rules/SetMatch';
+import { outOfAntennaWinner } from './rules/scoring';
 
 export interface MatchStats {
   aces: number;
@@ -230,11 +231,14 @@ export class Match {
 
   private computeNetEvent(): void {
     this.rally.netEventIn = null;
+    this.rally.outAntennaIn = null;
     this.rally.netEventPoint = null;
     const crossing = computeNetCrossing(this.ball.pos, this.ball.vel);
     if (crossing.kind === 'net') {
       this.rally.netEventIn = crossing.t;
       this.rally.netEventPoint = netTouchPoint(crossing);
+    } else if (crossing.kind === 'outAntenna') {
+      this.rally.outAntennaIn = crossing.t;
     }
   }
 
@@ -272,6 +276,15 @@ export class Match {
       if (this.rally.netEventIn <= 0) {
         this.rally.netEventIn = null;
         this.onNetTouch();
+      }
+    }
+
+    // cruzamento fora do corredor das antenas → falta imediata de quem enviou
+    if (this.rally.outAntennaIn !== null && this.state === 'rally') {
+      this.rally.outAntennaIn -= dt;
+      if (this.rally.outAntennaIn <= 0) {
+        this.rally.outAntennaIn = null;
+        this.onOutOfAntenna();
       }
     }
 
@@ -394,6 +407,18 @@ export class Match {
     // rally: a bola ainda é jogável no lado de quem atacou (escaparam do bloqueio etc.)
     this.hooks.banner('NA REDE!', 'bola viva!');
     this.planNext('pass');
+  }
+
+  /**
+   * Cruzamento fora do corredor das antenas: falta imediata de quem enviou a bola.
+   * Concede o ponto na hora — assim o estado sai de 'rally' e a queda da bola não é
+   * mais resolvida como ponto normal (evita premiar quem enviou fora da antena).
+   */
+  private onOutOfAntenna(): void {
+    this.hooks.camera.addShake(0.2);
+    const winner = outOfAntennaWinner(this.rally.lastTouchTeam, this.servingTeam);
+    // awardPoint já apita (whistleLong), monta o banner e faz o guard isRally interno.
+    awardPoint(this.scoringCtx, winner, 'Fora da antena');
   }
 
   /** Monta o contexto passado às funções de mecânica; getters mantêm vivos os valores mutáveis. */

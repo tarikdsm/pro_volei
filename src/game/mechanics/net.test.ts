@@ -25,9 +25,21 @@ describe('computeNetCrossing', () => {
     expect(r.kind).toBe('net');
   });
 
-  it('cruza dentro da faixa de altura mas muito para fora em z → cross (passa pela lateral)', () => {
-    const z = COURT.halfWidth + 1; // além da largura da rede
-    const r = computeNetCrossing({ x: -1, y: 1, z }, { x: 1, y: 6.5, z: 0 });
+  it('cruza fora do corredor das antenas na altura da rede → outAntenna', () => {
+    // z = 5.1 (> halfWidth 4.5): fora das antenas, mesmo na altura da rede é falta
+    const r = computeNetCrossing({ x: -1, y: 1, z: COURT.halfWidth + 0.6 }, { x: 1, y: 6.5, z: 0 });
+    expect(r.kind).toBe('outAntenna');
+  });
+
+  it('cruza por cima da rede porém fora da antena → outAntenna (altura não isenta)', () => {
+    // y no cruzamento = 3m (acima do topo), mas z = 5.1 fora do corredor → falta
+    const r = computeNetCrossing({ x: -3, y: 2, z: COURT.halfWidth + 0.6 }, { x: 3, y: 7.5, z: 0 });
+    expect(r.kind).toBe('outAntenna');
+  });
+
+  it('cruza logo por dentro da antena, por cima → cross (cruzamento legal não regride)', () => {
+    // z = 4.2 (< halfWidth 4.5): dentro do corredor; trajetória alta passa limpo
+    const r = computeNetCrossing({ x: -3, y: 2, z: COURT.halfWidth - 0.3 }, { x: 3, y: 7.5, z: 0 });
     expect(r.kind).toBe('cross');
   });
 

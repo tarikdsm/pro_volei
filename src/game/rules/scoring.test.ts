@@ -8,6 +8,7 @@ import {
   setPointLeader,
   isAce,
   resolveRallyOutcome,
+  outOfAntennaWinner,
 } from './scoring';
 
 describe('isSetOver', () => {
@@ -100,5 +101,17 @@ describe('resolveRallyOutcome', () => {
   it('bola fora sem toque registrado → ponto de quem não sacou', () => {
     const r = resolveRallyOutcome({ x: 12, z: 0 }, null, TeamSide.HOME);
     expect(r.winner).toBe(TeamSide.AWAY);
+  });
+});
+
+describe('outOfAntennaWinner', () => {
+  it('último toque HOME → ponto do AWAY (recebedor)', () => {
+    expect(outOfAntennaWinner(TeamSide.HOME, TeamSide.AWAY)).toBe(TeamSide.AWAY);
+  });
+  it('último toque AWAY → ponto do HOME (recebedor)', () => {
+    expect(outOfAntennaWinner(TeamSide.AWAY, TeamSide.HOME)).toBe(TeamSide.HOME);
+  });
+  it('saque fora da antena sem toques (lastTouch=null) → ponto do recebedor', () => {
+    expect(outOfAntennaWinner(null, TeamSide.HOME)).toBe(TeamSide.AWAY);
   });
 });

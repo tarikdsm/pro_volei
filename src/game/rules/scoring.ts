@@ -70,3 +70,14 @@ export function resolveRallyOutcome(
       : otherSide(servingTeam);
   return { winner, inCourt, landSide };
 }
+
+/**
+ * Cruzamento fora do corredor das antenas: falta de quem enviou a bola.
+ * Ponto de quem recebe — o oposto do último a tocar; no saque (sem toques), o recebedor.
+ */
+export function outOfAntennaWinner(
+  lastTouchTeam: TeamSide | null,
+  servingTeam: TeamSide,
+): TeamSide {
+  return otherSide(lastTouchTeam ?? servingTeam);
+}

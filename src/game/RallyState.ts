@@ -26,6 +26,7 @@ export class RallyState {
   // próximo contato e geometria de rede
   plan: TouchPlan | null = null;
   netEventIn: number | null = null;
+  outAntennaIn: number | null = null; // countdown até o cruzamento fora da antena (falta)
   netEventPoint: THREE.Vector3 | null = null; // ponto analítico do toque na rede (snap)
 
   // planejamento: quem joga o próximo toque e bloqueadores agendados
@@ -68,6 +69,7 @@ export class RallyState {
     this.lastTouchTeam = null;
     this.plan = null;
     this.netEventIn = null;
+    this.outAntennaIn = null;
     this.netEventPoint = null;
     // planejamento: limpa bloqueadores agendados e ponteiros do próximo toque
     // para nenhum agendamento vazar entre pontos (pulo fantasma / lixo latente).

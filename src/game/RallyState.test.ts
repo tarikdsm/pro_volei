@@ -13,6 +13,7 @@ describe('RallyState — valores iniciais', () => {
     expect(r.lastKind).toBe('serve');
     expect(r.plan).toBe(null);
     expect(r.netEventIn).toBe(null);
+    expect(r.outAntennaIn).toBe(null);
   });
 
   it('começa sem campos de planejamento definidos', () => {
@@ -72,6 +73,7 @@ describe('RallyState.reset', () => {
     r.rallyTouches = 5;
     r.lastTouchTeam = TeamSide.HOME;
     r.netEventIn = 0.3;
+    r.outAntennaIn = 0.3;
     r.plan = {} as TouchPlan;
 
     r.reset();
@@ -81,6 +83,7 @@ describe('RallyState.reset', () => {
     expect(r.rallyTouches).toBe(0);
     expect(r.lastTouchTeam).toBe(null);
     expect(r.netEventIn).toBe(null);
+    expect(r.outAntennaIn).toBe(null);
     expect(r.plan).toBe(null);
   });
 
