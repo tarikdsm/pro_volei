@@ -27,8 +27,16 @@ export default defineConfig({
   },
   projects: [
     {
+      // desktop: smoke, pausa, fim de partida e perfil — tudo menos a suíte de toque
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
+      testIgnore: /touch\.spec\.ts/,
+    },
+    {
+      // mobile: só a suíte de toque, num viewport de celular (valida os controles e o HUD tocável)
+      name: 'mobile',
+      use: { ...devices['Pixel 5'] },
+      testMatch: /touch\.spec\.ts/,
     },
   ],
 });

@@ -29,8 +29,8 @@ import { executeTouch } from './mechanics/touch';
 import { MechanicsCtx } from './mechanics/context';
 import { HumanController } from './control/HumanController';
 import { AiController } from './ai/AiController';
-import { resolvePoint, awardPoint, pushScore, ScoringCtx } from './rules/SetMatch';
-import { outOfAntennaWinner } from './rules/scoring';
+import { resolvePoint, awardPoint, pushScore, endSet, ScoringCtx } from './rules/SetMatch';
+import { outOfAntennaWinner, isMatchOver } from './rules/scoring';
 
 export interface MatchStats {
   aces: number;
@@ -126,6 +126,22 @@ export class Match {
    */
   onPause(): void {
     this.human.cancelServeCharge(this.ctx);
+  }
+
+  /**
+   * Costura DE TESTE, só em desenvolvimento (import.meta.env.DEV): força o fim da partida a favor
+   * de `side`, encerrando sets até bater os sets necessários do formato. Reaproveita
+   * endSet(rules/SetMatch) sobre o scoringCtx — não duplica regra nem incha o orquestrador; o
+   * guard de DEV a mantém fora do bundle de produção (mesmo com ?debug), então nunca vira cheat.
+   * Usada pelo e2e (forceMatchEnd) para exercitar o painel de vitória sem jogar um set inteiro.
+   */
+  debugWinMatch(side: TeamSide): void {
+    if (!import.meta.env.DEV) return;
+    // cada endSet soma 1 set ao vencedor; laço com trava defensiva contra formato inesperado
+    let guard = 0;
+    while (!isMatchOver(this.sets[side], this.format.sets) && guard++ < 8) {
+      endSet(this.scoringCtx, side);
+    }
   }
 
   // ---------------------------------------------------------------- SAQUE
