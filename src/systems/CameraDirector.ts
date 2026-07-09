@@ -142,7 +142,12 @@ export class CameraDirector {
 
     // FOV punch decai de volta ao normal
     this.fovKick = Math.max(0, this.fovKick - dt * 26);
-    this.camera.fov = this.baseFov + this.fovKick;
-    this.camera.updateProjectionMatrix();
+    const fov = this.baseFov + this.fovKick;
+    // só recalcula a projeção quando o FOV punch muda de fato; o aspect (resize) já
+    // dispara updateProjectionMatrix() por conta própria no handler de resize (main.ts).
+    if (fov !== this.camera.fov) {
+      this.camera.fov = fov;
+      this.camera.updateProjectionMatrix();
+    }
   }
 }
