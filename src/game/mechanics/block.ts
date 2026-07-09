@@ -128,6 +128,9 @@ export function resolveBlock(ctx: MechanicsCtx, attackSide: TeamSide): void {
       ctx.rally.lastTouchTeam = defSide;
       ctx.rally.lastKind = 'block';
       ctx.rally.rallyTouches++;
+      // toque de bloqueio não conta p/ nenhum lado: quem tocar a seguir recomeça os 3 toques
+      ctx.rally.possessionTeam = null;
+      ctx.rally.possessionTouches = 0;
 
       if (r < prox * 0.5) {
         // STUFF: devolve no chão do atacante
@@ -150,9 +153,6 @@ export function resolveBlock(ctx: MechanicsCtx, attackSide: TeamSide): void {
         v.z *= 0.4;
         v.y = Math.abs(v.y) * 0.3 + 3.2;
         ctx.ball.launch(bp, v);
-        // toque de bloqueio não conta: posse continua limpa p/ defesa
-        ctx.rally.possessionTeam = null;
-        ctx.rally.possessionTouches = 0;
         ctx.planNext('pass');
       } else {
         // explode no bloqueio pra fora (ponto do atacante)

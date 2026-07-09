@@ -192,3 +192,98 @@ describe('resolveBlock — snap ao ponto analítico de cruzamento (x = 0)', () =
     expect(scheduled).toHaveLength(0); // sem o guard, seria 1 (bug: bloqueio apaga a falta)
   });
 });
+
+describe('resolveBlock — posse após bloqueio', () => {
+  // Exercita o callback do bloqueio para confirmar que o toque de bloqueio zera a posse
+  // (não conta p/ nenhum lado), liberando o próximo toque — a cortada chega como 3º toque
+  // do atacante, então sem o reset o guard de planNext mataria a defesa (dig).
+  function makeCtx() {
+    const scheduled: { t: number; fn: () => void }[] = [];
+    const planNextCalls: string[] = [];
+    const noop = (): void => {};
+
+    // bola stale; cruza x=0 em t=0.2 a y≈2,94 (acima da fita → bloqueável)
+    const ball = {
+      pos: new THREE.Vector3(-2, 3.0, 0.5),
+      vel: new THREE.Vector3(10, 1, 0),
+      launch: noop,
+    };
+    // HOME defende no ar contra ataque AWAY; z alinhado ao cruzamento → prox = 1
+    const blocker = {
+      isAirborne: true,
+      jumpY: 0.5,
+      pos: new THREE.Vector3(-0.72, 0, 0.5),
+      act: noop,
+    } as unknown as Athlete;
+    const team = { frontRow: () => [blocker] };
+    const rally = new RallyState();
+
+    const ctx = {
+      ball,
+      rally,
+      hooks: {
+        audio: { block: noop, cheer: noop },
+        effects: { burst: noop },
+        camera: { addShake: noop },
+        crowd: { excite: noop },
+        banner: noop,
+      },
+      stats: { aces: 0, blocks: 0, longestRally: 0, points: [0, 0] as [number, number] },
+      teamOf: () => team,
+      after: (t: number, fn: () => void) => {
+        scheduled.push({ t, fn });
+      },
+      planNext: (k: string) => {
+        planNextCalls.push(k);
+      },
+    } as unknown as MechanicsCtx;
+
+    return { ctx, rally, scheduled, planNextCalls };
+  }
+
+  it('STUFF: zera a posse e agenda o dig (cobertura do ataque bloqueado)', () => {
+    // r baixo (0.1 < prox*0.5 = 0.5) cai no ramo STUFF; demais chamadas alimentam rand().
+    const spy = vi.spyOn(Math, 'random').mockReturnValueOnce(0.1).mockReturnValue(0.5);
+    try {
+      const { ctx, rally, scheduled, planNextCalls } = makeCtx();
+      // a cortada chegou como 3º toque do atacante (AWAY)
+      rally.countTouch(TeamSide.AWAY);
+      rally.countTouch(TeamSide.AWAY);
+      rally.countTouch(TeamSide.AWAY);
+      expect(rally.possessionTeam).toBe(TeamSide.AWAY);
+      expect(rally.possessionTouches).toBe(3);
+
+      resolveBlock(ctx, TeamSide.AWAY);
+      expect(scheduled).toHaveLength(1);
+      scheduled[0].fn(); // dispara o bloqueio
+
+      // sem o reset central, a posse (AWAY, 3) sobreviveria e o guard mataria o dig
+      expect(rally.possessionTeam).toBe(null);
+      expect(rally.possessionTouches).toBe(0);
+      expect(planNextCalls).toEqual(['dig']);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('pingo: mantém a posse limpa e agenda o pass (comportamento já correto)', () => {
+    // r=0.6: fora de STUFF (prox*0.5=0.5), dentro de pingo (prox*0.95=0.95).
+    const spy = vi.spyOn(Math, 'random').mockReturnValueOnce(0.6).mockReturnValue(0.5);
+    try {
+      const { ctx, rally, scheduled, planNextCalls } = makeCtx();
+      rally.countTouch(TeamSide.AWAY);
+      rally.countTouch(TeamSide.AWAY);
+      rally.countTouch(TeamSide.AWAY);
+
+      resolveBlock(ctx, TeamSide.AWAY);
+      expect(scheduled).toHaveLength(1);
+      scheduled[0].fn();
+
+      expect(rally.possessionTeam).toBe(null);
+      expect(rally.possessionTouches).toBe(0);
+      expect(planNextCalls).toEqual(['pass']);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+});

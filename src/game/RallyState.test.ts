@@ -100,3 +100,24 @@ describe('RallyState.reset', () => {
     expect(r.lastToucher).toBe(null);
   });
 });
+
+describe('RallyState — reset de posse no bloqueio libera o próximo toque', () => {
+  it('após o toque de bloqueio (posse zerada), o guard de planNext deixa de valer', () => {
+    // A cortada chega como 3º toque do atacante (AWAY); o bloqueio zera a posse (block.ts).
+    const r = new RallyState();
+    r.countTouch(TeamSide.AWAY);
+    r.countTouch(TeamSide.AWAY);
+    r.countTouch(TeamSide.AWAY);
+    expect(r.touchesOf(TeamSide.AWAY)).toBe(3);
+
+    // reset central do bloqueio (toque de bloqueio não conta p/ nenhum lado)
+    r.possessionTeam = null;
+    r.possessionTouches = 0;
+
+    // a bola do stuff cai no lado do atacante (landSide = AWAY); o guard de planNext é
+    // (possessionTeam === landSide && possessionTouches >= 3): agora possessionTeam é null,
+    // então a condição não é mais satisfeita e a defesa (dig) passa a ser agendada.
+    expect(r.touchesOf(TeamSide.AWAY)).toBe(0);
+    expect(r.possessionTeam === TeamSide.AWAY && r.possessionTouches >= 3).toBe(false);
+  });
+});
