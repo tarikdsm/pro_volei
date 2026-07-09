@@ -235,19 +235,9 @@ export class HumanController {
       if (input.wasPressed('Space') && ctx.rally.plan.contactIn < 0.5) {
         this.timingQ = receiveTimingQuality(ctx.rally.plan.contactIn);
       }
-      // escolha de zona já durante a recepção
-      if (input.wasPressed('KeyA')) {
-        this.chosenZone = 0;
-        ctx.hooks.zoneHint(0);
-      }
-      if (input.wasPressed('KeyW')) {
-        this.chosenZone = 1;
-        ctx.hooks.zoneHint(1);
-      }
-      if (input.wasPressed('KeyD')) {
-        this.chosenZone = 2;
-        ctx.hooks.zoneHint(2);
-      }
+      // A escolha de zona NÃO acontece aqui: WASD só move o atleta na recepção. A troca de
+      // zona tem janela dedicada na fase de levantamento (ctl==='none' && kind==='set') abaixo,
+      // evitando que mover (ou o joystick, que sintetiza WASD) troque a zona sem querer. (M5)
     }
 
     if (
