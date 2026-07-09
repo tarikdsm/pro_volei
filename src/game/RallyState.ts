@@ -49,6 +49,17 @@ export class RallyState {
     return this.possessionTeam === side ? this.possessionTouches : 0;
   }
 
+  /**
+   * Passador a excluir no replanejamento de pass/dig: evita contato consecutivo do mesmo atleta
+   * quando a bola volta ao mesmo lado (rebote de rede, passe ruim). O bloqueio não conta, então
+   * após bloqueio o mesmo atleta pode jogar de novo.
+   */
+  excludedPasser(landSide: TeamSide): Athlete | undefined {
+    return this.lastTouchTeam === landSide && this.lastKind !== 'block'
+      ? (this.lastToucher ?? undefined)
+      : undefined;
+  }
+
   /** Zera o estado do rally para começar um novo (chamado no preparo do saque). */
   reset(): void {
     this.possessionTeam = null;

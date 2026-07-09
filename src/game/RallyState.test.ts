@@ -101,6 +101,52 @@ describe('RallyState.reset', () => {
   });
 });
 
+describe('RallyState.excludedPasser', () => {
+  it('exclui o último tocador quando a bola replaneja pass no mesmo lado', () => {
+    const a = {} as Athlete;
+    const r = new RallyState();
+    r.lastTouchTeam = TeamSide.HOME;
+    r.lastKind = 'pass';
+    r.lastToucher = a;
+    expect(r.excludedPasser(TeamSide.HOME)).toBe(a);
+  });
+
+  it('exclui o último tocador quando a cortada bate na rede e volta ao mesmo lado', () => {
+    const a = {} as Athlete;
+    const r = new RallyState();
+    r.lastTouchTeam = TeamSide.HOME;
+    r.lastKind = 'spike';
+    r.lastToucher = a;
+    expect(r.excludedPasser(TeamSide.HOME)).toBe(a);
+  });
+
+  it('não exclui o bloqueador: após bloqueio ele pode jogar a própria sobra', () => {
+    const a = {} as Athlete;
+    const r = new RallyState();
+    r.lastTouchTeam = TeamSide.HOME;
+    r.lastKind = 'block';
+    r.lastToucher = a;
+    expect(r.excludedPasser(TeamSide.HOME)).toBeUndefined();
+  });
+
+  it('não afeta a recepção/defesa do adversário quando a bola cruzou de lado', () => {
+    const a = {} as Athlete;
+    const r = new RallyState();
+    r.lastTouchTeam = TeamSide.HOME;
+    r.lastKind = 'spike';
+    r.lastToucher = a;
+    expect(r.excludedPasser(TeamSide.AWAY)).toBeUndefined();
+  });
+
+  it('normaliza para undefined quando não há tocador registrado', () => {
+    const r = new RallyState();
+    r.lastTouchTeam = TeamSide.HOME;
+    r.lastKind = 'pass';
+    r.lastToucher = null;
+    expect(r.excludedPasser(TeamSide.HOME)).toBeUndefined();
+  });
+});
+
 describe('RallyState — reset de posse no bloqueio libera o próximo toque', () => {
   it('após o toque de bloqueio (posse zerada), o guard de planNext deixa de valer', () => {
     // A cortada chega como 3º toque do atacante (AWAY); o bloqueio zera a posse (block.ts).

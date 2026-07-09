@@ -183,7 +183,7 @@ export class Match {
         this.rally.plannedAttacker ??
         team.nearestFrontRowTo(cPoint.z, this.rally.lastToucher ?? undefined);
     } else {
-      athlete = team.nearestTo(cPoint.x, cPoint.z);
+      athlete = team.nearestTo(cPoint.x, cPoint.z, this.rally.excludedPasser(landSide));
     }
 
     const isHuman = landSide === TeamSide.HOME;
