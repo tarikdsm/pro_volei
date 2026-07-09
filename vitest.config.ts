@@ -5,8 +5,13 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     environment: 'node',
-    // Lógica pura em src/ + o teste do artefato de baseline em tests/perf/.
+    // Lógica pura em src/ + o teste do artefato de baseline em tests/perf/ +
+    // os hooks de dev em .claude/hooks/ (validação de path, lógica de string pura).
     // NÃO inclui tests/e2e/ (harness Playwright roda fora do `npm run check`).
-    include: ['src/**/*.{test,spec}.ts', 'tests/perf/**/*.{test,spec}.ts'],
+    include: [
+      'src/**/*.{test,spec}.ts',
+      'tests/perf/**/*.{test,spec}.ts',
+      '.claude/hooks/**/*.{test,spec}.mjs',
+    ],
   },
 });
