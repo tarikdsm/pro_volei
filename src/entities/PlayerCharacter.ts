@@ -1,5 +1,15 @@
 import * as THREE from 'three';
 
+// Predicado de sombra: planos decorativos (número no peito, nome nas costas) usam
+// MeshBasicMaterial transparente e não devem projetar sombra — só desperdiçam draw
+// calls no shadow pass, sem contribuir com nada visível (ficam colados ao peito).
+// Contrato: MeshBasicMaterial = estampa decorativa sem sombra; corpo sólido usa
+// MeshStandardMaterial e continua projetando sombra normalmente.
+export function meshCastsShadow(mesh: THREE.Mesh): boolean {
+  const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+  return !mats.some((m) => m instanceof THREE.MeshBasicMaterial);
+}
+
 export type CharAction =
   | 'idle'
   | 'run'
@@ -192,7 +202,7 @@ export class PlayerCharacter implements CharVisual {
     this.body.add(this.torso);
     this.root.add(this.body);
     this.root.traverse((o) => {
-      if (o instanceof THREE.Mesh) o.castShadow = true;
+      if (o instanceof THREE.Mesh) o.castShadow = meshCastsShadow(o);
     });
   }
 
