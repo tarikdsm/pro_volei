@@ -10,7 +10,11 @@ export class AudioEngine {
 
   // Precisa ser chamado após um gesto do usuário (política de autoplay)
   init(): void {
-    if (this.ctx) return;
+    if (this.ctx) {
+      // já inicializado: garante que o contexto não ficou suspenso (iOS/volta de background)
+      this.resume();
+      return;
+    }
     const ctx = new AudioContext();
     this.ctx = ctx;
     this.master = ctx.createGain();
@@ -35,6 +39,18 @@ export class AudioEngine {
     this.crowdGain.gain.value = 0.0;
     src.connect(this.crowdFilter).connect(this.crowdGain).connect(this.master);
     src.start();
+
+    // Safari/iOS pode criar o contexto já 'suspended' mesmo dentro do gesto — destrava aqui.
+    this.resume();
+  }
+
+  /**
+   * Retoma o contexto de áudio se estiver suspenso — política de autoplay do iOS/Safari
+   * ou suspensão do SO/aba ao voltar de background. Idempotente: resume() num contexto já
+   * 'running' é no-op seguro, e não faz nada se o contexto ainda não existe (ctx null).
+   */
+  resume(): void {
+    void this.ctx?.resume().catch(() => {});
   }
 
   update(dt: number): void {

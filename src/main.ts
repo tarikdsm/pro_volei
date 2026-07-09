@@ -111,6 +111,7 @@ menu.onResume = () => {
   // botão CONTINUAR: o Menu já chamou hide(); aqui só destravamos o estado.
   appState = nextAppState(appState, 'resume');
   audio.uiClick();
+  audio.resume(); // retoma o áudio caso o contexto tenha sido suspenso durante a pausa
 };
 
 window.addEventListener('keydown', (e) => {
@@ -123,8 +124,15 @@ window.addEventListener('keydown', (e) => {
       menu.showPause();
     } else if (prev === 'paused') {
       menu.hide();
+      audio.resume(); // despausar por Escape não passa por onResume — retoma o áudio aqui também
     }
   }
+});
+
+// o browser costuma suspender o AudioContext quando a aba vai para background (troca de app
+// no celular, bloqueio de tela); ao voltar durante o jogo, retomamos para não ficar mudo.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && appState === 'playing') audio.resume();
 });
 
 // ---------- resize ----------
