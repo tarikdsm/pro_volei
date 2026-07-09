@@ -4,7 +4,7 @@ import { Team, Athlete } from './Team';
 import { Input } from '../core/Input';
 import { AudioEngine } from '../core/AudioEngine';
 import { Effects } from '../systems/Effects';
-import { CameraDirector } from '../systems/CameraDirector';
+import { CameraDirector, camModeForTouch } from '../systems/CameraDirector';
 import { Crowd } from '../world/Crowd';
 import { Referee } from '../world/Referee';
 import { Arena } from '../world/Arena';
@@ -228,9 +228,12 @@ export class Match {
       this.ai.scheduleApproach(this.ctx, this.rally.plan);
     }
 
-    // spike: câmera de ataque + preparação do bloqueio adversário (mecânica; independe do atacante)
+    // câmera: dramática na cortada, broadcast no resto — volta a rally após o spike
+    // (defesa/passe/levantamento não ficam mais travados no enquadramento de ataque)
+    this.hooks.camera.setMode(camModeForTouch(nextKind));
+
+    // spike: preparação do bloqueio adversário (mecânica; independe do atacante)
     if (nextKind === 'spike') {
-      this.hooks.camera.setMode('spike');
       prepareBlock(this.ctx, otherSide(landSide), cPoint.z, cT);
     }
 
