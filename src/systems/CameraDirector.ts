@@ -19,6 +19,8 @@ export class CameraDirector {
   private look = new THREE.Vector3(0, 1, 0);
   private targetPos = new THREE.Vector3();
   private targetLook = new THREE.Vector3();
+  // escratch reutilizado do deslocamento do screen shake (evita 1 Vector3/frame).
+  private shakeOff = new THREE.Vector3();
   private lambda = 3;
   private shake = 0;
   private baseFov = 55;
@@ -128,13 +130,14 @@ export class CameraDirector {
     this.shake = Math.max(0, this.shake - dt * 2.4);
     const s = this.shake * this.shake * 0.35;
     const t = performance.now() * 0.045;
-    const off = new THREE.Vector3(
+    // .set() sobrescreve x/y/z por completo — sem estado remanescente entre frames.
+    this.shakeOff.set(
       Math.sin(t * 1.3) * s,
       Math.sin(t * 1.7 + 2) * s * 0.7,
       Math.cos(t * 1.1) * s,
     );
 
-    this.camera.position.copy(this.pos).add(off);
+    this.camera.position.copy(this.pos).add(this.shakeOff);
     this.camera.lookAt(this.look);
 
     // FOV punch decai de volta ao normal

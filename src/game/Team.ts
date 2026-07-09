@@ -16,6 +16,9 @@ export class Athlete {
   char: CharVisual;
   pos = new THREE.Vector3();
   target = new THREE.Vector3();
+  // escratch por-instância reutilizado a cada update() para evitar alocar um
+  // Vector3/atleta/frame (12 atletas). NUNCA compartilhar entre atletas.
+  private delta = new THREE.Vector3();
   facing = 0;
   faceNet = true;
   jumpY = 0;
@@ -65,7 +68,8 @@ export class Athlete {
     this.clock += dt;
 
     // deslocamento no plano (não se move no ar, exceto leve deriva)
-    const delta = new THREE.Vector3().subVectors(this.target, this.pos);
+    // subVectors sobrescreve x/y/z por completo — sem estado remanescente entre frames.
+    const delta = this.delta.subVectors(this.target, this.pos);
     delta.y = 0;
     const dist = delta.length();
     let moving = false;

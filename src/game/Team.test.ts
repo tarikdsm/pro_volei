@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
-import { Team } from './Team';
+import { Team, Athlete } from './Team';
 import { TeamSide, BASE_SLOTS, SETTER_SPOT } from '../core/constants';
-import type { CharFactory, CharVisual, CharLook } from '../entities/PlayerCharacter';
+import type { CharFactory, CharVisual, CharLook, CharAction } from '../entities/PlayerCharacter';
 
 // Dublê visual: implementa só a superfície mínima que Athlete/Team consomem,
 // sem tocar em document/canvas. Isso é o que permite instanciar Team no
@@ -121,5 +121,98 @@ describe('Team (modelo lógico desacoplado do visual)', () => {
     fr[2].warpTo(0, 3);
     expect(team.nearestFrontRowTo(-1)).toBe(fr[1]);
     expect(team.nearestFrontRowTo(-1, fr[1])).toBe(fr[0]);
+  });
+});
+
+// Dublê que registra a última ação pedida ao visual — permite observar o flag
+// `moving` (run/idle) de Athlete.update sem tocar em DOM.
+interface RecordingChar extends CharVisual {
+  lastAction: CharAction;
+}
+function makeRecordingChar(): RecordingChar {
+  const char: RecordingChar = {
+    root: new THREE.Group(),
+    moveSpeed: 0,
+    jumpY: 0,
+    lastAction: 'idle',
+    setAction(a) {
+      char.lastAction = a;
+    },
+    update() {},
+  };
+  return char;
+}
+function makeAthlete(side: TeamSide = TeamSide.HOME): { athlete: Athlete; char: RecordingChar } {
+  const char = makeRecordingChar();
+  const look: CharLook = { jersey: 0, shorts: 0, skin: 0, hair: 0, number: 1 };
+  const athlete = new Athlete(side, 0, look, () => char);
+  return { athlete, char };
+}
+
+describe('Athlete.update (movimento + reuso de escratch por-instância)', () => {
+  it('avança rumo ao alvo, limitado por maxSpeed*dt, sem desviar do eixo (Caso 1)', () => {
+    const { athlete, char } = makeAthlete();
+    athlete.warpTo(0, 0);
+    athlete.moveTo(10, 0);
+    athlete.update(0.1, 6);
+    // step = min(dist=10, speed*dt = 6*0.1) = 0.6
+    expect(athlete.pos.x).toBeCloseTo(0.6, 6);
+    expect(athlete.pos.z).toBeCloseTo(0, 6);
+    expect(char.lastAction).toBe('run'); // moving == true
+    expect(char.moveSpeed).toBeCloseTo(6, 6);
+  });
+
+  it('não ultrapassa o alvo: o passo é limitado à distância (Caso 2)', () => {
+    const { athlete } = makeAthlete();
+    athlete.warpTo(0, 0);
+    athlete.moveTo(0.3, 0);
+    // dt grande: speed*dt >> dist, então step = dist e o atleta para no alvo
+    athlete.update(1, 6);
+    expect(athlete.pos.x).toBeLessThanOrEqual(0.3);
+    expect(athlete.pos.x).toBeCloseTo(0.3, 6);
+  });
+
+  it('dentro da zona morta (<0.06 m) não se move e fica idle (Caso 3)', () => {
+    const { athlete, char } = makeAthlete();
+    athlete.warpTo(0, 0);
+    athlete.moveTo(0.04, 0);
+    athlete.update(0.1, 6);
+    expect(athlete.pos.x).toBeCloseTo(0, 6);
+    expect(char.lastAction).toBe('idle'); // moving == false
+    expect(char.moveSpeed).toBe(0);
+  });
+
+  it('no ar o avanço cai para 0.25x do valor em solo (Caso 4)', () => {
+    const { athlete } = makeAthlete();
+    athlete.warpTo(0, 0);
+    athlete.moveTo(10, 0);
+    athlete.jump(); // torna o atleta aéreo antes do update
+    athlete.update(0.1, 6);
+    // speed = 6 * 0.25 = 1.5 -> step = 1.5*0.1 = 0.15 = 0.25 * 0.6 (Caso 1)
+    expect(athlete.pos.x).toBeCloseTo(0.15, 6);
+  });
+
+  it('o escratch delta é por-instância: dois atletas não se contaminam (Caso 5 — regressão)', () => {
+    const a = makeAthlete();
+    const b = makeAthlete();
+    a.athlete.warpTo(0, 0);
+    a.athlete.moveTo(10, 0); // A anda só no eixo +x
+    b.athlete.warpTo(0, 0);
+    b.athlete.moveTo(0, 10); // B anda só no eixo +z
+    // atualiza intercalado por vários frames (como no loop do jogo)
+    for (let i = 0; i < 3; i++) {
+      a.athlete.update(0.1, 6);
+      b.athlete.update(0.1, 6);
+    }
+    // cada um seguiu apenas o seu eixo — nenhuma contaminação cruzada
+    expect(a.athlete.pos.x).toBeGreaterThan(0);
+    expect(a.athlete.pos.z).toBeCloseTo(0, 6);
+    expect(b.athlete.pos.z).toBeGreaterThan(0);
+    expect(b.athlete.pos.x).toBeCloseTo(0, 6);
+    // guarda direta contra escratch module-level/estático: os buffers devem ser
+    // objetos distintos. Se o delta virar compartilhado entre atletas, isto falha.
+    const deltaA = (a.athlete as unknown as { delta: THREE.Vector3 }).delta;
+    const deltaB = (b.athlete as unknown as { delta: THREE.Vector3 }).delta;
+    expect(deltaA).not.toBe(deltaB);
   });
 });
