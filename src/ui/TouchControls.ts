@@ -5,6 +5,8 @@
 //  - câmera de saque (atrás da sacadora): cima = mais fundo, direita = direita
 //  - câmera broadcast (lateral): direita = em direção à rede adversária, cima = afastar
 
+import { stickKeys } from './touchMapping';
+
 export type CamModeGetter = () => string;
 
 export class TouchControls {
@@ -93,21 +95,9 @@ export class TouchControls {
     }
     this.knob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
 
-    // eixos de tela → teclas conforme a câmera
-    const t = 0.35 * R;
+    // eixos de tela → teclas conforme a câmera (lógica pura em touchMapping.stickKeys)
     const serveCam = this.camMode() === 'serveHome';
-    const want = new Set<string>();
-    if (serveCam) {
-      if (dy < -t) want.add('KeyW'); // cima = mais fundo
-      if (dy > t) want.add('KeyS');
-      if (dx > t) want.add('KeyD'); // direita = direita
-      if (dx < -t) want.add('KeyA');
-    } else {
-      if (dx > t) want.add('KeyW'); // direita da tela = rumo à rede (mundo +x)
-      if (dx < -t) want.add('KeyS');
-      if (dy > t) want.add('KeyD'); // baixo da tela = mundo +z
-      if (dy < -t) want.add('KeyA');
-    }
+    const want = stickKeys(dx, dy, R, serveCam);
     for (const k of this.activeKeys)
       if (!want.has(k)) {
         this.key(k, false);

@@ -181,3 +181,56 @@ describe('HumanController — troca de zona na fase de levantamento (M5)', () =>
     expect(zoneHintCalls).toEqual([1, 0, 2]);
   });
 });
+
+describe('HumanController — transições de modo (T4)', () => {
+  it('beginServe assume o saque: mode "serve" e isControlling true', () => {
+    const hc = new HumanController();
+    const { ctx } = makeCtx();
+    hc.beginServe(server, ctx);
+    expect(hc.mode).toBe('serve');
+    expect(hc.isControlling).toBe(true);
+  });
+
+  it('release libera o controle: mode "none" e isControlling false', () => {
+    const hc = new HumanController();
+    const { ctx } = makeCtx();
+    hc.beginServe(server, ctx);
+    hc.release();
+    expect(hc.mode).toBe('none');
+    expect(hc.isControlling).toBe(false);
+  });
+
+  it('onAssigned de levantamento (set) larga o controle e mostra a dica de zona', () => {
+    const hc = new HumanController();
+    const { ctx, zoneHintCalls } = makeCtx();
+    const plan = { side: TeamSide.HOME, kind: 'set', done: false } as unknown as TouchPlan;
+    hc.onAssigned(ctx, plan);
+    expect(hc.mode).toBe('none'); // no set o humano só escolhe a zona, não controla um atleta
+    expect(zoneHintCalls).toEqual([hc.chosenZone]);
+  });
+
+  it('onAssigned de cortada (spike) entra em modo "attack"', () => {
+    const hc = new HumanController();
+    const { ctx } = makeCtx();
+    const { athlete } = makeAthlete(0, 0);
+    const plan = { kind: 'spike', athlete, done: false } as unknown as TouchPlan;
+    hc.onAssigned(ctx, plan);
+    expect(hc.mode).toBe('attack');
+    expect(hc.isControlling).toBe(true);
+  });
+
+  it('spikeQuality retorna 0.4 quando o timing do pulo ainda não foi registrado', () => {
+    const hc = new HumanController();
+    expect(hc.spikeQuality()).toBeCloseTo(0.4);
+  });
+
+  it('idle não sai do bloqueio: mantém o modo "block" quando já bloqueando', () => {
+    const hc = new HumanController();
+    const { ctx } = makeCtx();
+    const { athlete } = makeAthlete(-0.72, 0);
+    hc.assignBlock(athlete, ctx);
+    expect(hc.mode).toBe('block');
+    hc.idle(ctx);
+    expect(hc.mode).toBe('block'); // idle só ocioso quem não está no bloqueio
+  });
+});
