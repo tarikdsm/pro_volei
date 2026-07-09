@@ -1,5 +1,15 @@
 import { TeamSide } from '../core/constants';
 
+// Zonas de ataque tocáveis (celular): código de tecla sintetizada + rótulo de acessibilidade (pt-BR).
+// Índices alinhados: 0 = esquerda (KeyA), 1 = centro (KeyW), 2 = direita (KeyD).
+// Exportados para permitir teste puro sem DOM (ver HUD.a11y.spec.ts).
+export const ZONE_CODES = ['KeyA', 'KeyW', 'KeyD'] as const;
+export const ZONE_A11Y = [
+  'Atacar pela esquerda',
+  'Atacar pelo centro',
+  'Atacar pela direita',
+] as const;
+
 // HUD em HTML/CSS sobre o canvas: placar, medidor de saque, banners, dicas, zonas.
 export class HUD {
   private root: HTMLElement;
@@ -44,10 +54,13 @@ export class HUD {
     // no celular as zonas são botões tocáveis (sintetizam A/W/D)
     if (this.touchMode) {
       this.zonesEl.classList.add('tappable');
-      const codes = ['KeyA', 'KeyW', 'KeyD'];
       this.zonesEl.querySelectorAll('span').forEach((s) => {
+        const z = Number((s as HTMLElement).dataset.z);
+        // rotula a zona para leitores de tela (não altera comportamento nem layout)
+        s.setAttribute('role', 'button');
+        s.setAttribute('aria-label', ZONE_A11Y[z]);
         s.addEventListener('pointerdown', (e) => {
-          const code = codes[Number((s as HTMLElement).dataset.z)];
+          const code = ZONE_CODES[z];
           window.dispatchEvent(new KeyboardEvent('keydown', { code, bubbles: true }));
           window.dispatchEvent(new KeyboardEvent('keyup', { code, bubbles: true }));
           e.preventDefault();

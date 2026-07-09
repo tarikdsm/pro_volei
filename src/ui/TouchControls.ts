@@ -9,6 +9,18 @@ import { stickKeys } from './touchMapping';
 
 export type CamModeGetter = () => string;
 
+// Rótulos de acessibilidade (role + aria-label, pt-BR) dos controles de toque.
+// Mapa exportado para permitir teste puro sem DOM (ver TouchControls.a11y.spec.ts) e manter
+// uma única fonte de verdade. É só semântica/rotulagem para leitores de tela em telas de toque:
+// os elementos continuam <div> — sem tabindex e sem handler de teclado — porque o Input já lê
+// as teclas globalmente e os toques as sintetizam no window (tornar o botão de ação focável
+// dispararia Space nativo + handler global = disparo duplo).
+export const TOUCH_A11Y = {
+  'tc-stick': { role: 'application', ariaLabel: 'Direcional de movimento' },
+  'tc-action': { role: 'button', ariaLabel: 'Sacar, passar, pular ou bloquear' },
+  'tc-pause': { role: 'button', ariaLabel: 'Pausar' },
+} as const;
+
 export class TouchControls {
   private root: HTMLElement;
   private knob: HTMLElement;
@@ -32,6 +44,16 @@ export class TouchControls {
     parent.appendChild(this.root);
     this.stickBase = this.root.querySelector('#tc-stick')!;
     this.knob = this.root.querySelector('#tc-knob')!;
+
+    // rotula os controles para leitores de tela (não altera comportamento nem layout)
+    for (const [id, a11y] of Object.entries(TOUCH_A11Y)) {
+      const el = this.root.querySelector(`#${id}`);
+      if (el) {
+        el.setAttribute('role', a11y.role);
+        el.setAttribute('aria-label', a11y.ariaLabel);
+      }
+    }
+    this.knob.setAttribute('aria-hidden', 'true'); // knob é puramente visual
 
     this.bindStick();
     this.bindButton(this.root.querySelector('#tc-action')!, 'Space');
