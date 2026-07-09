@@ -28,7 +28,7 @@ corrigir" — este MCP automatiza exatamente isso e será essencial para **verif
 comportamento durante a refatoração** (Fase 1) sem regressões visuais.
 
 ```bash
-claude mcp add playwright -- npx @playwright/mcp@latest
+claude mcp add playwright -- npx @playwright/mcp@0.0.77
 ```
 
 ---
