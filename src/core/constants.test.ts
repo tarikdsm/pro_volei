@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { BLOCK, HUMAN_TIMING, SERVE_TUNING } from './constants';
+import * as C from './constants';
 
 // Invariantes baratas de tuning: guardam contra edições que quebrem os pressupostos das
 // fórmulas de bloqueio/timing/saque (thresholds em [0,1], slopes > 0, ranges ordenados).
@@ -61,5 +62,23 @@ describe('SERVE_TUNING — invariantes de tuning', () => {
     expect(SERVE_TUNING.chargeRate).toBeGreaterThan(0);
     expect(SERVE_TUNING.perfectPower).toBeGreaterThan(0);
     expect(SERVE_TUNING.perfectPower).toBeLessThanOrEqual(1);
+  });
+});
+
+// Guarda de regressão contra a reintrodução dos enums mortos GameState/RallyPhase (removidos no
+// B12): eram residuos pré-refatoração sem nenhum uso. O estado da partida vive em MState (Match)
+// e a fase do rally em TouchKind + campos de RallyState. Enums geram propriedades de runtime no
+// objeto de módulo, então a ausência é observável (um type/interface não seria).
+describe('constants — enums mortos removidos', () => {
+  it('não reexpõe GameState nem RallyPhase', () => {
+    expect('GameState' in C).toBe(false);
+    expect('RallyPhase' in C).toBe(false);
+  });
+
+  it('preserva símbolos vivos (TeamSide e helpers de lado)', () => {
+    expect(C.TeamSide.HOME).toBe(0);
+    expect(C.TeamSide.AWAY).toBe(1);
+    expect(typeof C.sideSign).toBe('function');
+    expect(typeof C.otherSide).toBe('function');
   });
 });

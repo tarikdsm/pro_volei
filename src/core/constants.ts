@@ -29,26 +29,6 @@ export function otherSide(side: TeamSide): TeamSide {
   return side === TeamSide.HOME ? TeamSide.AWAY : TeamSide.HOME;
 }
 
-export enum GameState {
-  MENU,
-  SERVE_PREP,
-  SERVING,
-  RALLY,
-  POINT_SCORED,
-  SET_END,
-  MATCH_END,
-  PAUSED,
-}
-
-// Fase do rally do ponto de vista da bola/posse
-export enum RallyPhase {
-  SERVE,
-  RECEIVE,
-  SET,
-  ATTACK,
-  FREEBALL,
-}
-
 export type TouchKind = 'serve' | 'pass' | 'set' | 'spike' | 'block' | 'freeball' | 'dig';
 
 export interface Difficulty {

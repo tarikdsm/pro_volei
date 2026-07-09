@@ -6,6 +6,8 @@ e Mobile** a partir do mesmo código web.
 
 Estado atual: **v1.1.0** — protótipo completo e jogável (saque, rally, IA em 3 dificuldades,
 câmera broadcast, torcida, HUD, controles de teclado e toque, deploy no GitHub Pages).
+Arquitetura já refatorada (Fase 1 concluída): `Match` é um orquestrador fino sobre
+`rules/`, `mechanics/`, `control/HumanController` e `ai/AiController`.
 
 ---
 
@@ -19,21 +21,21 @@ Base para desenvolver com segurança e ritmo.
 - [x] Documentação (CLAUDE.md, ARCHITECTURE, CONTRIBUTING, CHANGELOG, deployment)
 - [ ] Habilitar branch protection em `main` exigindo o CI verde (fazer no GitHub)
 
-## Fase 1 — Refatoração da arquitetura 🔜 (prioridade atual)
+## Fase 1 — Refatoração da arquitetura ✅ (concluída)
 
 Quebrar `Match.ts` antes de crescer o jogo. Detalhes e passo a passo em
 [ARCHITECTURE.md](ARCHITECTURE.md#refatoração-alvo).
 
-- [ ] Testes de caracterização das regras (pontuação, rodízio, set/partida)
-- [ ] Extrair `rules/` (Scoring, Rotation, SetMatch) como funções puras testadas
-- [ ] Introduzir `RallyState` explícito
-- [ ] Extrair `mechanics/` (Serve, Touch, Block)
-- [ ] Separar `ai/AiController` de `control/HumanController`
-- [ ] `Match.ts` vira orquestrador fino (< 250 linhas)
+- [x] Testes de caracterização das regras (pontuação, rodízio, set/partida)
+- [x] Extrair `rules/` (Scoring, Rotation, SetMatch) como funções puras testadas
+- [x] Introduzir `RallyState` explícito
+- [x] Extrair `mechanics/` (Serve, Touch, Block)
+- [x] Separar `ai/AiController` de `control/HumanController`
+- [x] `Match.ts` vira orquestrador fino (~490 linhas; state machine + event queue + update loop)
 
 **Saída:** cada regra testável isoladamente; IA e dificuldades plugáveis.
 
-## Fase 2 — Qualidade de jogo e conteúdo
+## Fase 2 — Qualidade de jogo e conteúdo 🔜 (prioridade atual)
 
 Aprofundar o que já roda, agora sobre base limpa.
 
