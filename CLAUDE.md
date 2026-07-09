@@ -27,7 +27,8 @@ via Web Audio API. **Zero assets remotos.**
 ## Comandos
 
 ```bash
-npm run dev          # dev server em http://localhost:5173
+npm run dev          # dev server local em http://localhost:5173
+npm run dev:lan      # dev server exposto na LAN (--host) p/ testar no celular físico
 npm run build        # build de produção em dist/
 npm run preview      # serve o build
 npm run typecheck    # tsc --noEmit
@@ -83,5 +84,7 @@ src/
   para evitar ruído de CRLF entre as máquinas.
 - **Debug no browser:** o objeto da partida é exposto em `window.__match` no console (em dev
   sempre; no build de produção só com `?debug` na URL, no mesmo estilo do `?touch=1`).
-- **Celular:** `?touch=1` na URL força os controles de toque no desktop para teste.
+- **Celular:** `?touch=1` na URL força os controles de toque no desktop para teste. `npm run dev`
+  fica só em `localhost`; para abrir no celular físico rode `npm run dev:lan` e acesse
+  `http://<ip-da-maquina>:5173/?touch=1` (mesma rede Wi-Fi).
 - Qualidade gráfica cai automaticamente em telas de toque (pixel ratio, tamanho da torcida).
