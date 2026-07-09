@@ -41,6 +41,30 @@ describe('Team (modelo lógico desacoplado do visual)', () => {
     expect(team.server().index).toBe(5);
   });
 
+  it('resetLineup() restaura o rodízio inicial após rotações', () => {
+    const team = new Team(TeamSide.HOME, stubFactory);
+    team.rotate();
+    team.rotate();
+    expect(team.slots).not.toEqual([0, 1, 2, 3, 4, 5]);
+    team.resetLineup();
+    expect(team.slots).toEqual([0, 1, 2, 3, 4, 5]);
+    expect(team.server().index).toBe(0);
+  });
+
+  it('resetLineup() reposiciona (warp) cada atleta na base do seu slot', () => {
+    const team = new Team(TeamSide.AWAY, stubFactory);
+    team.rotate();
+    // move alguém para longe da base para provar que o reset reposiciona
+    team.athletes[0].warpTo(50, 50);
+    team.resetLineup();
+    for (let i = 0; i < 6; i++) {
+      const a = team.athletes[team.slots[i]];
+      const p = team.slotPos(i);
+      expect(a.pos.x).toBeCloseTo(p.x);
+      expect(a.pos.z).toBeCloseTo(p.z);
+    }
+  });
+
   it('frontRow()/backRow() indexam pelos slots corretos, antes e depois do rodízio', () => {
     const team = new Team(TeamSide.HOME, stubFactory);
     const front = () => team.frontRow().map((a) => a.index);

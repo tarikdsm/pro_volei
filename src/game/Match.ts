@@ -113,6 +113,9 @@ export class Match {
     this.servingTeam = chance(0.5) ? TeamSide.HOME : TeamSide.AWAY;
     // registra o sacador inicial (moeda da partida) para alimentar a alternância entre sets
     this.firstServerOfSet = this.servingTeam;
+    // nova partida: restaura o rodízio inicial dos dois times (não herda o da partida anterior)
+    this.home.resetLineup();
+    this.away.resetLineup();
     pushScore(this.scoringCtx);
     this.beginServePrep();
   }

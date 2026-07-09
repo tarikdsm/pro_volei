@@ -7,7 +7,7 @@ import {
   CharFactory,
 } from '../entities/PlayerCharacter';
 import { BASE_SLOTS, COLORS, PLAYER, TeamSide, SETTER_SPOT } from '../core/constants';
-import { rotateSlots } from './rules/rotation';
+import { initialSlots, rotateSlots } from './rules/rotation';
 
 const GRAV = -22; // gravidade do pulo dos atletas (mais pesada = pulos secos)
 
@@ -120,7 +120,7 @@ export class Team {
   athletes: Athlete[] = [];
   group = new THREE.Group();
   /** slots[i] = índice do atleta na posição de rodízio i */
-  slots: number[] = [0, 1, 2, 3, 4, 5];
+  slots: number[] = initialSlots();
 
   constructor(
     public side: TeamSide,
@@ -171,6 +171,16 @@ export class Team {
   /** rodízio no sentido horário (quando o time recupera o saque) */
   rotate(): void {
     this.slots = rotateSlots(this.slots);
+  }
+
+  /**
+   * Restaura o rodízio inicial (nova partida) e reposiciona nas bases.
+   * Reset de line-up só ao iniciar nova partida, não a cada set: o rodízio
+   * persiste entre sets da mesma partida (fiel ao vôlei — o elenco é fixo).
+   */
+  resetLineup(): void {
+    this.slots = initialSlots();
+    this.resetToBase(true);
   }
 
   server(): Athlete {

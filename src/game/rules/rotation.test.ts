@@ -1,5 +1,25 @@
 import { describe, it, expect } from 'vitest';
-import { rotateSlots } from './rotation';
+import { initialSlots, rotateSlots } from './rotation';
+
+describe('initialSlots', () => {
+  it('retorna a formação inicial [0..5]', () => {
+    expect(initialSlots()).toEqual([0, 1, 2, 3, 4, 5]);
+  });
+
+  it('não compartilha referência entre chamadas (array novo a cada vez)', () => {
+    const a = initialSlots();
+    a[0] = 9;
+    expect(initialSlots()[0]).toBe(0);
+  });
+
+  it('restaurar via initialSlots desfaz o rodízio', () => {
+    let s = initialSlots();
+    s = rotateSlots(s);
+    expect(s).not.toEqual(initialSlots());
+    s = initialSlots();
+    expect(s).toEqual([0, 1, 2, 3, 4, 5]);
+  });
+});
 
 describe('rotateSlots', () => {
   it('gira uma posição no sentido do rodízio (horário)', () => {
