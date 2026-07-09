@@ -156,6 +156,21 @@ export class HumanController {
     this.jumpQ = -1;
   }
 
+  /**
+   * Cancela o carregamento do saque ao pausar: zera o medidor (mantém-o visível em 0) e o
+   * jogador recarrega ao retomar. Necessário porque durante a pausa o Match não processa
+   * input, então o edge de soltar ESPAÇO seria engolido e o saque ficaria travado carregando.
+   * Só age se o humano está sacando e carregando; caso contrário é no-op.
+   */
+  cancelServeCharge(ctx: MechanicsCtx): void {
+    if (this.ctl === 'serve' && this.serveCharging) {
+      this.serveCharging = false;
+      this.servePower = 0;
+      this.serveDir = 1;
+      ctx.hooks.serveMeter(true, 0);
+    }
+  }
+
   /** Processa o Input do frame + atualiza o marker do jogador controlado. */
   update(dt: number, input: Input, ctx: MechanicsCtx): void {
     const axis = input.moveAxis();

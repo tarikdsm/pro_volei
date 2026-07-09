@@ -120,6 +120,14 @@ export class Match {
     this.beginServePrep();
   }
 
+  /**
+   * Chamado pelo bootstrap ao pausar (respeita a fronteira Hooks: main.ts não toca no
+   * controle humano direto). Cancela o carregamento do saque para não travar ao retomar.
+   */
+  onPause(): void {
+    this.human.cancelServeCharge(this.ctx);
+  }
+
   // ---------------------------------------------------------------- SAQUE
   private beginServePrep(): void {
     this.state = 'servePrep';

@@ -12,6 +12,7 @@ import { AudioEngine } from './core/AudioEngine';
 import { HUD } from './ui/HUD';
 import { Menu } from './ui/Menu';
 import { TouchControls } from './ui/TouchControls';
+import { AppState, nextAppState } from './ui/appState';
 
 const app = document.getElementById('app')!;
 
@@ -67,6 +68,9 @@ function slowMo(scale: number, dur: number): void {
   slowMoLeft = dur;
 }
 
+// ---------- estado do app (título → jogo → pausa → fim) ----------
+let appState: AppState = 'title';
+
 // ---------- partida ----------
 const match = new Match({
   banner: (t, s) => hud.banner(t, s),
@@ -76,6 +80,9 @@ const match = new Match({
   zoneHint: (z) => hud.zoneHint(z),
   slowMo,
   matchEnd: (homeWon, stats, scoreline) => {
+    // fim da partida: trava o estado em 'ended' para o Escape não abrir a pausa
+    // sobre a tela de vitória (sobrescreveria o innerHTML e travaria a UI).
+    appState = nextAppState(appState, 'matchEnded');
     hud.show(false);
     touch?.show(false);
     menu.showVictory(homeWon, stats, scoreline);
@@ -92,27 +99,31 @@ scene.add(match.group);
 // acesso de depuração no console do browser
 (window as unknown as { __match: Match }).__match = match;
 
-let playing = false;
-let paused = false;
-
 menu.onStart = () => {
   audio.init();
   audio.uiClick();
-  playing = true;
+  appState = nextAppState(appState, 'start');
   hud.show(true);
   touch?.show(true);
   match.startMatch(menu.difficulty, menu.format);
 };
 menu.onResume = () => {
-  paused = false;
+  // botão CONTINUAR: o Menu já chamou hide(); aqui só destravamos o estado.
+  appState = nextAppState(appState, 'resume');
   audio.uiClick();
 };
 
 window.addEventListener('keydown', (e) => {
-  if (e.code === 'Escape' && playing) {
-    paused = !paused;
-    if (paused) menu.showPause();
-    else menu.hide();
+  // ignora auto-repeat (segurar Escape não deve piscar a pausa) e só alterna em jogo/pausa
+  if (e.code === 'Escape' && !e.repeat && (appState === 'playing' || appState === 'paused')) {
+    const prev = appState;
+    appState = nextAppState(appState, 'togglePause');
+    if (appState === 'paused') {
+      match.onPause(); // cancela o carregamento do saque para não travar ao retomar
+      menu.showPause();
+    } else if (prev === 'paused') {
+      menu.hide();
+    }
   }
 });
 
@@ -138,9 +149,11 @@ function frame(now: number): void {
     timeScale = Math.min(1, timeScale + rawDt * 3);
   }
 
-  const dt = rawDt * (paused ? 0 : timeScale);
+  // só o estado 'playing' avança a partida; título/pausa/fim congelam o tempo de jogo
+  const active = appState === 'playing';
+  const dt = rawDt * (active ? timeScale : 0);
 
-  if (playing && !paused) {
+  if (active) {
     match.update(dt, input);
   }
   crowd.update(dt > 0 ? dt : rawDt * 0.2);
