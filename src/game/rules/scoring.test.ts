@@ -5,6 +5,8 @@ import {
   setWinner,
   setsNeeded,
   isMatchOver,
+  isDecidingSet,
+  nextFirstServer,
   setPointLeader,
   isAce,
   resolveRallyOutcome,
@@ -43,6 +45,24 @@ describe('setsNeeded / isMatchOver', () => {
     expect(setsNeeded(3)).toBe(2);
     expect(isMatchOver(1, 3)).toBe(false);
     expect(isMatchOver(2, 3)).toBe(true);
+  });
+});
+
+describe('isDecidingSet', () => {
+  it('melhor de 3 → só o set 3 é decisivo', () => {
+    expect(isDecidingSet(3, 3)).toBe(true);
+    expect(isDecidingSet(2, 3)).toBe(false);
+    expect(isDecidingSet(1, 3)).toBe(false);
+  });
+  it('1 set → o único set é decisivo', () => {
+    expect(isDecidingSet(1, 1)).toBe(true);
+  });
+});
+
+describe('nextFirstServer', () => {
+  it('alterna o primeiro sacador para o outro lado', () => {
+    expect(nextFirstServer(TeamSide.HOME)).toBe(TeamSide.AWAY);
+    expect(nextFirstServer(TeamSide.AWAY)).toBe(TeamSide.HOME);
   });
 });
 

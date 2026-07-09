@@ -78,6 +78,8 @@ export class Match {
   sets: [number, number] = [0, 0];
   setNumber = 1;
   servingTeam: TeamSide = TeamSide.HOME;
+  // quem sacou primeiro no set atual — base da alternância do primeiro saque entre sets
+  firstServerOfSet: TeamSide = TeamSide.HOME;
 
   // estado do rally (posse, toques, plano do próximo contato, eventos de rede)
   private rally = new RallyState();
@@ -109,6 +111,8 @@ export class Match {
     this.setNumber = 1;
     this.stats = { aces: 0, blocks: 0, longestRally: 0, points: [0, 0] };
     this.servingTeam = chance(0.5) ? TeamSide.HOME : TeamSide.AWAY;
+    // registra o sacador inicial (moeda da partida) para alimentar a alternância entre sets
+    this.firstServerOfSet = this.servingTeam;
     pushScore(this.scoringCtx);
     this.beginServePrep();
   }
@@ -469,6 +473,10 @@ export class Match {
     const setSetNumber = (n: number) => {
       this.setNumber = n;
     };
+    const getFirstServer = () => this.firstServerOfSet;
+    const setFirstServer = (s: TeamSide) => {
+      this.firstServerOfSet = s;
+    };
     return {
       ball: this.ball,
       rally: this.rally,
@@ -497,6 +505,13 @@ export class Match {
       set setNumber(n) {
         setSetNumber(n);
       },
+      get firstServerOfSet() {
+        return getFirstServer();
+      },
+      set firstServerOfSet(s) {
+        setFirstServer(s);
+      },
+      coinTossSide: () => (chance(0.5) ? TeamSide.HOME : TeamSide.AWAY),
       teamOf: (side) => this.teamOf(side),
       after: (t, fn) => this.after(t, fn),
       releaseControl: () => this.human.release(),

@@ -23,6 +23,19 @@ export function isMatchOver(winnerSetCount: number, totalSets: number): boolean 
 }
 
 /**
+ * Set decisivo (tie-break) do formato: o último set possível.
+ * Melhor de 3 → set 3; 1 set → o próprio set 1. Nele o primeiro saque vai a sorteio.
+ */
+export function isDecidingSet(setNumber: number, totalSets: number): boolean {
+  return setNumber === setsNeeded(totalSets) * 2 - 1;
+}
+
+/** Alternância do primeiro sacador entre sets não decisivos: saca quem NÃO sacou primeiro no anterior. */
+export function nextFirstServer(prevFirstServer: TeamSide): TeamSide {
+  return otherSide(prevFirstServer);
+}
+
+/**
  * Líder em situação de set point (a 1 ponto de fechar), ou null.
  * Empate não gera set point; se o set já acabou, retorna null.
  */

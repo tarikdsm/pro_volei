@@ -13,6 +13,8 @@ import {
   setPointLeader,
   isAce,
   resolveRallyOutcome,
+  isDecidingSet,
+  nextFirstServer,
 } from './scoring';
 
 // A fatia do Match que o fluxo de pontuação precisa. `state` continua sendo do orquestrador: em vez
@@ -27,8 +29,10 @@ export interface ScoringCtx {
   readonly format: { sets: number; pointsPerSet: number };
   servingTeam: TeamSide; // leitura + escrita (troca de saque)
   setNumber: number; // leitura + escrita (próximo set)
+  firstServerOfSet: TeamSide; // leitura + escrita (quem sacou primeiro no set atual — base da alternância)
   teamOf(side: TeamSide): Team;
   after(t: number, fn: () => void): void;
+  coinTossSide(): TeamSide; // sorteio de posse (mantém a aleatoriedade fora das regras puras)
   releaseControl(): void; // human.release()
   beginServePrep(): void;
   enterPoint(): void; // state='point'; stateTime=0; events=[]
@@ -139,7 +143,13 @@ export function endSet(ctx: ScoringCtx, winner: TeamSide): void {
       ctx.setNumber++;
       ctx.score[0] = 0;
       ctx.score[1] = 0;
-      ctx.servingTeam = winner;
+      // Primeiro saque do novo set: sorteio no set decisivo; nos demais, alterna a partir de
+      // quem sacou primeiro no set anterior (regra FIVB — não segue mais o vencedor do set).
+      const next = isDecidingSet(ctx.setNumber, ctx.format.sets)
+        ? ctx.coinTossSide()
+        : nextFirstServer(ctx.firstServerOfSet);
+      ctx.firstServerOfSet = next;
+      ctx.servingTeam = next;
       pushScore(ctx);
       ctx.beginServePrep();
     }
