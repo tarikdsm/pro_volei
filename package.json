@@ -8,7 +8,7 @@
     "dev:lan": "vite --host",
     "build": "vite build",
     "preview": "vite preview",
-    "deploy": "vite build && gh-pages -d dist -m 'Deploy do Pró Volei no GitHub Pages'",
+    "deploy": "npm run check && vite build && gh-pages -d dist -m 'Deploy do Pró Volei no GitHub Pages'",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
