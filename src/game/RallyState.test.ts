@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { TeamSide } from '../core/constants';
 import { RallyState, TouchPlan } from './RallyState';
+import type { Athlete } from './Team';
 
 describe('RallyState — valores iniciais', () => {
   it('começa sem posse, sem toques e sem plano', () => {
@@ -81,5 +82,21 @@ describe('RallyState.reset', () => {
     expect(r.lastTouchTeam).toBe(null);
     expect(r.netEventIn).toBe(null);
     expect(r.plan).toBe(null);
+  });
+
+  it('limpa o planejamento (bloqueadores agendados + ponteiros do próximo toque) entre pontos', () => {
+    // simula um agendamento de bloqueio e ponteiros vivos ao fim do rally anterior
+    const r = new RallyState();
+    r.blockers = [{ athlete: {} as Athlete, jumpIn: 0.3, jumped: false }];
+    r.setterHold = {} as Athlete;
+    r.plannedAttacker = {} as Athlete;
+    r.lastToucher = {} as Athlete;
+
+    r.reset();
+
+    expect(r.blockers).toEqual([]); // sem pulo fantasma no próximo rally
+    expect(r.setterHold).toBe(null);
+    expect(r.plannedAttacker).toBe(null);
+    expect(r.lastToucher).toBe(null);
   });
 });

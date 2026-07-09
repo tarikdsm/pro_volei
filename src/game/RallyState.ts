@@ -32,7 +32,7 @@ export class RallyState {
   setterHold: Athlete | null = null;
   plannedAttacker: Athlete | null = null;
   lastToucher: Athlete | null = null;
-  blockers: { athlete: Athlete; jumpIn: number }[] = [];
+  blockers: { athlete: Athlete; jumpIn: number; jumped: boolean }[] = [];
 
   /** Conta um toque para o lado: bola nova em um time abre a posse com 1; mesmo time incrementa. */
   countTouch(side: TeamSide): void {
@@ -58,5 +58,11 @@ export class RallyState {
     this.plan = null;
     this.netEventIn = null;
     this.netEventPoint = null;
+    // planejamento: limpa bloqueadores agendados e ponteiros do próximo toque
+    // para nenhum agendamento vazar entre pontos (pulo fantasma / lixo latente).
+    this.blockers = [];
+    this.setterHold = null;
+    this.plannedAttacker = null;
+    this.lastToucher = null;
   }
 }

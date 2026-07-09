@@ -83,7 +83,11 @@ export function prepareBlock(
   const bx = sideSign(side) * 0.72;
   blocker.moveTo(bx, clamp(z, -COURT.halfWidth + 0.4, COURT.halfWidth - 0.4));
   if (isAI && chance(ctx.diff.blockChance)) {
-    ctx.rally.blockers.push({ athlete: blocker, jumpIn: contactIn + rand(0.0, 0.12) });
+    ctx.rally.blockers.push({
+      athlete: blocker,
+      jumpIn: contactIn + rand(0.0, 0.12),
+      jumped: false,
+    });
   }
 }
 
@@ -99,11 +103,15 @@ export function resolveBlock(ctx: MechanicsCtx, attackSide: TeamSide): void {
   const team = ctx.teamOf(defSide);
   const isHumanDef = defSide === TeamSide.HOME;
   for (const blocker of team.frontRow()) {
-    // no momento do cruzamento o bloqueador precisa estar no ar
-    const willBeAirborne = isHumanDef
+    // elegibilidade no cruzamento: humano usa o pulo real; a IA usa a pertinência à lista
+    // de agendados, agora estável durante todo o ataque (não depende mais do frame exato
+    // do pulo, pois o pulo marca `jumped` sem remover a entrada — ver AiController).
+    const isScheduledBlocker = isHumanDef
       ? blocker.isAirborne && blocker.jumpY > 0.18
       : ctx.rally.blockers.some((b) => b.athlete === blocker);
-    if (!willBeAirborne) continue;
+    if (!isScheduledBlocker) continue;
+    // jumpY é real p/ o humano (já no ar); p/ a IA vale ≈0 no lançamento (pulo diferido),
+    // então o alcance dela fica congelado em CONTACT.blockReach de propósito, sem prever o ápice.
     if (!blockerReaches(blocker.pos.x, blocker.pos.z, blocker.jumpY, cross)) continue;
 
     // BLOQUEIO! resolve no instante do cruzamento (prox congelada no agendamento)

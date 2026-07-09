@@ -37,12 +37,17 @@ export class AiController {
         plan.jumpScheduledIn = undefined;
       }
     }
-    for (let i = ctx.rally.blockers.length - 1; i >= 0; i--) {
-      ctx.rally.blockers[i].jumpIn -= dt;
-      if (ctx.rally.blockers[i].jumpIn <= 0) {
-        ctx.rally.blockers[i].athlete.act('block', 0.7);
-        ctx.rally.blockers[i].athlete.jump(PLAYER.blockJumpVel);
-        ctx.rally.blockers.splice(i, 1);
+    // não remove a entrada ao pular: marca `jumped` para o pulo disparar uma única vez e
+    // a pertinência à lista continuar valendo "bloqueador comprometido" por todo o ataque
+    // (desacopla a elegibilidade do frame exato do pulo). A lista é zerada por prepareBlock
+    // (a cada ataque) e por RallyState.reset() (a cada ponto).
+    for (const b of ctx.rally.blockers) {
+      if (b.jumped) continue;
+      b.jumpIn -= dt;
+      if (b.jumpIn <= 0) {
+        b.athlete.act('block', 0.7);
+        b.athlete.jump(PLAYER.blockJumpVel);
+        b.jumped = true;
       }
     }
   }
