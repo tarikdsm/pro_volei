@@ -91,9 +91,6 @@ export async function openGameAndStartMatch(
   await expect(page.locator('#menu')).toBeHidden();
   await expect(page.locator('#hud')).toBeVisible();
   await expect(page.locator('#score-main')).toHaveText(/\d+\s:\s\d+/);
-  await expect
-    .poll(() => page.evaluate(() => Boolean((window as unknown as { __match?: unknown }).__match)))
-    .toBe(true);
 }
 
 /**

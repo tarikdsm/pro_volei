@@ -1,3 +1,3 @@
 import { makePlaywrightConfig } from './tests/e2e/playwrightConfig';
 
-export default makePlaywrightConfig('dev');
+export default makePlaywrightConfig('preview');
