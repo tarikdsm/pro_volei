@@ -101,12 +101,27 @@ Match camera snapshot + SafeFrame
 
 ## Gate final
 
-- [ ] Física e feedback usam a mesma qualidade/tier determinística.
-- [ ] Evento é emitido uma vez e fan-out não duplica impacto físico.
-- [ ] Cue diferencia perfect/good/off por forma, cor, som e haptic opcional.
-- [ ] Bola e controlada permanecem no safe frame; destino degrada de modo previsível.
-- [ ] Spike/FOV/shake obedecem janelas, caps e `dt` determinístico.
-- [ ] Reduced motion zera movimento decorativo sem ocultar feedback.
-- [ ] Input relativo à tela permanece coerente durante todas as transições.
-- [ ] Testes, matriz E2E, playtest, review, CI, Pages e smoke público estão verdes.
-- [ ] Remoto continua literalmente somente `main`.
+- [x] Física e feedback usam a mesma qualidade/tier determinística.
+- [x] Evento é emitido uma vez e fan-out não duplica impacto físico.
+- [x] Cue diferencia perfect/good/off por forma, cor, som e haptic opcional.
+- [x] Bola e controlada permanecem no safe frame; destino degrada de modo previsível.
+- [x] Spike/FOV/shake obedecem janelas, caps e `dt` determinístico.
+- [x] Reduced motion zera movimento decorativo sem ocultar feedback.
+- [x] Input relativo à tela permanece coerente durante todas as transições.
+- [x] Testes, matriz E2E, playtest, review, CI, Pages e smoke público estão verdes.
+- [x] Remoto continua literalmente somente `main`.
+
+## Evidência de encerramento
+
+- Implementação: `9eeb6fb`, `aa06b3c` e `2728721`.
+- Gate local: 61 arquivos/540 testes unitários, 13/13 E2E e build de produção com
+  172,19 kB JavaScript gzip.
+- Matriz de câmera: projeção perspectiva real validada em 1920×1080, 1280×800, 1024×768,
+  844×390, 667×375 e 568×320; destino nominal obrigatório e degradação extrema unitária.
+- Playtest: desktop e mobile landscape sem erro de console; screenshots arquivadas em
+  `.playwright-mcp/screenshots/`.
+- Revisão independente: três ciclos; findings de projeção sintética, cortes de safe frame e
+  alocação no hot path foram corrigidos; revisão final sem findings materiais.
+- Publicação: CI `29212923606`, deployment Pages `5417096691`, SHA `2728721`, todos verdes.
+- Smoke público: HTTP 200 em desktop e mobile, partida iniciada, canvas/HUD/câmera presentes,
+  controles touch visíveis e zero erro de console.
