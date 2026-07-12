@@ -69,3 +69,49 @@ describe('CameraDirector — offset pré-alocado do screen shake (B10)', () => {
     nowSpy.mockRestore();
   });
 });
+
+describe('CameraDirector — base de input no plano da quadra', () => {
+  it('retorna um snapshot plano e normalizado dos eixos visuais da câmera', () => {
+    const d = new CameraDirector(16 / 9);
+    d.setMode('rally', { cut: true });
+    d.update(0);
+
+    const basis = d.inputBasis();
+
+    expect(Math.hypot(basis.screenRight.x, basis.screenRight.z)).toBeCloseTo(1);
+    expect(Math.hypot(basis.screenUp.x, basis.screenUp.z)).toBeCloseTo(1);
+    expect(basis.screenRight.x).toBeGreaterThan(0.99);
+    expect(basis.screenUp.z).toBeLessThan(-0.9);
+    expect(Object.getPrototypeOf(basis.screenRight)).toBe(Object.prototype);
+  });
+
+  it('avança a revisão somente quando uma nova base válida muda', () => {
+    const d = new CameraDirector(16 / 9);
+    d.setMode('rally', { cut: true });
+    d.update(0);
+    const broadcast = d.inputBasis();
+
+    expect(d.inputBasis().revision).toBe(broadcast.revision);
+
+    d.servePos.set(-12, 0, 0);
+    d.setMode('serveHome', { cut: true });
+    d.update(0);
+    const saque = d.inputBasis();
+
+    expect(saque.revision).toBeGreaterThan(broadcast.revision);
+    expect(Math.abs(saque.screenRight.z)).toBeGreaterThan(0.9);
+    expect(saque.screenUp.x).toBeGreaterThan(0.9);
+  });
+
+  it('reutiliza a última base e revisão quando a projeção horizontal degenera', () => {
+    const d = new CameraDirector(16 / 9);
+    d.setMode('rally', { cut: true });
+    d.update(0);
+    const valida = d.inputBasis();
+
+    d.camera.quaternion.set(0, 0, Math.SQRT1_2, Math.SQRT1_2);
+    const fallback = d.inputBasis();
+
+    expect(fallback).toEqual(valida);
+  });
+});

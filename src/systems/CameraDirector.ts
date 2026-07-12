@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { dampV3, clamp } from '../core/math3d';
 import { TeamSide, sideSign, TouchKind } from '../core/constants';
+import type { CameraGroundBasis } from '../core/input/CameraSpaceMapper';
 
 export type CamMode = 'menu' | 'serveHome' | 'serveAway' | 'rally' | 'spike' | 'point' | 'setEnd';
 
@@ -27,6 +28,14 @@ export class CameraDirector {
   private fovKick = 0;
   private orbitT = 0;
   private pointSide: TeamSide = TeamSide.HOME;
+  private inputRight = new THREE.Vector3();
+  private inputUp = new THREE.Vector3();
+  private lastInputBasis: CameraGroundBasis = {
+    screenRight: { x: 1, z: 0 },
+    screenUp: { x: 0, z: -1 },
+    revision: 0,
+  };
+  private hasMeasuredInputBasis = false;
 
   // referências dinâmicas atualizadas pelo jogo
   ballPos = new THREE.Vector3();
@@ -55,6 +64,49 @@ export class CameraDirector {
 
   kickFov(amount = 8): void {
     this.fovKick = amount;
+  }
+
+  inputBasis(): CameraGroundBasis {
+    this.inputRight.set(1, 0, 0).applyQuaternion(this.camera.quaternion);
+    this.inputUp.set(0, 1, 0).applyQuaternion(this.camera.quaternion);
+
+    const rightLength = Math.hypot(this.inputRight.x, this.inputRight.z);
+    const upLength = Math.hypot(this.inputUp.x, this.inputUp.z);
+    if (rightLength <= 1e-9 || upLength <= 1e-9) return this.copyInputBasis();
+
+    const screenRight = {
+      x: this.inputRight.x / rightLength,
+      z: this.inputRight.z / rightLength,
+    };
+    const screenUp = {
+      x: this.inputUp.x / upLength,
+      z: this.inputUp.z / upLength,
+    };
+    const changed =
+      !this.hasMeasuredInputBasis ||
+      Math.abs(screenRight.x - this.lastInputBasis.screenRight.x) > 1e-6 ||
+      Math.abs(screenRight.z - this.lastInputBasis.screenRight.z) > 1e-6 ||
+      Math.abs(screenUp.x - this.lastInputBasis.screenUp.x) > 1e-6 ||
+      Math.abs(screenUp.z - this.lastInputBasis.screenUp.z) > 1e-6;
+
+    if (changed) {
+      this.lastInputBasis = {
+        screenRight,
+        screenUp,
+        revision: this.lastInputBasis.revision + 1,
+      };
+      this.hasMeasuredInputBasis = true;
+    }
+
+    return this.copyInputBasis();
+  }
+
+  private copyInputBasis(): CameraGroundBasis {
+    return {
+      screenRight: { ...this.lastInputBasis.screenRight },
+      screenUp: { ...this.lastInputBasis.screenUp },
+      revision: this.lastInputBasis.revision,
+    };
   }
 
   private computeTargets(dt: number): void {
