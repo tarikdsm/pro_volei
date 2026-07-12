@@ -9,6 +9,7 @@ import {
 import { BASE_SLOTS, COLORS, PLAYER, TeamSide, SETTER_SPOT } from '../core/constants';
 import { initialSlots, rotateSlots } from './rules/rotation';
 import { lerp, lerpAngle } from '../core/math3d';
+import { advancePlanarMotion } from './control/kinematics';
 
 const GRAV = -22; // gravidade do pulo dos atletas (mais pesada = pulos secos)
 
@@ -17,10 +18,8 @@ export class Athlete {
   char: CharVisual;
   pos = new THREE.Vector3();
   target = new THREE.Vector3();
+  readonly velocity = new THREE.Vector3();
   private previousPos = new THREE.Vector3();
-  // escratch por-instância reutilizado a cada update() para evitar alocar um
-  // Vector3/atleta/frame (12 atletas). NUNCA compartilhar entre atletas.
-  private delta = new THREE.Vector3();
   facing = 0;
   private previousFacing = 0;
   faceNet = true;
@@ -52,6 +51,7 @@ export class Athlete {
 
   warpTo(x: number, z: number): void {
     this.pos.set(x, 0, z);
+    this.velocity.set(0, 0, 0);
     this.previousPos.copy(this.pos);
     this.target.copy(this.pos);
     this.present(1);
@@ -73,23 +73,21 @@ export class Athlete {
   update(dt: number, maxSpeed: number): void {
     this.clock += dt;
 
-    // deslocamento no plano (não se move no ar, exceto leve deriva)
-    // subVectors sobrescreve x/y/z por completo — sem estado remanescente entre frames.
-    const delta = this.delta.subVectors(this.target, this.pos);
-    delta.y = 0;
-    const dist = delta.length();
-    let moving = false;
-    if (dist > 0.06) {
-      const speed = maxSpeed * this.speedMul * (this.airborne ? 0.25 : 1);
-      const step = Math.min(dist, speed * dt);
-      delta.normalize();
-      this.pos.addScaledVector(delta, step);
-      moving = step > 0.5 * dt;
-      if (!this.faceNet) this.facing = Math.atan2(delta.x, delta.z);
-      this.char.moveSpeed = speed;
-    } else {
-      this.char.moveSpeed = 0;
-    }
+    // O solver e o movimento compartilham a mesma aceleração. Os objetos são da atleta e o
+    // helper os muta diretamente, sem criar vetores no tick.
+    const movementScale = this.speedMul * (this.airborne ? 0.25 : 1);
+    const speed = advancePlanarMotion(
+      this.pos,
+      this.velocity,
+      this.target,
+      dt,
+      maxSpeed * movementScale,
+      PLAYER.acceleration * movementScale,
+      PLAYER.deceleration * movementScale,
+    );
+    const moving = speed > 0.5;
+    if (!this.faceNet && moving) this.facing = Math.atan2(this.velocity.x, this.velocity.z);
+    this.char.moveSpeed = speed;
 
     // encara a rede por padrão (mais legível para vôlei)
     if (this.faceNet) {

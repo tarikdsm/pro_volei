@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { Team, Athlete } from './Team';
-import { TeamSide, BASE_SLOTS, SETTER_SPOT } from '../core/constants';
+import { TeamSide, BASE_SLOTS, SETTER_SPOT, PLAYER } from '../core/constants';
 import type { CharFactory, CharVisual, CharLook, CharAction } from '../entities/PlayerCharacter';
 
 // Dublê visual: implementa só a superfície mínima que Athlete/Team consomem,
@@ -149,18 +149,28 @@ function makeAthlete(side: TeamSide = TeamSide.HOME): { athlete: Athlete; char: 
   return { athlete, char };
 }
 
-describe('Athlete.update (movimento + reuso de escratch por-instância)', () => {
-  it('avança rumo ao alvo, limitado por maxSpeed*dt, sem desviar do eixo (Caso 1)', () => {
+describe('Athlete.update (movimento cinemático sem alocação por tick)', () => {
+  it('acelera rumo ao alvo sem desviar do eixo', () => {
     const { athlete, char } = makeAthlete();
     athlete.warpTo(0, 0);
     athlete.moveTo(10, 0);
     athlete.beginFixedStep();
     athlete.update(0.1, 6);
-    // step = min(dist=10, speed*dt = 6*0.1) = 0.6
-    expect(athlete.pos.x).toBeCloseTo(0.6, 6);
+    expect(athlete.pos.x).toBeCloseTo(0.31, 6);
     expect(athlete.pos.z).toBeCloseTo(0, 6);
-    expect(char.lastAction).toBe('run'); // moving == true
-    expect(char.moveSpeed).toBeCloseTo(6, 6);
+    expect(athlete.velocity.x).toBeCloseTo(3.1, 6);
+    expect(char.lastAction).toBe('run');
+    expect(char.moveSpeed).toBeCloseTo(3.1, 6);
+  });
+
+  it('atinge a velocidade máxima em cerca de 200 ms', () => {
+    const { athlete } = makeAthlete();
+    athlete.warpTo(0, 0);
+    athlete.moveTo(20, 0);
+
+    for (let tick = 0; tick < 12; tick++) athlete.update(1 / 60, PLAYER.speed);
+
+    expect(Math.hypot(athlete.velocity.x, athlete.velocity.z)).toBeCloseTo(PLAYER.speed, 5);
   });
 
   it('present interpola o visual sem alterar a posição lógica', () => {
@@ -171,20 +181,25 @@ describe('Athlete.update (movimento + reuso de escratch por-instância)', () => 
 
     athlete.present(0.5);
 
-    expect(athlete.pos.x).toBeCloseTo(0.6);
-    expect(char.root.position.x).toBeCloseTo(0.3);
+    expect(athlete.pos.x).toBeCloseTo(0.31);
+    expect(char.root.position.x).toBeCloseTo(0.155);
     athlete.present(0.5);
-    expect(athlete.pos.x).toBeCloseTo(0.6);
+    expect(athlete.pos.x).toBeCloseTo(0.31);
   });
 
   it('warp sincroniza previous/current e não deixa ghosting', () => {
     const { athlete, char } = makeAthlete();
+    athlete.moveTo(10, 0);
+    athlete.update(0.1, 6);
+    expect(athlete.velocity.x).toBeGreaterThan(0);
     athlete.warpTo(5, -2);
 
     athlete.present(0);
 
     expect(char.root.position.x).toBe(5);
     expect(char.root.position.z).toBe(-2);
+    expect(athlete.velocity.x).toBe(0);
+    expect(athlete.velocity.z).toBe(0);
   });
 
   it('não ultrapassa o alvo: o passo é limitado à distância (Caso 2)', () => {
@@ -213,11 +228,10 @@ describe('Athlete.update (movimento + reuso de escratch por-instância)', () => 
     athlete.moveTo(10, 0);
     athlete.jump(); // torna o atleta aéreo antes do update
     athlete.update(0.1, 6);
-    // speed = 6 * 0.25 = 1.5 -> step = 1.5*0.1 = 0.15 = 0.25 * 0.6 (Caso 1)
-    expect(athlete.pos.x).toBeCloseTo(0.15, 6);
+    expect(athlete.pos.x).toBeCloseTo(0.0775, 6);
   });
 
-  it('o escratch delta é por-instância: dois atletas não se contaminam (Caso 5 — regressão)', () => {
+  it('a velocidade é por instância: dois atletas não se contaminam', () => {
     const a = makeAthlete();
     const b = makeAthlete();
     a.athlete.warpTo(0, 0);
@@ -234,10 +248,8 @@ describe('Athlete.update (movimento + reuso de escratch por-instância)', () => 
     expect(a.athlete.pos.z).toBeCloseTo(0, 6);
     expect(b.athlete.pos.z).toBeGreaterThan(0);
     expect(b.athlete.pos.x).toBeCloseTo(0, 6);
-    // guarda direta contra escratch module-level/estático: os buffers devem ser
-    // objetos distintos. Se o delta virar compartilhado entre atletas, isto falha.
-    const deltaA = (a.athlete as unknown as { delta: THREE.Vector3 }).delta;
-    const deltaB = (b.athlete as unknown as { delta: THREE.Vector3 }).delta;
-    expect(deltaA).not.toBe(deltaB);
+    expect(a.athlete.velocity).not.toBe(b.athlete.velocity);
+    expect(a.athlete.velocity.z).toBeCloseTo(0);
+    expect(b.athlete.velocity.x).toBeCloseTo(0);
   });
 });

@@ -158,10 +158,25 @@ export const ATTACK_ZONES = [-3.1, 0, 3.1]; // esquerda, centro, direita (perspe
 export const PLAYER = {
   speed: 6.2, // m/s humano controlado
   aiSpeed: 5.6,
+  acceleration: 31, // m/s² — atinge velocidade máxima em ~200 ms
+  deceleration: 38, // m/s² — freada curta e legível
   jumpVel: 5.4, // impulso de pulo (ataque)
   blockJumpVel: 4.6,
   height: 1.88,
 };
+
+export const AUTO_SELECTOR = {
+  switchAdvantage: 0.15,
+  lockWindow: 0.35,
+  maxSwitches: 2,
+  assistanceRadius: 0.65,
+  netMargin: 0.15,
+  unreachablePenalty: 10,
+  latenessWeight: 4,
+  frontRowCost: 0.08,
+  coverageCostPerMeter: 0.025,
+  movingAwayCost: 0.12,
+} as const;
 
 export const MATCH_FORMATS = [
   { name: 'Rápida — 1 set de 15', sets: 1, pointsPerSet: 15 },
