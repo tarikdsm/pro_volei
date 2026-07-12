@@ -9,6 +9,16 @@ const packageJson = JSON.parse(
   readFileSync(resolve(here, '../../package.json'), 'utf8'),
 ) as PackageJson;
 const workflow = readFileSync(resolve(here, '../../.github/workflows/ci.yml'), 'utf8');
+const readRepo = (path: string): string => readFileSync(resolve(here, '../..', path), 'utf8');
+const operationalDocPaths = [
+  'CLAUDE.md',
+  'README.md',
+  'CONTRIBUTING.md',
+  'CHANGELOG.md',
+  'docs/ROADMAP.md',
+  'docs/deployment/web.md',
+] as const;
+const operationalDocs = operationalDocPaths.map((path) => [path, readRepo(path)] as const);
 
 interface PackageJson {
   scripts?: Record<string, string>;
@@ -36,5 +46,25 @@ describe('remoção do deploy legado', () => {
       'uses:actions/configure-pages@v6',
       'uses:actions/deploy-pages@v5',
     ]);
+  });
+
+  it('não recomenda o script legado nos documentos operacionais', () => {
+    for (const [path, content] of operationalDocs) {
+      expect(content, path).not.toContain('npm run deploy');
+    }
+  });
+
+  it('mantém a política canônica literalmente main-only', () => {
+    for (const path of ['CLAUDE.md', 'README.md', 'CONTRIBUTING.md']) {
+      expect(readRepo(path), path).not.toContain('gh-pages');
+    }
+
+    const claude = readRepo('CLAUDE.md');
+    const web = readRepo('docs/deployment/web.md');
+    expect(claude).toContain('literalmente main-only');
+    expect(web).toContain('gh run rerun');
+    expect(web).toContain('git revert');
+    expect(web).not.toContain('build_type=legacy');
+    expect(web).not.toContain('fallback transitório');
   });
 });

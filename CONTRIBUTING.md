@@ -34,9 +34,9 @@ push para `main`. Depois do smoke, o mesmo `dist/` é enviado ao Pages e publica
 [docs/deployment/web.md](docs/deployment/web.md) para verificar workflow, ambiente, deployment,
 URL pública e rollback.
 
-A Fase 1C comprovou rollback e restauração por SHA. `npm run deploy`, o pacote `gh-pages` e a
-branch remota homônima permanecem somente como fallback transitório até a execução da Fase 1D,
-agora autorizada e pendente. Não use o caminho legado em operação normal.
+As Fases 1C e 1D comprovaram rollback/restauração por SHA e removeram o caminho legado. O
+repositório é literalmente main-only e não possui branch de deploy. Em produção, reverta somente
+por rerun de workflow verde ou `git revert`, sem amend ou force-push.
 
 ## Scripts
 

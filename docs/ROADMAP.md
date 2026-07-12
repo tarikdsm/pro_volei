@@ -18,8 +18,10 @@ remoção de `gh-pages`; depois controles, IA, arte/render, mobile/áudio, Copa 
   rollback promoveu `c917145` no attempt 2 do primeiro run (deployment `5414503098`) e a
   restauração promoveu `da18cbd` no attempt 2 do segundo (deployment `5414518284`); ambos ficaram
   verdes e passaram smoke público.
-- **Fase 1D — autorizada e pendente:** a prova da 1C permite remover script, pacote e branch
-  `gh-pages`, que continuam presentes até a execução da 1D.
+- **Fase 1D — concluída:** script, pacote e branch `gh-pages` removidos. O run `29202163302` do SHA
+  `dcba25b` e o deployment `5414657439` ficaram verdes; smoke público passou antes e depois da
+  exclusão. O remoto lista somente `main`, enquanto Pages permanece em workflow/HTTPS com policy
+  `main`. O SHA histórico `15f9c244f7ab6fb58a4114a926d3c061a087a336` não precisou ser usado.
 
 ---
 
@@ -78,8 +80,8 @@ Elevar qualidade percebida e garantir 60fps em mobile.
 
 Mesmo código web, três alvos de loja. Guias em [docs/deployment/](deployment/).
 
-- [ ] **Web:** deploy contínuo e rollback do Pages concluídos na Fase 1C; remoção do legado na 1D,
-      itch.io, `<meta>` de PWA e tela de carregamento permanecem pendentes
+- [ ] **Web:** deploy, rollback e remoção do legado concluídos nas Fases 1C/1D; itch.io,
+      `<meta>` de PWA e tela de carregamento permanecem pendentes
 - [ ] **Desktop/Steam:** wrapper [Tauri](deployment/desktop-steam.md) (build Win/Mac/Linux,
       ícones, integração Steamworks, página na loja)
 - [ ] **Mobile:** wrapper [Capacitor](deployment/mobile.md) (iOS/Android, ícones/splash,
@@ -101,6 +103,7 @@ Mesmo código web, três alvos de loja. Guias em [docs/deployment/](deployment/)
   remotas em runtime.
 - **Refatorar antes de crescer:** não empilhar features sobre `Match.ts` monolítico.
 - **Verde sempre:** `npm run check` passando; `main` sempre buildável e jogável.
+- **Literalmente main-only:** o remoto mantém somente `main`; não existe branch de deploy.
 - **Um código, três lojas:** evitar divergência de plataforma; isolar o específico nos wrappers.
 
 > Este roadmap é vivo. Ajuste as caixas conforme a prioridade real. O histórico de como o

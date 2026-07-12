@@ -31,8 +31,9 @@ Todas as mudanças notáveis do Pró Volei. Formato baseado em
   `c917145` no deployment `5414503098`; o attempt 2 do segundo restaurou `da18cbd` no deployment
   `5414518284`. Ambos os deployments ficaram verdes e passaram smoke público, concluindo a Fase
   1C e autorizando a Fase 1D.
-- `npm run deploy`, o pacote e a branch `gh-pages` foram reclassificados como fallback transitório;
-  a prova de rollback foi concluída, mas eles permanecem presentes até a execução da Fase 1D.
+- A Fase 1D removeu o caminho concorrente após o run `29202163302` do SHA `dcba25b` e o deployment
+  `5414657439` ficarem verdes. O smoke público passou antes e depois da exclusão; Pages permaneceu
+  em workflow/HTTPS, com policy `main`, e o remoto passou a listar somente `main`.
 - Design da versão 2.0 aprovado: controles de setas + ação contextual, IA coletiva,
   personagens locais animados, experiência mobile landscape e Copa curta. A implementação ocorre
   em fases; esta entrada não anuncia essas features como disponíveis na v1.1.
@@ -46,6 +47,12 @@ Todas as mudanças notáveis do Pró Volei. Formato baseado em
 
 - Removidas duas pendências apontadas pelo lint (atribuição inútil em `Match.ts`,
   variável morta em `Team.ts`) — sem mudança de comportamento.
+
+### Removido
+
+- Script npm e pacote do deploy legado, seguidos pela exclusão da branch `gh-pages`. O SHA
+  histórico de recuperação `15f9c244f7ab6fb58a4114a926d3c061a087a336` foi registrado, mas não
+  precisou ser usado porque o smoke pós-exclusão permaneceu verde.
 
 ---
 

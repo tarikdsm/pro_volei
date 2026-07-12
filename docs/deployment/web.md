@@ -42,7 +42,22 @@ publica o SHA original sem colidir com o artefato de uma tentativa anterior.
 A prova promoveu primeiro o SHA anterior e depois restaurou o SHA mais recente. Ela valida o
 controle operacional por SHA; não se baseia nem afirma diferença visual entre os builds, pois o
 segundo SHA altera documentação que não entra no `dist/`. Com rollback e restauração comprovados,
-a **Fase 1C está concluída** e a **Fase 1D está autorizada e pendente**.
+a **Fase 1C está concluída**.
+
+### Conclusão main-only da Fase 1D
+
+A capacidade local legada foi removida no SHA `dcba25b`. O run `29202163302` ficou verde e publicou
+o deployment `5414657439`; o smoke público passou antes e depois da exclusão da branch operacional.
+Após a exclusão:
+
+- o remoto lista somente `main`;
+- Pages continua em `build_type=workflow`, com HTTPS ativo;
+- o ambiente `github-pages` autoriza somente `main`;
+- não existe branch de deploy nem caminho concorrente de publicação.
+
+O SHA histórico `15f9c244f7ab6fb58a4114a926d3c061a087a336` foi registrado como opção de recuperação durante a
+operação, mas não foi usado: as verificações pós-exclusão permaneceram verdes. A **Fase 1D está
+concluída** e o repositório é literalmente main-only.
 
 ### Verificação operacional
 
@@ -76,29 +91,19 @@ Além dos comandos, abra a URL em contexto limpo, sem `?debug`, e confirme menu,
 console sem erros e carregamento dos assets relativos. A policy deve retornar exatamente uma
 branch do tipo `branch`, com nome `main`.
 
-### Rollback
+### Rollback atual
 
-Há dois mecanismos, com propósitos diferentes:
+Há somente dois mecanismos de produção:
 
-1. **Fallback transitório da migração:** até a Fase 1D remover o legado, a branch remota `gh-pages`,
-   o pacote `gh-pages` e o script `npm run deploy` continuam preservados. Em emergência,
-   restaure a policy do ambiente para `gh-pages`, altere Pages para `build_type=legacy` com fonte
-   `gh-pages:/` e valide a URL pública. **Não execute `npm run deploy` durante a restauração:** a
-   troca de fonte já reativa a branch conhecida, enquanto o script reconstruiria o `HEAD` e poderia
-   substituir o fallback por outro artefato. Esse caminho será removido apenas na Fase 1D.
-2. **Rollback normal de produção:** reexecute integralmente um run verde anterior com
+1. **Promoção operacional por SHA:** reexecute integralmente um run verde anterior com
    `gh run rerun RUN_ID --repo tarikdsm/pro_volei`; o workflow preserva o `GITHUB_SHA` daquele run
-   e publica seu artefato isolado por tentativa. Se a correção precisa permanecer no histórico,
-   use `git revert SHA_PROBLEMATICO`, rode os gates e faça push do novo commit. Nunca use
-   force-push, amend ou reescrita de histórico.
+   e publica seu artefato isolado por tentativa.
+2. **Correção durável do código:** use `git revert SHA_PROBLEMATICO`, rode os gates e faça push do
+   novo commit. Nunca use force-push, amend ou reescrita de histórico.
 
 O rerun é uma promoção operacional por SHA; `git revert` é a correção durável do código. Após um
 rollback por rerun, reexecute o run verde mais recente para restaurar a produção atual e repita o
-smoke público.
-
-> **Fallback apenas:** `npm run deploy` não é o caminho atual de publicação. A prova de rollback
-> da Fase 1C já autorizou sua remoção, mas script, pacote e branch continuam presentes até a
-> execução da Fase 1D.
+smoke público. Não existe branch de deploy nem fallback concorrente.
 
 ## itch.io
 
