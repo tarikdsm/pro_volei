@@ -26,10 +26,13 @@ remoção de `gh-pages`; depois controles, IA, arte/render, mobile/áudio, Copa 
   à câmera e cancelamento sem release passaram por testes unitários, E2E multitouch e playtest
   desktop/mobile. O run `29204014194` publicou o SHA `2714264` no deployment `5415090698`; smoke
   público desktop e touch landscape passaram sem erros.
+- **Fase 2B — implementação local concluída:** runner fixo a 60 Hz, slow-motion determinística,
+  timeline analítica e apresentação interpolada passaram por 356 testes, suíte E2E desktop/mobile,
+  smoke do build de produção, playtest real e revisão independente sem findings. Publicação em
+  `main` e evidências de Pages serão registradas no fechamento da fase.
 
 ### Controle e game feel 2.0 — próximas subfases
 
-- **Fase 2B:** fixed timestep a 60 Hz, com proteção contra espiral de morte.
 - **Fase 2C:** AutoSelector por interceptação, histerese, lock e assistência limitada.
 - **Fase 2D:** máquina contextual tap/hold/buffer para todas as ações.
 - **Fase 2E:** feedback de timing, câmera e game feel sobre o novo controle.

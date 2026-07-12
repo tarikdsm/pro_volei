@@ -12,6 +12,12 @@ Todas as mudanças notáveis do Pró Volei. Formato baseado em
   direção relativo à câmera.
 - Testes determinísticos de bordas, cancelamento, composição teclado/touch e teste Chromium de
   dois toques simultâneos com hit-testing real.
+- Simulação fixa a 60 Hz com câmera lenta determinística, limite de 250 ms/5 ticks, diagnóstico de
+  stalls e consumo de input no cutoff real exato de cada tick.
+- Timeline analítica para callbacks, contatos, pulos, rede, antena e chão, com ordenação estável e
+  tolerância numérica determinística nas fronteiras.
+- Interpolação visual de bola, atletas, rotação, salto, marker, sombra e rastro entre snapshots da
+  simulação, sem contaminar regras ou IA.
 - Ferramental de qualidade: ESLint 10 (flat config) + Prettier 3, `.editorconfig`,
   `.gitattributes` (LF), `.nvmrc` (Node 22).
 - Testes com Vitest 4 e primeira suíte cobrindo os solvers balísticos (`math3d`).
@@ -31,6 +37,8 @@ Todas as mudanças notáveis do Pró Volei. Formato baseado em
   contrato semântico, com ownership e captura de ponteiro.
 - `HumanController` deixou de consultar teclas/DOM; a direção do levantamento substitui A/W/D e
   cancelamentos de blur/pausa não fabricam release de ação.
+- `Match` delega a segmentação temporal a `MatchTimeline`; regras e física não dependem mais do FPS
+  de renderização, e pausa/resume não reapresenta snapshots antigos.
 - CI ampliado: typecheck de produção/testes/configs, cobertura V8 de todo `src`, build e smoke
   Chromium do artefato servido por `vite preview`.
 - O mesmo `dist/` aprovado pelo job `check` agora é publicado automaticamente pelo job `deploy`.

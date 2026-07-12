@@ -62,7 +62,7 @@ Detalhes completos em [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ```
 src/
-├── main.ts        bootstrap, renderer, game loop, slow-motion, injeta Hooks no Match
+├── main.ts        bootstrap, renderer, loop fixo 60 Hz, slow-motion, injeta Hooks no Match
 ├── core/          constants, math3d (solvers balísticos), Input, AudioEngine
 ├── world/         Court, Arena, Crowd (~1500 instanciados), Referee
 ├── entities/      PlayerCharacter (humanoide procedural), Ball
@@ -77,6 +77,9 @@ src/
   `InputFrame` relativo à tela/câmera para `game/control/ControlFrame`. Código em `game/` não deve
   consultar teclas, DOM, `KeyboardEvent`, `Input` concreto ou `CameraDirector`. Gameplay no PC usa
   somente setas + Espaço; Escape continua comando de aplicação.
+- **Simulação 2.0:** regras, bola e atletas avançam somente em ticks fixos de `1/60 s` via
+  `core/time/FixedStepRunner`. `game/simulation/MatchTimeline` segmenta contatos/rede/antena/chão
+  no instante analítico; `Match.present(alpha)` interpola apenas transforms visuais uma vez por rAF.
 - **A Fase 1 (quebrar o `Match.ts`) está concluída:** a lógica do antigo módulo monolítico vive
   em `RallyState`, `rules/` (scoring, rotation, SetMatch), `mechanics/` (serve, touch, block,
   net), `control/HumanController` e `ai/AiController`, cada um sobre um contexto injetado

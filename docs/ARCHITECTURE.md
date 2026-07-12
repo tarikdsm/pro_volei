@@ -10,7 +10,7 @@ o game loop via `requestAnimationFrame`. Tudo é procedural e offline.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│ main.ts  — renderer · scene · game loop · slow-motion         │
+│ main.ts  — renderer · scene · fixed step 60 Hz · slow-motion  │
 │   injeta Hooks ─────────────┐                                 │
 ├─────────────────────────────┼───────────────────────────────┤
 │ world/        systems/       │  game/            ui/          │
@@ -37,11 +37,11 @@ injetadas (audio, effects, camera, crowd, referee, arena). O wiring acontece em 
 
 | Pasta | Responsabilidade | Arquivos |
 |---|---|---|
-| `core/` | Fundamentos sem estado de jogo | `constants.ts` (dimensões, física, dificuldades, cores), `math3d.ts` (solvers balísticos, easing, RNG), `Input.ts` + `input/` (fila semântica e câmera), `AudioEngine.ts` (áudio procedural) |
+| `core/` | Fundamentos sem estado de jogo | `constants.ts` (dimensões, física, dificuldades, cores), `math3d.ts` (solvers balísticos, easing, RNG), `Input.ts` + `input/` (fila semântica e câmera), `time/` (runner fixo e slow-motion), `AudioEngine.ts` (áudio procedural) |
 | `world/` | Cenário estático e ambiente | `Court.ts`, `Arena.ts`, `Crowd.ts` (~1500 instanciados), `Referee.ts` |
 | `entities/` | Atores dinâmicos | `PlayerCharacter.ts` (humanoide + animações paramétricas), `Ball.ts` (rastro, sombra) |
 | `systems/` | Sistemas transversais | `CameraDirector.ts` (câmera broadcast), `Effects.ts` (partículas, confete, shake) |
-| `game/` | Regras, estado, IA e controle | `Match.ts` (orquestrador: state machine + event queue), `RallyState.ts`, `Team.ts`, `rules/` (scoring, rotation, SetMatch), `mechanics/` (serve, touch, block, net, context), `ai/AiController`, `control/HumanController` |
+| `game/` | Regras, estado, IA e controle | `Match.ts` (orquestrador), `RallyState.ts`, `Team.ts`, `simulation/` (timeline analítica), `rules/`, `mechanics/`, `ai/AiController`, `control/HumanController` |
 | `ui/` | Apresentação e input do jogador | `HUD.ts`, `Menu.ts`, `TouchControls.ts` |
 
 ### Pipeline local de assets 2.0
@@ -66,9 +66,16 @@ Coberto por testes em `src/core/math3d.test.ts`.
 
 ## Game loop
 
-`main.ts::frame(now)` a cada quadro: calcula `dt` (com `timeScale` para slow-motion),
-avança `match.update(dt, input)`, atualiza torcida/juiz/efeitos/áudio/HUD/câmera e renderiza.
-O slow-motion é acionado pelos hooks (ex.: spike-cam no contato da cortada).
+`main.ts::frame(now)` entrega o intervalo real ao `FixedStepRunner`. O runner acumula tempo,
+aplica o `SlowMotionClock` e executa somente ticks de `1/60 s`, no máximo cinco por rAF e com
+janela real limitada a 250 ms. Cada ticket contém o cutoff monotônico usado para consumir o
+`InputHub`; pausas executam zero ticks. Stalls de lifecycle cancelam input pendente, enquanto o
+limite de passos preserva o estado contínuo para hardware lento.
+
+Dentro de cada tick, `MatchTimeline` integra bola, atletas e timers até o próximo evento analítico
+(callback, contato, rede, antena, pulo ou chão), resolve-o e continua pelo tempo restante. No fim,
+`Match.present(alpha)` interpola bola, atletas, marker, sombra e ponta do rastro sem alterar estado
+lógico. Câmera, HUD, áudio e renderer continuam uma vez por rAF.
 
 ---
 
@@ -86,6 +93,9 @@ precisa) em vez de acessar o `Match` inteiro.
 src/game/
 ├── Match.ts              orquestrador: state machine, event queue, update loop, makeCtx/makeScoringCtx
 ├── RallyState.ts         estado do rally (posse, nº de toques, plano do contato, eventos de rede)
+├── simulation/
+│   ├── EventTimeline.ts  seleção determinística por instante, prioridade e sequência
+│   └── MatchTimeline.ts  segmentação do tick e integração dos eventos da partida
 ├── rules/
 │   ├── scoring.ts        funções puras: rally point, set/match point, vantagem de 2, ace, queda
 │   ├── rotation.ts       rodízio de 6 posições
