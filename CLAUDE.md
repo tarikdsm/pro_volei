@@ -73,6 +73,10 @@ src/
 
 - `Match` fala com UI/áudio/efeitos por uma interface `Hooks` injetada em `main.ts`
   (não acesse o DOM direto de dentro de `game/`). Mantenha essa fronteira.
+- **Input 2.0:** teclado e touch escrevem em `core/input/InputHub`; `main.ts` converte o
+  `InputFrame` relativo à tela/câmera para `game/control/ControlFrame`. Código em `game/` não deve
+  consultar teclas, DOM, `KeyboardEvent`, `Input` concreto ou `CameraDirector`. Gameplay no PC usa
+  somente setas + Espaço; Escape continua comando de aplicação.
 - **A Fase 1 (quebrar o `Match.ts`) está concluída:** a lógica do antigo módulo monolítico vive
   em `RallyState`, `rules/` (scoring, rotation, SetMatch), `mechanics/` (serve, touch, block,
   net), `control/HumanController` e `ai/AiController`, cada um sobre um contexto injetado

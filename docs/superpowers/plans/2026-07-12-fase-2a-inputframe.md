@@ -142,10 +142,22 @@ npm run test:e2e:smoke:prod
 git status --short
 ```
 
-- [ ] Nenhum fluxo de gameplay depende de WASD ou `KeyboardEvent` sintético.
-- [ ] Teclado e touch produzem o mesmo `InputFrame` sem releases falsos.
-- [ ] Press+release rápido sobrevive a frames lentos e é consumido uma vez.
-- [ ] Blur/pausa cancela a ação sem executar saque, passe, salto ou bloqueio.
-- [ ] Movimento acompanha os eixos visuais da câmera atual.
+- [x] Nenhum fluxo de gameplay depende de WASD ou `KeyboardEvent` sintético.
+- [x] Teclado e touch produzem o mesmo `InputFrame` sem releases falsos.
+- [x] Press+release rápido sobrevive a frames lentos e é consumido uma vez.
+- [x] Blur/pausa cancela a ação sem executar saque, passe, salto ou bloqueio.
+- [x] Movimento acompanha os eixos visuais da câmera atual.
 - [ ] Desktop e mobile landscape continuam jogáveis no build publicado.
-- [ ] Branch remota continua sendo somente `main`.
+- [x] Branch remota continua sendo somente `main`.
+
+## Evidência local antes da publicação
+
+- Implementação: `81f39e9`, `4e03b8d` e `b6ee1ce`.
+- Revisão independente: três findings corrigidos em `ce7f092`; smoke do build corrigido em
+  `d94809b` após reproduzir a diferença DEV/produção.
+- `npm run check`: 41 arquivos, 310 testes; cobertura de 38,52% statements, 44,16% branches,
+  40,26% functions e 38,47% lines.
+- Build: 609,23 kB JavaScript, 157,53 kB gzip.
+- Playwright: 9/9 cenários completos e smoke Chromium do `dist` aprovado.
+- Playtest real: menu, saque, rally, setas/Espaço e mobile landscape sem erros de console; único
+  warning é a depreciação já conhecida de `PCFSoftShadowMap` no Three.js.

@@ -54,20 +54,20 @@ estão em
 
 **Joystick** (esquerda) move e mira · **botão 🏐** (direita) faz tudo: segure para
 carregar o saque, toque no momento da recepção, toque para pular no ataque/bloqueio ·
-**zonas de ataque** são botões tocáveis · **⏸** pausa.
+o direcional também escolhe o ataque durante o levantamento · **⏸** pausa.
 
 ### Controles no teclado
 
 | Momento | Tecla | Ação |
 |---|---|---|
 | Saque | **segurar ESPAÇO** | carrega a força — solte na *zona verde* para o saque perfeito |
-| Saque | **WASD** | ajusta a mira no campo adversário |
-| Recepção/Defesa | **WASD** | move o jogador (anel verde) até o ponto de queda (anel amarelo) |
+| Saque | **SETAS** | ajusta a mira no campo adversário, relativa à câmera |
+| Recepção/Defesa | **SETAS** | move o jogador (anel verde) até o ponto de queda (anel amarelo) |
 | Recepção/Defesa | **ESPAÇO** | no momento do toque = passe perfeito · contra cortada forte é obrigatório! |
-| Levantamento | **A / W / D** | escolhe a zona de ataque (esquerda / centro / direita) |
+| Levantamento | **SETAS** | escolhe a direção do ataque; neutro preserva a recomendação atual |
 | Ataque | **ESPAÇO** | pula — o timing do pulo define a força da cortada |
-| Ataque | **WASD** | mira a cortada no ar (losango azul) |
-| Bloqueio | **A / D** | desliza ao longo da rede |
+| Ataque | **SETAS** | mira a cortada no ar (losango azul), relativa à câmera |
+| Bloqueio | **SETAS** | desliza ao longo da rede |
 | Bloqueio | **ESPAÇO** | pula para bloquear |
 | — | **ESC** | pausa |
 

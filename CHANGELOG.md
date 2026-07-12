@@ -8,6 +8,10 @@ Todas as mudanças notáveis do Pró Volei. Formato baseado em
 
 ### Adicionado
 
+- Núcleo de controle 2.0 com `InputHub` timestamped, `InputFrame`, `ControlFrame` e mapeamento de
+  direção relativo à câmera.
+- Testes determinísticos de bordas, cancelamento, composição teclado/touch e teste Chromium de
+  dois toques simultâneos com hit-testing real.
 - Ferramental de qualidade: ESLint 10 (flat config) + Prettier 3, `.editorconfig`,
   `.gitattributes` (LF), `.nvmrc` (Node 22).
 - Testes com Vitest 4 e primeira suíte cobrindo os solvers balísticos (`math3d`).
@@ -23,6 +27,10 @@ Todas as mudanças notáveis do Pró Volei. Formato baseado em
 
 ### Alterado
 
+- Gameplay do teclado simplificado para setas + Espaço; touch agora alimenta diretamente o mesmo
+  contrato semântico, com ownership e captura de ponteiro.
+- `HumanController` deixou de consultar teclas/DOM; a direção do levantamento substitui A/W/D e
+  cancelamentos de blur/pausa não fabricam release de ação.
 - CI ampliado: typecheck de produção/testes/configs, cobertura V8 de todo `src`, build e smoke
   Chromium do artefato servido por `vite preview`.
 - O mesmo `dist/` aprovado pelo job `check` agora é publicado automaticamente pelo job `deploy`.
@@ -50,6 +58,8 @@ Todas as mudanças notáveis do Pró Volei. Formato baseado em
 
 ### Removido
 
+- `KeyState`, WASD de gameplay, zonas touch clicáveis e todos os `KeyboardEvent` sintéticos usados
+  por joystick, ação e pausa.
 - Script npm e pacote do deploy legado, seguidos pela exclusão da branch `gh-pages`. O SHA
   histórico de recuperação `15f9c244f7ab6fb58a4114a926d3c061a087a336` foi registrado, mas não
   precisou ser usado porque o smoke pós-exclusão permaneceu verde.

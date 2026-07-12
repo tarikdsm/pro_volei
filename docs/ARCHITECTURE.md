@@ -37,7 +37,7 @@ injetadas (audio, effects, camera, crowd, referee, arena). O wiring acontece em 
 
 | Pasta | Responsabilidade | Arquivos |
 |---|---|---|
-| `core/` | Fundamentos sem estado de jogo | `constants.ts` (dimensões, física, dificuldades, cores), `math3d.ts` (solvers balísticos, easing, RNG), `Input.ts` (teclado/mouse), `AudioEngine.ts` (áudio procedural) |
+| `core/` | Fundamentos sem estado de jogo | `constants.ts` (dimensões, física, dificuldades, cores), `math3d.ts` (solvers balísticos, easing, RNG), `Input.ts` + `input/` (fila semântica e câmera), `AudioEngine.ts` (áudio procedural) |
 | `world/` | Cenário estático e ambiente | `Court.ts`, `Arena.ts`, `Crowd.ts` (~1500 instanciados), `Referee.ts` |
 | `entities/` | Atores dinâmicos | `PlayerCharacter.ts` (humanoide + animações paramétricas), `Ball.ts` (rastro, sombra) |
 | `systems/` | Sistemas transversais | `CameraDirector.ts` (câmera broadcast), `Effects.ts` (partículas, confete, shake) |
@@ -99,9 +99,17 @@ src/game/
 ├── ai/
 │   └── AiController.ts   decisões por dificuldade: aproximação, pulos agendados, qualidade, saque
 └── control/
-    ├── HumanController.ts  Input → intenções (mira, timing, zona) + estado de controle + marker
+    ├── ControlFrame.ts      InputFrame já convertido para o plano da quadra
+    ├── HumanController.ts  ControlFrame → intenções (mira, timing, zona) + estado + marker
     └── timing.ts           helpers puros timing → qualidade (recepção/pulo)
 ```
+
+### Pipeline de controle 2.0
+
+`KeyboardInput` e `TouchControls` escrevem no mesmo `InputHub`. O hub preserva press/release
+timestamped e cancelamentos explícitos; `main.ts` converte o `InputFrame` de espaço de tela pelo
+snapshot de `CameraDirector.inputBasis()` e entrega somente `ControlFrame` ao jogo. Assim,
+`game/` não conhece DOM, códigos de tecla, eventos sintéticos nem Three.js para interpretar direção.
 
 > A escolha de alvo da IA ficou em `mechanics/` (já lê `ctx.diff` e nunca depende de `aim`/
 > `chosenZone` do humano), então `ai/targeting.ts` do plano original não foi necessário.
