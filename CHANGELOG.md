@@ -18,6 +18,10 @@ Todas as mudanças notáveis do Pró Volei. Formato baseado em
   tolerância numérica determinística nas fronteiras.
 - Interpolação visual de bola, atletas, rotação, salto, marker, sombra e rastro entre snapshots da
   simulação, sem contaminar regras ou IA.
+- AutoSelector para recepção/defesa e bloqueio com ETA 2D igual ao movimento real, custos táticos,
+  histerese de 15%, máximo de duas trocas por plano e lock nos 350 ms finais.
+- Movimento planar com aceleração/frenagem arcade e assistência de alvo limitada a 0,65 m, sem
+  teleporte nem corrida humana automática até o contato.
 - Ferramental de qualidade: ESLint 10 (flat config) + Prettier 3, `.editorconfig`,
   `.gitattributes` (LF), `.nvmrc` (Node 22).
 - Testes com Vitest 4 e primeira suíte cobrindo os solvers balísticos (`math3d`).
@@ -41,6 +45,8 @@ Todas as mudanças notáveis do Pró Volei. Formato baseado em
   de renderização, e pausa/resume não reapresenta snapshots antigos.
 - Stalls acima de 250 ms cancelam ação/carga sem apagar setas ou joystick mantidos; o smoke de
   produção força um frame de 350 ms para proteger esse comportamento em hardware lento.
+- `TouchPlan` ganhou identidade monotônica; rebind de atleta preserva timing, mira e ação do mesmo
+  plano, e o bloqueio usa um canal HOME separado da atacante AWAY.
 - CI ampliado: typecheck de produção/testes/configs, cobertura V8 de todo `src`, build e smoke
   Chromium do artefato servido por `vite preview`.
 - O mesmo `dist/` aprovado pelo job `check` agora é publicado automaticamente pelo job `deploy`.

@@ -32,10 +32,13 @@ remoção de `gh-pages`; depois controles, IA, arte/render, mobile/áudio, Copa 
   `wall-cap` apagava uma seta mantida; o commit corretivo `959ef37` adicionou regressão com stall
   forçado, passou no run `29206518556` e publicou o deployment `5415649743`. O smoke público
   confirmou direção contínua, descarte diagnosticado e rally jogável. O remoto mantém só `main`.
+- **Fase 2C — implementação local concluída:** movimento planar com aceleração/frenagem,
+  AutoSelector por ETA 2D, custos táticos, histerese 15%/duas trocas/lock 350 ms e assistência de
+  0,65 m passaram por 398 testes, E2E desktop/mobile, smoke do build, playtest real e revisão
+  independente sem findings. Publicação e evidências de Pages serão registradas no fechamento.
 
 ### Controle e game feel 2.0 — próximas subfases
 
-- **Fase 2C:** AutoSelector por interceptação, histerese, lock e assistência limitada.
 - **Fase 2D:** máquina contextual tap/hold/buffer para todas as ações.
 - **Fase 2E:** feedback de timing, câmera e game feel sobre o novo controle.
 

@@ -59,8 +59,8 @@ o tuning deve continuar arcade e responsivo.
 - Modificar `src/core/constants.ts` e teste correspondente
 
 1. Escrever RED para aceleração desde repouso, frenagem, mudança de direção, overshoot e ETA.
-2. Implementar avanço planar puro e solver analítico com posição, velocidade projetada,
-   aceleração e velocidade máxima.
+2. Implementar avanço planar puro e ETA determinístico pelo mesmo integrador 2D de 60 Hz, com
+   posição, velocidade projetada/lateral, aceleração, frenagem e velocidade máxima.
 3. `Athlete.update` usa o helper e expõe velocidade readonly; warp zera velocidade.
 4. Ajustar aceleração/deceleração para atingir velocidade máxima em cerca de 200 ms, preservando
    resposta arcade e invariância do fixed step.
@@ -130,11 +130,11 @@ o tuning deve continuar arcade e responsivo.
 
 ## Gate final
 
-- [ ] ETA e score são determinísticos e compatíveis com o movimento real.
-- [ ] Troca exige 15%, respeita máximo 2 e lock de 350 ms.
-- [ ] Atleta ilegal no lock falha sem troca tardia.
-- [ ] Assistência corrige no máximo 0,65 m, sem warp ou drift acumulado.
-- [ ] Ataque/saque/levantamento preservam comportamento.
-- [ ] Recepção e bloqueio transferem controle/marker sem flicker.
+- [x] ETA e score são determinísticos e compatíveis com o movimento real.
+- [x] Troca exige 15%, respeita máximo 2 e lock de 350 ms.
+- [x] Atleta ilegal no lock falha sem troca tardia.
+- [x] Assistência corrige no máximo 0,65 m, sem warp ou drift acumulado.
+- [x] Ataque/saque/levantamento preservam comportamento.
+- [x] Recepção e bloqueio transferem controle/marker sem flicker.
 - [ ] Testes, E2E, playtest, review, CI, Pages e smoke público estão verdes.
 - [ ] Remoto continua literalmente somente `main`.

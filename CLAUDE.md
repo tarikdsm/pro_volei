@@ -80,6 +80,10 @@ src/
 - **Simulação 2.0:** regras, bola e atletas avançam somente em ticks fixos de `1/60 s` via
   `core/time/FixedStepRunner`. `game/simulation/MatchTimeline` segmenta contatos/rede/antena/chão
   no instante analítico; `Match.present(alpha)` interpola apenas transforms visuais uma vez por rAF.
+- **Seleção humana 2.0:** `game/control/AutoSelector` escolhe recepção/defesa e bloqueio por ETA
+  cinemático, com vantagem de 15%, máximo de duas trocas e lock nos 350 ms finais.
+  `HumanAutoControl` aplica assistência de rota de no máximo 0,65 m; nunca use `warp` para salvar
+  contato nem reintroduza aproximação humana automática até a bola.
 - **A Fase 1 (quebrar o `Match.ts`) está concluída:** a lógica do antigo módulo monolítico vive
   em `RallyState`, `rules/` (scoring, rotation, SetMatch), `mechanics/` (serve, touch, block,
   net), `control/HumanController` e `ai/AiController`, cada um sobre um contexto injetado

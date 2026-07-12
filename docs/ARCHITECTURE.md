@@ -111,6 +111,10 @@ src/game/
 │   └── AiController.ts   decisões por dificuldade: aproximação, pulos agendados, qualidade, saque
 └── control/
     ├── ControlFrame.ts      InputFrame já convertido para o plano da quadra
+    ├── kinematics.ts        aceleração/frenagem compartilhadas por Athlete e ETA
+    ├── AutoSelector.ts      score, histerese, máximo de trocas e lock por plano
+    ├── AutoSelectionSession.ts adaptação Team/Athlete → candidatos de recepção/bloqueio
+    ├── HumanAutoControl.ts  rebind + alvo manual + assistência limitada
     ├── HumanController.ts  ControlFrame → intenções (mira, timing, zona) + estado + marker
     └── timing.ts           helpers puros timing → qualidade (recepção/pulo)
 ```
@@ -121,6 +125,12 @@ src/game/
 timestamped e cancelamentos explícitos; `main.ts` converte o `InputFrame` de espaço de tela pelo
 snapshot de `CameraDirector.inputBasis()` e entrega somente `ControlFrame` ao jogo. Assim,
 `game/` não conhece DOM, códigos de tecla, eventos sintéticos nem Three.js para interpretar direção.
+
+Recepção/defesa e bloqueio passam por `AutoSelector`. O ETA replica o mesmo integrador planar de
+`Athlete.update`, inclusive velocidade lateral, aceleração e frenagem. A atribuição inicial não
+conta como troca; depois exige score 15% menor, aceita no máximo duas trocas e trava nos 350 ms
+finais. Ataque, levantamento e saque permanecem fora desse seletor. O alvo manual é a âncora da
+assistência, que corrige no máximo 0,65 m sem acumular ou mover diretamente a atleta.
 
 > A escolha de alvo da IA ficou em `mechanics/` (já lê `ctx.diff` e nunca depende de `aim`/
 > `chosenZone` do humano), então `ai/targeting.ts` do plano original não foi necessário.
