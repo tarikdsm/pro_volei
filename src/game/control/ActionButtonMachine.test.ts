@@ -296,6 +296,21 @@ describe('ActionButtonMachine — contato e consumo', () => {
 });
 
 describe('ActionButtonMachine — cancelamentos e ordem temporal', () => {
+  it('cancelPending limpa carga, preserva token/consumo e permite retry apenas se não consumiu', () => {
+    const pending = new ActionButtonMachine();
+    pressAt(pending, 0);
+    pending.cancelPending('pause');
+    expect(pending.snapshot()).toMatchObject({ token: 7, status: 'idle', consumed: false });
+
+    pressAt(pending, 1);
+    expect(pending.step(tick(2, { actionEdges: [edge('release', 2)] }))).not.toBe(null);
+    pending.cancelPending('stall');
+    expect(pending.snapshot()).toMatchObject({ token: 7, status: 'committed', consumed: true });
+    expect(pending.step(tick(3, { actionEdges: [edge('press', 3), edge('release', 3.1)] }))).toBe(
+      null,
+    );
+  });
+
   it.each<InputCancelReason>([
     'pause',
     'blur',

@@ -111,6 +111,11 @@ export class ActionButtonMachine {
     });
   }
 
+  /** Cancela somente o gesto pendente; token e consumo permanecem para impedir duplicação. */
+  cancelPending(reason: InputCancelReason): void {
+    this.cancel(reason, false);
+  }
+
   private bindToken(input: ActionButtonTick): void {
     if (input.token === this.token) {
       this.context = input.context;
