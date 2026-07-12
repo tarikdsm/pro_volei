@@ -13,6 +13,18 @@ export const COURT = {
 export const GRAVITY = -13.0;
 export const BALL_RADIUS = 0.105;
 
+export interface SimulationTiming {
+  hz: number;
+  maxRealFrame: number;
+  maxStepsPerFrame: number;
+}
+
+export const SIMULATION_TIMING = {
+  hz: 60,
+  maxRealFrame: 0.25,
+  maxStepsPerFrame: 5,
+} as const satisfies SimulationTiming;
+
 // Nº máximo de pontos do rastro luminoso da bola (capacidade do ring buffer).
 export const TRAIL_MAX_POINTS = 26;
 

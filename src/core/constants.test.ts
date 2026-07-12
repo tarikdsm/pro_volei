@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { BLOCK, HUMAN_TIMING, SERVE_TUNING } from './constants';
+import { BLOCK, HUMAN_TIMING, SERVE_TUNING, SIMULATION_TIMING } from './constants';
 import * as C from './constants';
 
 // Invariantes baratas de tuning: guardam contra edições que quebrem os pressupostos das
@@ -62,6 +62,16 @@ describe('SERVE_TUNING — invariantes de tuning', () => {
     expect(SERVE_TUNING.chargeRate).toBeGreaterThan(0);
     expect(SERVE_TUNING.perfectPower).toBeGreaterThan(0);
     expect(SERVE_TUNING.perfectPower).toBeLessThanOrEqual(1);
+  });
+});
+
+describe('SIMULATION_TIMING — invariantes do passo fixo', () => {
+  it('fixa a simulação em 60 Hz com os limites anti-stall aprovados', () => {
+    expect(SIMULATION_TIMING).toEqual({
+      hz: 60,
+      maxRealFrame: 0.25,
+      maxStepsPerFrame: 5,
+    });
   });
 });
 
