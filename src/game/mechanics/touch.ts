@@ -12,10 +12,16 @@ import {
   lerp,
 } from '../../core/math3d';
 import { TouchPlan } from '../RallyState';
+import type { ActionIntent } from '../control/ActionIntent';
 import { resolveBlock } from './block';
 import type { MechanicsCtx } from './context';
 
-export function executeTouch(ctx: MechanicsCtx, plan: TouchPlan, quality: number): void {
+export function executeTouch(
+  ctx: MechanicsCtx,
+  plan: TouchPlan,
+  quality: number,
+  intent?: ActionIntent,
+): void {
   const { athlete, kind, side } = plan;
   plan.done = true;
   ctx.rally.lastToucher = athlete;
@@ -28,26 +34,35 @@ export function executeTouch(ctx: MechanicsCtx, plan: TouchPlan, quality: number
   ctx.rally.lastTouchTeam = side;
   ctx.rally.lastKind = kind;
 
+  // No terceiro toque, o mesmo botão vira automaticamente passe para a quadra rival.
+  if ((kind === 'pass' || kind === 'dig') && ctx.rally.possessionTouches >= 3) {
+    ctx.rally.lastKind = 'freeball';
+    doFreeball(ctx, plan, quality, intent);
+    return;
+  }
+
   switch (kind) {
     case 'pass':
     case 'dig':
+      doPass(ctx, plan, quality, intent);
+      break;
     case 'freeball':
-      doPass(ctx, plan, quality);
+      doFreeball(ctx, plan, quality, intent);
       break;
     case 'set':
-      doSet(ctx, plan, quality);
+      doSet(ctx, plan, quality, intent);
       break;
     case 'spike':
-      doSpike(ctx, plan, quality);
+      doSpike(ctx, plan, quality, intent);
       break;
     default:
       doPass(ctx, plan, quality);
   }
 }
 
-function doPass(ctx: MechanicsCtx, plan: TouchPlan, q: number): void {
+function doPass(ctx: MechanicsCtx, plan: TouchPlan, q: number, intent?: ActionIntent): void {
   const { athlete, side } = plan;
-  athlete.act(q < 0.3 ? 'dive' : 'bump', 0.55);
+  athlete.act(intent?.technique === 'emergency-dive' || q < 0.3 ? 'dive' : 'bump', 0.55);
   ctx.hooks.audio.hitSoft();
   // lança a partir de plan.point (ponto analítico do contato), não de ctx.ball.pos
   // (posição stale do frame anterior — a bola só avança em ball.step depois deste handler).
@@ -70,6 +85,14 @@ function doPass(ctx: MechanicsCtx, plan: TouchPlan, q: number): void {
       CONTACT.set,
       clamp(sp.z + rand(-noise, noise), -4, 4),
     );
+    if (intent) {
+      target.x = clamp(
+        target.x + intent.direction.x * 1.2,
+        side === TeamSide.HOME ? -8.5 : 0.6,
+        side === TeamSide.HOME ? -0.6 : 8.5,
+      );
+      target.z = clamp(target.z + intent.direction.z * 2.2, -4, 4);
+    }
   }
   const { v0 } = ballisticArc(plan.point.clone(), target, 2.6 + (1 - q) * 1.2);
   ctx.ball.launch(plan.point.clone(), v0);
@@ -92,7 +115,7 @@ function doPass(ctx: MechanicsCtx, plan: TouchPlan, q: number): void {
   ctx.planNext('set');
 }
 
-function doSet(ctx: MechanicsCtx, plan: TouchPlan, q: number): void {
+function doSet(ctx: MechanicsCtx, plan: TouchPlan, q: number, intent?: ActionIntent): void {
   const { athlete, side } = plan;
   athlete.act('set', 0.55);
   ctx.hooks.audio.hitSoft();
@@ -110,14 +133,20 @@ function doSet(ctx: MechanicsCtx, plan: TouchPlan, q: number): void {
     CONTACT.spike,
     clamp(zoneZ + rand(-0.3, 0.3) * (1 - q), -4.1, 4.1),
   );
-  const apex = zoneIdx === 1 ? 0.6 : 1.5; // bola rápida no meio, alta nas pontas
+  const baseApex = zoneIdx === 1 ? 0.6 : 1.5;
+  const apex =
+    intent?.technique === 'quick-set'
+      ? lerp(baseApex * 0.72, 0.35, intent.power)
+      : intent?.technique === 'high-set'
+        ? baseApex + 0.8
+        : baseApex;
   const { v0 } = ballisticArc(plan.point.clone(), contact, apex + (1 - q) * 0.8);
   ctx.ball.launch(plan.point.clone(), v0);
   ctx.hooks.zoneHint(null);
   ctx.planNext('spike');
 }
 
-function doSpike(ctx: MechanicsCtx, plan: TouchPlan, q: number): void {
+function doSpike(ctx: MechanicsCtx, plan: TouchPlan, q: number, intent?: ActionIntent): void {
   const { athlete, side } = plan;
   athlete.act('spikeHit', 0.5);
   ctx.hooks.audio.hitHard();
@@ -146,15 +175,51 @@ function doSpike(ctx: MechanicsCtx, plan: TouchPlan, q: number): void {
   } else {
     // humano: mira + erro pela qualidade do pulo
     const err = (1 - q) * 2.4;
-    target = new THREE.Vector3(ctx.aim.x + rand(-err, err), 0, ctx.aim.z + rand(-err, err));
+    target = new THREE.Vector3(
+      ctx.aim.x + (intent?.direction.x ?? 0) * 1.1 + rand(-err, err),
+      0,
+      ctx.aim.z + (intent?.direction.z ?? 0) * 1.4 + rand(-err, err),
+    );
   }
 
   const dist = Math.hypot(target.x - plan.point.x, target.z - plan.point.z);
-  const T = clamp(dist / lerp(11, 20, q), 0.34, 0.75);
-  const { v0 } = ballisticDrive(plan.point.clone(), target, T);
+  let v0: THREE.Vector3;
+  if (!isAI && intent?.technique === 'tip') {
+    v0 = ballisticArc(plan.point.clone(), target, 0.65).v0;
+  } else {
+    const speed =
+      !isAI && intent?.technique === 'power-spike'
+        ? lerp(15, 23, intent.power)
+        : !isAI && intent?.technique === 'placed-shot'
+          ? lerp(11, 16, intent.precision)
+          : lerp(11, 20, q);
+    const time = clamp(dist / speed, 0.34, 0.85);
+    v0 = ballisticDrive(plan.point.clone(), target, time).v0;
+  }
   ctx.ball.launch(plan.point.clone(), v0);
   ctx.hooks.effects.showAim(null);
 
   resolveBlock(ctx, side);
+  ctx.planNext('pass');
+}
+
+function doFreeball(ctx: MechanicsCtx, plan: TouchPlan, q: number, intent?: ActionIntent): void {
+  const { athlete, side } = plan;
+  athlete.act(intent?.technique === 'reaching-freeball' ? 'dive' : 'bump', 0.6);
+  ctx.hooks.audio.hitSoft();
+  ctx.hooks.effects.burst(plan.point, 0xc8efff, 10, 2.5);
+
+  const enemySign = sideSign(otherSide(side));
+  const power = intent?.power ?? 0.5;
+  const direction = intent?.direction ?? { x: 0, z: 0 };
+  const target = new THREE.Vector3(
+    enemySign * lerp(4.5, 8, power) + direction.x * 0.8,
+    0,
+    clamp(direction.z * 3.5, -3.8, 3.8),
+  );
+  const apex = lerp(2, 1.1, power) + (1 - q) * 0.8;
+  const { v0 } = ballisticArc(plan.point.clone(), target, apex);
+  ctx.ball.launch(plan.point.clone(), v0);
+  ctx.hooks.effects.showAim(null);
   ctx.planNext('pass');
 }

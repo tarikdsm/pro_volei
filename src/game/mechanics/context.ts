@@ -7,6 +7,7 @@ import { Ball } from '../../entities/Ball';
 import { Team } from '../Team';
 import { RallyState } from '../RallyState';
 import type { Hooks, MatchStats } from '../Match';
+import type { ActionIntent } from '../control/ActionIntent';
 
 export interface MechanicsCtx {
   ball: Ball;
@@ -21,4 +22,6 @@ export interface MechanicsCtx {
   after(t: number, fn: () => void): void;
   planNext(kind: TouchKind): void;
   startRally(): void; // transição de estado: o saque entrou em jogo
+  /** Consome a intenção de bloqueio humano vinculada à cortada rival atual. */
+  takeHumanBlockIntent?(planId: number): ActionIntent | null;
 }

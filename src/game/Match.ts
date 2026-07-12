@@ -28,6 +28,7 @@ import { executeTouch } from './mechanics/touch';
 import { MechanicsCtx } from './mechanics/context';
 import { HumanController } from './control/HumanController';
 import type { ControlFrame } from './control/ControlFrame';
+import type { InputCancelReason } from '../core/input/InputFrame';
 import { AiController } from './ai/AiController';
 import { resolvePoint, awardPoint, pushScore, endSet, ScoringCtx } from './rules/SetMatch';
 import { outOfAntennaWinner, isMatchOver } from './rules/scoring';
@@ -133,8 +134,8 @@ export class Match {
   }
 
   /** Cancela ações pendentes sem expor o controle humano ao composition root. */
-  cancelPendingAction(): void {
-    this.human.cancelServeCharge(this.ctx);
+  cancelPendingAction(reason: InputCancelReason = 'pause'): void {
+    this.human.cancelPendingAction(reason, this.ctx);
   }
 
   selectionSnapshot() {
@@ -360,11 +361,13 @@ export class Match {
     const medium = speed > 9.5;
 
     const isHuman = plan.isHuman;
-    if (d <= CONTACT.reach) {
+    const intent = isHuman ? this.human.takeContactIntent(plan.planId) : null;
+    const reach = isHuman ? this.human.contactReach() : CONTACT.reach;
+    if (d <= reach) {
       const q = isHuman
         ? this.human.reachQuality(hard, medium, this.ctx)
         : this.ai.reachQuality(this.ctx, hard);
-      if (q >= 0) executeTouch(this.ctx, plan, q);
+      if (q >= 0) executeTouch(this.ctx, plan, q, intent ?? undefined);
       else a.act('dive', 0.8); // tentou e não conseguiu
     } else if (d <= CONTACT.lungeReach) {
       // peixinho!
@@ -383,10 +386,11 @@ export class Match {
     const a = plan.athlete;
     const isHuman = plan.isHuman;
     const airborne = a.isAirborne && a.jumpY > 0.2;
+    const intent = isHuman ? this.human.takeContactIntent(plan.planId) : null;
 
     if (airborne && d <= 1.0) {
       const q = isHuman ? this.human.spikeQuality() : this.ai.spikeQuality();
-      executeTouch(this.ctx, plan, q);
+      executeTouch(this.ctx, plan, q, intent ?? undefined);
     } else if (d <= CONTACT.lungeReach) {
       // não pulou/perdeu o tempo: bola de graça por cima (com risco de sair)
       a.act('set', 0.5);
@@ -489,6 +493,7 @@ export class Match {
       startRally: () => {
         this.state = 'rally';
       },
+      takeHumanBlockIntent: (planId) => this.human.takeBlockIntent(planId),
     };
   }
 

@@ -12,6 +12,7 @@ import { RallyState } from '../RallyState';
 import { TeamSide, COURT, BLOCK } from '../../core/constants';
 import type { MechanicsCtx } from './context';
 import type { Athlete } from '../Team';
+import type { ActionIntent } from '../control/ActionIntent';
 
 describe('blockCrossing', () => {
   it('resolve quando/onde a cortada cruza o plano da rede dentro da janela', () => {
@@ -121,7 +122,12 @@ describe('isBlockable', () => {
 describe('resolveBlock — snap ao ponto analítico de cruzamento (x = 0)', () => {
   // Monta um ctx falso mínimo: bola stale, HOME defende no ar contra ataque AWAY,
   // captura o callback agendado por ctx.after e o burst de partículas.
-  function makeCtx(stalePos: THREE.Vector3, staleVel: THREE.Vector3) {
+  function makeCtx(
+    stalePos: THREE.Vector3,
+    staleVel: THREE.Vector3,
+    blockerZ = 0.5,
+    blockIntent: ActionIntent | null = null,
+  ) {
     const launches: { origin: THREE.Vector3 }[] = [];
     const bursts: THREE.Vector3[] = [];
     const scheduled: { t: number; fn: () => void }[] = [];
@@ -139,7 +145,7 @@ describe('resolveBlock — snap ao ponto analítico de cruzamento (x = 0)', () =
     const blocker = {
       isAirborne: true,
       jumpY: 0.5,
-      pos: new THREE.Vector3(-BLOCK.netX, 0, 0.5), // na rede e alinhado em z ao cruzamento
+      pos: new THREE.Vector3(-BLOCK.netX, 0, blockerZ),
       act: noop,
     } as unknown as Athlete;
     const team = { frontRow: () => [blocker] };
@@ -164,6 +170,7 @@ describe('resolveBlock — snap ao ponto analítico de cruzamento (x = 0)', () =
         scheduled.push({ t, fn });
       },
       planNext: noop,
+      takeHumanBlockIntent: () => blockIntent,
     } as unknown as MechanicsCtx;
 
     return { ctx, launches, bursts, scheduled };
@@ -208,6 +215,33 @@ describe('resolveBlock — snap ao ponto analítico de cruzamento (x = 0)', () =
     );
     resolveBlock(ctx, TeamSide.AWAY);
     expect(scheduled).toHaveLength(0); // sem o guard, seria 1 (bug: bloqueio apaga a falta)
+  });
+
+  it('bloqueio penetrante amplia continuamente o alcance lateral humano', () => {
+    const pos = new THREE.Vector3(-2, 3, 0.5);
+    const vel = new THREE.Vector3(10, 1, 0);
+    const without = makeCtx(pos, vel, 1.45);
+    const penetrating = makeCtx(pos, vel, 1.45, {
+      token: 7,
+      context: 'block',
+      gesture: 'hold',
+      charge: 1,
+      direction: { x: 0, z: 0 },
+      pressedTick: 0,
+      resolvedTick: 42,
+      cause: 'contact',
+      technique: 'penetrating-block',
+      power: 0.5,
+      reach: 1,
+      precision: 0.6,
+      penetration: 1,
+    });
+
+    resolveBlock(without.ctx, TeamSide.AWAY);
+    resolveBlock(penetrating.ctx, TeamSide.AWAY);
+
+    expect(without.scheduled).toHaveLength(0);
+    expect(penetrating.scheduled).toHaveLength(1);
   });
 });
 

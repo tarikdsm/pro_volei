@@ -57,17 +57,23 @@ export function blockerReaches(
   blockerZ: number,
   jumpY: number,
   cross: BlockCrossing,
+  zReachBonus = 0,
+  heightBonus = 0,
 ): boolean {
   const nearNet = Math.abs(blockerX) < BLOCK.nearNetX;
   const zDist = Math.abs(blockerZ - cross.z);
-  if (!nearNet || zDist > BLOCK.zReach) return false;
-  const reach = CONTACT.blockReach + jumpY * BLOCK.jumpReachFactor;
+  if (!nearNet || zDist > BLOCK.zReach + zReachBonus) return false;
+  const reach = CONTACT.blockReach + jumpY * BLOCK.jumpReachFactor + heightBonus;
   return cross.y <= reach;
 }
 
 /** Proximidade [0..1] do bloqueador ao ponto de cruzamento (1 = em cima, 0 = no limite). */
-export function blockProximity(blockerZ: number, crossZ: number): number {
-  return 1 - Math.abs(blockerZ - crossZ) / BLOCK.zReach;
+export function blockProximity(
+  blockerZ: number,
+  crossZ: number,
+  zReach: number = BLOCK.zReach,
+): number {
+  return 1 - Math.abs(blockerZ - crossZ) / zReach;
 }
 
 // Bloqueio da IA (ou preparação do lado da IA contra ataque humano)
@@ -103,6 +109,11 @@ export function resolveBlock(ctx: MechanicsCtx, attackSide: TeamSide): void {
   // candidatos: bloqueadores da linha de frente que estarão no ar
   const team = ctx.teamOf(defSide);
   const isHumanDef = defSide === TeamSide.HOME;
+  const humanIntent = isHumanDef
+    ? (ctx.takeHumanBlockIntent?.(ctx.rally.plan?.planId ?? -1) ?? null)
+    : null;
+  const zReachBonus = (humanIntent?.reach ?? 0) * 0.35;
+  const heightBonus = (humanIntent?.penetration ?? 0) * 0.22;
   for (const blocker of team.frontRow()) {
     // elegibilidade no cruzamento: humano usa o pulo real; a IA usa a pertinência à lista
     // de agendados, agora estável durante todo o ataque (não depende mais do frame exato
@@ -113,10 +124,18 @@ export function resolveBlock(ctx: MechanicsCtx, attackSide: TeamSide): void {
     if (!isScheduledBlocker) continue;
     // jumpY é real p/ o humano (já no ar); p/ a IA vale ≈0 no lançamento (pulo diferido),
     // então o alcance dela fica congelado em CONTACT.blockReach de propósito, sem prever o ápice.
-    if (!blockerReaches(blocker.pos.x, blocker.pos.z, blocker.jumpY, cross)) continue;
+    if (
+      !blockerReaches(blocker.pos.x, blocker.pos.z, blocker.jumpY, cross, zReachBonus, heightBonus)
+    )
+      continue;
 
     // BLOQUEIO! resolve no instante do cruzamento (prox congelada no agendamento)
-    const prox = blockProximity(blocker.pos.z, cross.z);
+    const baseProximity = blockProximity(blocker.pos.z, cross.z, BLOCK.zReach + zReachBonus);
+    const prox = clamp(
+      baseProximity + (1 - baseProximity) * (humanIntent?.penetration ?? 0) * 0.35,
+      0,
+      1,
+    );
     ctx.after(cross.t, () => {
       const r = Math.random();
       // origem no ponto analítico de cruzamento da rede (x=0), não na pos stale da bola

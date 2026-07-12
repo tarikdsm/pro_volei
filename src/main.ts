@@ -157,7 +157,7 @@ function togglePause(): void {
   if (appState === 'paused') {
     if (touch) touch.cancel('pause');
     else input.cancel('pause');
-    match.cancelPendingAction();
+    match.cancelPendingAction('pause');
     menu.showPause();
   } else if (previous === 'paused') {
     match.snapPresentation();
@@ -190,7 +190,7 @@ function discardStalledInput(discard: FixedStepDiscard): void {
   if (discard.reason !== 'wall-cap') return;
   input.cancelAction('stall', discard.toMs);
   input.consumeUntil(discard.toMs);
-  match.cancelPendingAction();
+  match.cancelPendingAction('stall');
 }
 
 // ---------- loop ----------

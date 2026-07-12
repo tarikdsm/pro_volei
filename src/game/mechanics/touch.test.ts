@@ -5,6 +5,12 @@ import { RallyState, TouchPlan } from '../RallyState';
 import { TeamSide } from '../../core/constants';
 import type { MechanicsCtx } from './context';
 import type { Athlete } from '../Team';
+import type {
+  ActionContext,
+  ActionGesture,
+  ActionIntent,
+  ActionTechnique,
+} from '../control/ActionIntent';
 
 // executeTouch é função livre sobre o MechanicsCtx: testável em Node com fakes
 // (usa só THREE.Vector3). O foco é garantir que a bola é lançada do ponto ANALÍTICO
@@ -17,7 +23,12 @@ interface FakeBall {
   launch(p0: THREE.Vector3, v0: THREE.Vector3): void;
 }
 
-function makeCtx(stalePos: THREE.Vector3): { ctx: MechanicsCtx; ball: FakeBall } {
+function makeCtx(stalePos: THREE.Vector3): {
+  ctx: MechanicsCtx;
+  ball: FakeBall;
+  acts: string[];
+  planned: string[];
+} {
   const ball: FakeBall = {
     pos: stalePos.clone(),
     vel: new THREE.Vector3(),
@@ -29,7 +40,14 @@ function makeCtx(stalePos: THREE.Vector3): { ctx: MechanicsCtx; ball: FakeBall }
     },
   };
 
-  const athlete = { pos: new THREE.Vector3(), act(): void {} } as unknown as Athlete;
+  const acts: string[] = [];
+  const planned: string[] = [];
+  const athlete = {
+    pos: new THREE.Vector3(),
+    act(kind: string): void {
+      acts.push(kind);
+    },
+  } as unknown as Athlete;
   const team = {
     setterSpot: () => ({ x: -0.95, z: 1.1 }),
     nearestTo: () => athlete,
@@ -54,10 +72,10 @@ function makeCtx(stalePos: THREE.Vector3): { ctx: MechanicsCtx; ball: FakeBall }
     chosenZone: 1,
     teamOf: () => team,
     after: noop,
-    planNext: noop,
+    planNext: (kind: string) => planned.push(kind),
   } as unknown as MechanicsCtx;
 
-  return { ctx, ball };
+  return { ctx, ball, acts, planned };
 }
 
 function makePlan(kind: TouchPlan['kind'], athlete: Athlete): TouchPlan {
@@ -70,6 +88,30 @@ function makePlan(kind: TouchPlan['kind'], athlete: Athlete): TouchPlan {
     kind,
     isHuman: true,
     done: false,
+  };
+}
+
+function actionIntent(
+  context: ActionContext,
+  gesture: ActionGesture,
+  technique: ActionTechnique,
+  overrides: Partial<ActionIntent> = {},
+): ActionIntent {
+  return {
+    token: 1,
+    context,
+    gesture,
+    charge: gesture === 'tap' ? 0 : 0.8,
+    direction: { x: 0, z: 0 },
+    pressedTick: 1,
+    resolvedTick: 10,
+    cause: 'release',
+    technique,
+    power: 0.8,
+    reach: 0.7,
+    precision: 0.85,
+    penetration: 0.5,
+    ...overrides,
   };
 }
 
@@ -108,5 +150,80 @@ describe('executeTouch — origem no ponto analítico (plan.point), não na pos 
     expect(ball.origin!.x).toBeCloseTo(-3);
     expect(ball.origin!.z).toBeCloseTo(1);
     expect(ball.origin!.x).not.toBe(-2);
+  });
+});
+
+describe('executeTouch — intenção semântica humana', () => {
+  it('direção deliberada orienta o passe e hold usa animação de mergulho', () => {
+    const neutral = makeCtx(new THREE.Vector3());
+    const directed = makeCtx(new THREE.Vector3());
+    const neutralPlan = makePlan('dig', neutral.ctx.teamOf(TeamSide.HOME).nearestTo(0, 0));
+    const directedPlan = makePlan('dig', directed.ctx.teamOf(TeamSide.HOME).nearestTo(0, 0));
+
+    executeTouch(neutral.ctx, neutralPlan, 1, actionIntent('receive', 'tap', 'platform-pass'));
+    executeTouch(
+      directed.ctx,
+      directedPlan,
+      1,
+      actionIntent('receive', 'hold', 'emergency-dive', {
+        direction: { x: 0, z: 1 },
+      }),
+    );
+
+    expect(directed.ball.vel.z).toBeGreaterThan(neutral.ball.vel.z);
+    expect(directed.acts).toContain('dive');
+  });
+
+  it('levantamento alto tem velocidade vertical maior que o tempo rápido', () => {
+    const high = makeCtx(new THREE.Vector3());
+    const quick = makeCtx(new THREE.Vector3());
+    const highPlan = makePlan('set', high.ctx.teamOf(TeamSide.HOME).nearestTo(0, 0));
+    const quickPlan = makePlan('set', quick.ctx.teamOf(TeamSide.HOME).nearestTo(0, 0));
+
+    executeTouch(high.ctx, highPlan, 1, actionIntent('set', 'tap', 'high-set'));
+    executeTouch(quick.ctx, quickPlan, 1, actionIntent('set', 'hold', 'quick-set'));
+
+    expect(high.ball.vel.y).toBeGreaterThan(quick.ball.vel.y);
+  });
+
+  it('cortada potente viaja mais rápido que largada para o mesmo alvo', () => {
+    const tip = makeCtx(new THREE.Vector3());
+    const spike = makeCtx(new THREE.Vector3());
+    const tipPlan = makePlan('spike', tip.ctx.teamOf(TeamSide.HOME).nearestTo(0, 0));
+    const spikePlan = makePlan('spike', spike.ctx.teamOf(TeamSide.HOME).nearestTo(0, 0));
+
+    executeTouch(tip.ctx, tipPlan, 1, actionIntent('attack', 'tap', 'tip'));
+    executeTouch(
+      spike.ctx,
+      spikePlan,
+      1,
+      actionIntent('attack', 'hold', 'power-spike', { power: 1 }),
+    );
+
+    expect(spike.ball.vel.length()).toBeGreaterThan(tip.ball.vel.length());
+  });
+
+  it('freeball semântica envia a bola claramente para a quadra rival', () => {
+    const safe = makeCtx(new THREE.Vector3());
+    const plan = makePlan('freeball', safe.ctx.teamOf(TeamSide.HOME).nearestTo(0, 0));
+
+    executeTouch(safe.ctx, plan, 1, actionIntent('freeball', 'tap', 'safe-save'));
+
+    expect(safe.ball.vel.x).toBeGreaterThan(5);
+    expect(safe.planned).toContain('pass');
+  });
+
+  it('terceiro toque converte passe automaticamente em bola para a outra quadra', () => {
+    const third = makeCtx(new THREE.Vector3());
+    const plan = makePlan('pass', third.ctx.teamOf(TeamSide.HOME).nearestTo(0, 0));
+    third.ctx.rally.countTouch(TeamSide.HOME);
+    third.ctx.rally.countTouch(TeamSide.HOME);
+
+    executeTouch(third.ctx, plan, 1, actionIntent('receive', 'tap', 'platform-pass'));
+
+    expect(third.ctx.rally.possessionTouches).toBe(3);
+    expect(third.ctx.rally.lastKind).toBe('freeball');
+    expect(third.ball.vel.x).toBeGreaterThan(5);
+    expect(third.planned).toContain('pass');
   });
 });
