@@ -5,8 +5,8 @@ Contexto do projeto para o Claude Code. Leia antes de mexer no código.
 ## O que é
 
 **Pró Volei** — jogo de vôlei 3D no browser, **humano vs CPU**, 6×6, quadra oficial.
-Roda 100% offline: geometria procedural, texturas geradas em canvas, áudio sintetizado
-via Web Audio API. **Zero assets remotos.**
+Roda 100% offline. A v1.1 usa geometria procedural, texturas em canvas e áudio sintetizado;
+a versão 2.0 também pode usar assets locais otimizados e versionados.
 
 - **Alvos de publicação:** Web (atual) → Desktop/Steam (Tauri) → Mobile (Capacitor). Mesmo
   código web em todos; wrappers nativos entram depois. Ver [docs/ROADMAP.md](docs/ROADMAP.md).
@@ -71,8 +71,11 @@ src/
   Siga o estilo do arquivo em que estiver mexendo.
 - **Tuning centralizado:** dimensões, física e parâmetros de IA/dificuldade ficam em
   `core/constants.ts`. Ajuste de gameplay = editar constantes, não espalhar números mágicos.
-- **Nada de assets remotos.** Toda geometria/textura/som é gerado em runtime. Não adicione
-  CDN, fontes externas nem arquivos de mídia sem discutir (quebra o offline-first).
+- **Assets de runtime devem ser locais.** É proibido carregar CDN, fonte, imagem, modelo,
+  áudio, vídeo ou API por URL: **zero URLs remotas em runtime**. Assets locais são permitidos
+  quando forem originais ou tiverem autoria ou licença registrada, manifesto, orçamento e
+  fallback. A geometria procedural existente continua válida; não é mais uma obrigação para
+  toda arte nova.
 - **Estilo:** Prettier decide formatação (aspas simples, ponto e vírgula, 100 colunas, 2 espaços).
   LF em todo o repo (`.gitattributes`). Rode `npm run check` antes de commitar.
 

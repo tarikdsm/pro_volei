@@ -17,8 +17,9 @@ npm install   # instala as dependências (node_modules não vai para o git)
 npm run dev   # abre em http://localhost:5173
 ```
 
-Funciona **100% offline** depois do `npm install` — zero assets remotos:
-toda a geometria é procedural, texturas geradas em canvas e áudio sintetizado via Web Audio API.
+A release atual funciona **100% offline** depois do `npm install`: geometria procedural,
+texturas em canvas e áudio via Web Audio API, sem downloads remotos em runtime. O design 2.0
+também permite modelos, texturas e sons locais otimizados; a regra de zero assets remotos permanece.
 
 ## Desenvolvimento
 

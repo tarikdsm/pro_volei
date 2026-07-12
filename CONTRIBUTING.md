@@ -51,8 +51,10 @@ npm run check        # tudo acima — o portão de qualidade
   identificadores de domínio. Siga o padrão do arquivo que você está editando.
 - **Tuning em `core/constants.ts`:** ajuste de gameplay é editar constantes, não espalhar
   números mágicos pelo código.
-- **Offline-first:** nunca adicione asset remoto (CDN, fonte externa, imagem, som). Tudo é
-  gerado em runtime. Isso é regra de projeto, não preferência.
+- **Offline-first:** nunca carregue asset por URL remota. Assets locais originais/licenciados
+  podem ser adicionados com manifesto de autoria/licença, compressão, orçamento e fallback.
+  Toda mudança de asset deve passar pelo teste `tests/docs/no-remote-assets.test.ts` e pelos
+  gates de performance aplicáveis.
 
 ## Testes
 
