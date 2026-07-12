@@ -23,6 +23,7 @@ import { PresentationFeedback } from './systems/PresentationFeedback';
 import { detectMotionProfile } from './systems/camera/MotionProfile';
 import { createSafeFrame } from './ui/SafeFrameLayout';
 import type { SafeFrame, ScreenRect } from './systems/camera/CameraFrame';
+import { parseSeed, RandomHub } from './core/random';
 
 const app = document.getElementById('app')!;
 const debugWindow = window as unknown as {
@@ -37,6 +38,8 @@ const debugWindow = window as unknown as {
   __action?: ReturnType<Match['actionSnapshot']>;
   __feedback?: ReturnType<PresentationFeedback['snapshot']>;
   __cameraFrame?: ReturnType<CameraDirector['presentationSnapshot']>;
+  __seed?: number;
+  __random?: ReturnType<RandomHub['snapshot']>;
   __simulationClock?: {
     tick: number;
     simulationSeconds: number;
@@ -52,6 +55,18 @@ const isTouch =
   'ontouchstart' in window ||
   new URLSearchParams(location.search).has('touch');
 if (isTouch) document.body.classList.add('touch');
+
+function freshSeed(): number {
+  const values = new Uint32Array(1);
+  if (globalThis.crypto?.getRandomValues) {
+    globalThis.crypto.getRandomValues(values);
+    return values[0]!;
+  }
+  return (Date.now() ^ Math.floor(performance.timeOrigin)) >>> 0;
+}
+
+const matchSeed = parseSeed(new URLSearchParams(location.search).get('seed')) ?? freshSeed();
+const randomHub = new RandomHub(matchSeed);
 
 // ---------- renderer ----------
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -158,49 +173,52 @@ function slowMo(scale: number, dur: number): void {
 let appState: AppState = 'title';
 
 // ---------- partida ----------
-const match = new Match({
-  banner: (t, s) => hud.banner(t, s),
-  hint: (t) => {
-    hud.hint(t);
-    markCameraLayoutDirty();
-  },
-  setScore: (h, a, hs, as, n, sv) => {
-    hud.setScore(h, a, hs, as, n, sv);
-    markCameraLayoutDirty();
-  },
-  serveMeter: (v, val) => {
-    hud.serveMeter(v, val);
-    if (v !== meterWasVisible) {
-      meterWasVisible = v;
+const match = new Match(
+  {
+    banner: (t, s) => hud.banner(t, s),
+    hint: (t) => {
+      hud.hint(t);
       markCameraLayoutDirty();
-    }
-  },
-  zoneHint: (z) => {
-    hud.zoneHint(z);
-    const visible = z !== null;
-    if (visible !== zonesWereVisible) {
-      zonesWereVisible = visible;
+    },
+    setScore: (h, a, hs, as, n, sv) => {
+      hud.setScore(h, a, hs, as, n, sv);
       markCameraLayoutDirty();
-    }
+    },
+    serveMeter: (v, val) => {
+      hud.serveMeter(v, val);
+      if (v !== meterWasVisible) {
+        meterWasVisible = v;
+        markCameraLayoutDirty();
+      }
+    },
+    zoneHint: (z) => {
+      hud.zoneHint(z);
+      const visible = z !== null;
+      if (visible !== zonesWereVisible) {
+        zonesWereVisible = visible;
+        markCameraLayoutDirty();
+      }
+    },
+    slowMo,
+    matchEnd: (homeWon, stats, scoreline) => {
+      // fim da partida: trava o estado em 'ended' para o Escape não abrir a pausa
+      // sobre a tela de vitória (sobrescreveria o innerHTML e travaria a UI).
+      appState = nextAppState(appState, 'matchEnded');
+      hud.show(false);
+      touch?.show(false);
+      menu.showVictory(homeWon, stats, scoreline);
+      markCameraLayoutDirty();
+    },
+    feedback,
+    audio,
+    effects,
+    camera: director,
+    crowd,
+    referee,
+    arena,
   },
-  slowMo,
-  matchEnd: (homeWon, stats, scoreline) => {
-    // fim da partida: trava o estado em 'ended' para o Escape não abrir a pausa
-    // sobre a tela de vitória (sobrescreveria o innerHTML e travaria a UI).
-    appState = nextAppState(appState, 'matchEnded');
-    hud.show(false);
-    touch?.show(false);
-    menu.showVictory(homeWon, stats, scoreline);
-    markCameraLayoutDirty();
-  },
-  feedback,
-  audio,
-  effects,
-  camera: director,
-  crowd,
-  referee,
-  arena,
-});
+  { random: randomHub },
+);
 scene.add(match.group);
 
 // ganchos de depuração globais: em dev sempre; no build de produção só com ?debug na URL
@@ -212,6 +230,7 @@ if (debugEnabled) {
   // hook de perf: expõe o renderer para o harness de baseline ler renderer.info.render
   // (draw calls / triângulos por frame). Só leitura; não altera o jogo.
   debugWindow.__renderer = renderer;
+  debugWindow.__seed = matchSeed;
 }
 
 menu.onStart = () => {
@@ -325,6 +344,7 @@ function frame(now: number): void {
     debugWindow.__action = match.actionSnapshot();
     debugWindow.__feedback = feedback.snapshot();
     debugWindow.__cameraFrame = director.presentationSnapshot();
+    debugWindow.__random = randomHub.snapshot();
     debugWindow.__simulationClock = {
       tick: simulationFrame.tick,
       simulationSeconds: simulationFrame.simulationSeconds,

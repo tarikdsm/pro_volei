@@ -3,6 +3,8 @@ import { AiController } from './AiController';
 import { RallyState, TouchPlan } from '../RallyState';
 import type { MechanicsCtx } from '../mechanics/context';
 import type { Athlete } from '../Team';
+import { RandomHub } from '../../core/random';
+import { SequenceRandom } from '../../core/random/testing/SequenceRandom';
 
 // Stub mínimo de Athlete: só conta as chamadas de act/jump que a IA dispara.
 function makeBlockerStub(): { athlete: Athlete; calls: { act: number; jump: number } } {
@@ -17,6 +19,50 @@ function makeBlockerStub(): { athlete: Athlete; calls: { act: number; jump: numb
   } as unknown as Athlete;
   return { athlete, calls };
 }
+
+describe('AiController — consumo determinístico na defesa', () => {
+  function qualityCtx(contactValues: readonly number[]): {
+    ctx: MechanicsCtx;
+    contact: SequenceRandom;
+  } {
+    const hub = new RandomHub(1);
+    const contact = SequenceRandom.fromFloats(contactValues);
+    const ctx = {
+      diff: { digChance: 0.5, passQuality: [0.4, 0.8] },
+      random: {
+        rules: hub.stream('rules'),
+        ai: hub.stream('ai'),
+        contact,
+        control: hub.stream('control'),
+      },
+    } as unknown as MechanicsCtx;
+    return { ctx, contact };
+  }
+
+  it('defesa simples consome somente o sorteio de qualidade', () => {
+    const ai = new AiController();
+    const { ctx, contact } = qualityCtx([0.5]);
+
+    expect(ai.reachQuality(ctx, false)).toBeCloseTo(0.6);
+    expect(contact.draws).toBe(1);
+  });
+
+  it('falha dura consome chance de defesa e decisão de toque impossível', () => {
+    const ai = new AiController();
+    const { ctx, contact } = qualityCtx([0.9, 0.9]);
+
+    expect(ai.reachQuality(ctx, true)).toBe(-1);
+    expect(contact.draws).toBe(2);
+  });
+
+  it('raspada defensiva consome o range apenas quando selecionada', () => {
+    const ai = new AiController();
+    const { ctx, contact } = qualityCtx([0.9, 0.1, 0.5]);
+
+    expect(ai.reachQuality(ctx, true)).toBeCloseTo(0.075);
+    expect(contact.draws).toBe(3);
+  });
+});
 
 // ctx mínimo: updateScheduledJumps só lê rally.plan e rally.blockers.
 function makeCtx(rally: RallyState): MechanicsCtx {

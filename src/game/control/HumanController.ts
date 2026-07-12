@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { CONTACT, PLAYER, SERVE_TUNING, TeamSide } from '../../core/constants';
 import type { InputCancelReason } from '../../core/input/InputFrame';
-import { chance, clamp, lerp, rand, randPick } from '../../core/math3d';
+import { clamp, lerp } from '../../core/math3d';
 import type { TouchPlan } from '../RallyState';
 import type { Athlete } from '../Team';
 import type { MechanicsCtx } from '../mechanics/context';
@@ -84,9 +84,9 @@ export class HumanController {
     this.lastRequest = null;
   }
 
-  resetForServe(): void {
+  resetForServe(ctx: MechanicsCtx): void {
     this.clearResolvedIntent();
-    this.chosenZone = randPick([0, 1, 2]);
+    this.chosenZone = ctx.random.control.pick([0, 1, 2]);
   }
 
   /** Cada saque recebe identidade negativa monotônica, separada dos planIds do rally. */
@@ -94,7 +94,7 @@ export class HumanController {
     this.bindAction(this.nextServeToken--, 'serve');
     this.ctl = 'serve';
     this.controlled = server;
-    this.aim.set(rand(4, 6.5), 0, rand(-2, 2));
+    this.aim.set(ctx.random.control.range(4, 6.5), 0, ctx.random.control.range(-2, 2));
     ctx.hooks.hint('Toque para saque flutuante · segure para saque potente · setas miram');
     ctx.hooks.serveMeter(true, 0);
   }
@@ -111,7 +111,7 @@ export class HumanController {
     if (context === 'attack') {
       this.ctl = 'attack';
       this.controlled = plan.athlete;
-      this.aim.set(rand(4.5, 6.5), 0, rand(-2.5, 2.5));
+      this.aim.set(ctx.random.control.range(4.5, 6.5), 0, ctx.random.control.range(-2.5, 2.5));
       ctx.hooks.hint('Toque para largada · segure para cortada potente · setas miram');
       return;
     }
@@ -168,7 +168,9 @@ export class HumanController {
     }
 
     const missProbability = hard ? 0.6 : medium ? 0.28 : 0;
-    if (chance(missProbability)) return chance(0.5) ? rand(0.02, 0.12) : -1;
+    if (ctx.random.contact.chance(missProbability)) {
+      return ctx.random.contact.chance(0.5) ? ctx.random.contact.range(0.02, 0.12) : -1;
+    }
     return hard ? 0.3 : 0.45;
   }
 
@@ -500,10 +502,13 @@ export class HumanController {
     target.z = clamp(target.z + intent.direction.z * 1.4, -4.8, 4.8);
     let clearance =
       lerp(SERVE_TUNING.clearanceHi, SERVE_TUNING.clearanceLo, intent.power) *
-      rand(SERVE_TUNING.clearanceJitter[0], SERVE_TUNING.clearanceJitter[1]);
-    if (intent.technique === 'power-serve' && chance((1 - intent.precision) * 0.65)) {
-      target.x = rand(9.6, 11.5);
-      clearance = rand(0.18, 0.5);
+      ctx.random.contact.range(SERVE_TUNING.clearanceJitter[0], SERVE_TUNING.clearanceJitter[1]);
+    if (
+      intent.technique === 'power-serve' &&
+      ctx.random.contact.chance((1 - intent.precision) * 0.65)
+    ) {
+      target.x = ctx.random.contact.range(9.6, 11.5);
+      clearance = ctx.random.contact.range(0.18, 0.5);
     }
 
     const server = this.controlled;

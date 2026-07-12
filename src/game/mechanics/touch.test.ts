@@ -11,6 +11,18 @@ import type {
   ActionIntent,
   ActionTechnique,
 } from '../control/ActionIntent';
+import { RandomHub } from '../../core/random';
+import { SequenceRandom } from '../../core/random/testing/SequenceRandom';
+
+function makeRandomStreams(seed = 1) {
+  const hub = new RandomHub(seed);
+  return {
+    rules: hub.stream('rules'),
+    ai: hub.stream('ai'),
+    contact: hub.stream('contact'),
+    control: hub.stream('control'),
+  };
+}
 
 // executeTouch é função livre sobre o MechanicsCtx: testável em Node com fakes
 // (usa só THREE.Vector3). O foco é garantir que a bola é lançada do ponto ANALÍTICO
@@ -73,6 +85,8 @@ function makeCtx(stalePos: THREE.Vector3): {
     teamOf: () => team,
     after: noop,
     planNext: (kind: string) => planned.push(kind),
+    random: makeRandomStreams(),
+    isHumanSide: (side: TeamSide) => side === TeamSide.HOME,
   } as unknown as MechanicsCtx;
 
   return { ctx, ball, acts, planned };
@@ -225,5 +239,36 @@ describe('executeTouch — intenção semântica humana', () => {
     expect(third.ctx.rally.lastKind).toBe('freeball');
     expect(third.ball.vel.x).toBeGreaterThan(5);
     expect(third.planned).toContain('pass');
+  });
+});
+
+describe('executeTouch — ownership e orçamento de RNG', () => {
+  it('passe preciso consome apenas dois draws físicos do stream contact', () => {
+    const sample = makeCtx(new THREE.Vector3());
+    const contact = SequenceRandom.fromFloats([0.25, 0.75]);
+    const ai = SequenceRandom.fromFloats([0.5]);
+    Object.assign(sample.ctx.random, { contact, ai });
+    const plan = makePlan('pass', sample.ctx.teamOf(TeamSide.HOME).nearestTo(0, 0));
+
+    executeTouch(sample.ctx, plan, 1);
+
+    expect(contact.draws).toBe(2);
+    expect(ai.draws).toBe(0);
+  });
+
+  it('ataque da IA separa erro físico de geração e escolha tática do alvo', () => {
+    const sample = makeCtx(new THREE.Vector3());
+    const contact = SequenceRandom.fromFloats([0.9]);
+    const ai = SequenceRandom.fromFloats([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]);
+    Object.assign(sample.ctx.random, { contact, ai });
+    const plan = makePlan('spike', sample.ctx.teamOf(TeamSide.AWAY).nearestTo(0, 0));
+    plan.side = TeamSide.AWAY;
+    plan.isHuman = false;
+    plan.point.set(3, 3, 0);
+
+    executeTouch(sample.ctx, plan, 1);
+
+    expect(contact.draws).toBe(1);
+    expect(ai.draws).toBe(9);
   });
 });

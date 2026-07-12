@@ -7,6 +7,17 @@ import type { MechanicsCtx } from '../mechanics/context';
 import type { Athlete, Team } from '../Team';
 import type { ControlFrame } from './ControlFrame';
 import type { InputCancelReason } from '../../core/input/InputFrame';
+import { RandomHub } from '../../core/random';
+
+function makeRandomStreams(seed = 1) {
+  const hub = new RandomHub(seed);
+  return {
+    rules: hub.stream('rules'),
+    ai: hub.stream('ai'),
+    contact: hub.stream('contact'),
+    control: hub.stream('control'),
+  };
+}
 
 function makeFrame(
   opts: {
@@ -103,6 +114,8 @@ function makeCtx() {
       camera: { setMode: noop },
     },
     after: noop,
+    random: makeRandomStreams(),
+    isHumanSide: (side: TeamSide) => side === TeamSide.HOME,
   } as unknown as MechanicsCtx;
   return { ctx, serveMeterCalls, launches, zoneHintCalls };
 }

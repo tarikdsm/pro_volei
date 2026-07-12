@@ -8,6 +8,14 @@ import { Team } from '../Team';
 import { RallyState } from '../RallyState';
 import type { Hooks, MatchStats } from '../Match';
 import type { ActionIntent } from '../control/ActionIntent';
+import type { RandomSource } from '../../core/random';
+
+export interface GameplayRandomStreams {
+  readonly rules: RandomSource;
+  readonly ai: RandomSource;
+  readonly contact: RandomSource;
+  readonly control: RandomSource;
+}
 
 export interface MechanicsCtx {
   ball: Ball;
@@ -18,6 +26,8 @@ export interface MechanicsCtx {
   aim: THREE.Vector3; // leitura (cortada humana)
   chosenZone: number; // leitura (levantamento humano)
   stats: MatchStats; // escrita (stats.blocks no bloqueio)
+  random: GameplayRandomStreams;
+  isHumanSide(side: TeamSide): boolean;
   teamOf(side: TeamSide): Team;
   after(t: number, fn: () => void): void;
   planNext(kind: TouchKind): void;

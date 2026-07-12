@@ -21,12 +21,13 @@ import {
   TouchKind,
   CAMERA_FEEL,
 } from '../core/constants';
-import { ballisticArc, clamp, rand, chance } from '../core/math3d';
+import { ballisticArc, clamp } from '../core/math3d';
+import { RandomHub } from '../core/random';
 import { computeNetCrossing, netTouchPoint } from './mechanics/net';
 import { RallyState, TouchPlan } from './RallyState';
 import { prepareBlock } from './mechanics/block';
 import { executeTouch } from './mechanics/touch';
-import { MechanicsCtx } from './mechanics/context';
+import { MechanicsCtx, type GameplayRandomStreams } from './mechanics/context';
 import { HumanController } from './control/HumanController';
 import type { ControlFrame } from './control/ControlFrame';
 import type { InputCancelReason } from '../core/input/InputFrame';
@@ -78,6 +79,11 @@ type MutableCameraFrame = {
   contactIn: number | null;
 };
 
+export interface MatchOptions {
+  readonly random?: RandomHub;
+  readonly humanSide?: TeamSide.HOME | null;
+}
+
 export class Match {
   group = new THREE.Group();
   ball = new Ball();
@@ -104,6 +110,9 @@ export class Match {
   private human = new HumanController();
   // decisões da IA (agendamento de aproximação/pulo, qualidade, saque)
   private ai = new AiController();
+  private readonly randomHub: RandomHub;
+  private readonly random: GameplayRandomStreams;
+  private readonly humanSide: TeamSide.HOME | null;
 
   private stats: MatchStats = { aces: 0, blocks: 0, longestRally: 0, points: [0, 0] };
   private readonly cameraBall: MutableCameraPoint = { x: 0, y: 0, z: 0 };
@@ -120,7 +129,18 @@ export class Match {
   private ctx!: MechanicsCtx;
   private scoringCtx!: ScoringCtx;
 
-  constructor(private hooks: Hooks) {
+  constructor(
+    private hooks: Hooks,
+    options: MatchOptions = {},
+  ) {
+    this.randomHub = options.random ?? new RandomHub(0);
+    this.random = {
+      rules: this.randomHub.stream('rules'),
+      ai: this.randomHub.stream('ai'),
+      contact: this.randomHub.stream('contact'),
+      control: this.randomHub.stream('control'),
+    };
+    this.humanSide = options.humanSide === undefined ? TeamSide.HOME : options.humanSide;
     this.group.add(this.ball.group, this.home.group, this.away.group);
     this.group.add(this.human.marker);
     this.ball.hold(new THREE.Vector3(0, 1.2, 0));
@@ -151,7 +171,7 @@ export class Match {
     this.sets = [0, 0];
     this.setNumber = 1;
     this.stats = { aces: 0, blocks: 0, longestRally: 0, points: [0, 0] };
-    this.servingTeam = chance(0.5) ? TeamSide.HOME : TeamSide.AWAY;
+    this.servingTeam = this.random.rules.chance(0.5) ? TeamSide.HOME : TeamSide.AWAY;
     // registra o sacador inicial (moeda da partida) para alimentar a alternância entre sets
     this.firstServerOfSet = this.servingTeam;
     // nova partida: restaura o rodízio inicial dos dois times (não herda o da partida anterior)
@@ -261,7 +281,7 @@ export class Match {
     this.stateTime = 0;
     this.timeline.clearScheduled();
     this.rally.reset();
-    this.human.resetForServe();
+    this.human.resetForServe(this.ctx);
     this.hooks.zoneHint(null);
     this.hooks.effects.showLanding(null);
     this.hooks.effects.showAim(null);
@@ -279,7 +299,7 @@ export class Match {
     );
 
     this.hooks.camera.servePos.set(spot.x, 1.6, spot.z);
-    const humanServes = this.servingTeam === TeamSide.HOME;
+    const humanServes = this.isHumanSide(this.servingTeam);
     this.hooks.camera.setMode(humanServes ? 'serveHome' : 'serveAway', { cut: true });
     this.after(0.5, () => this.hooks.audio.whistle());
 
@@ -288,7 +308,7 @@ export class Match {
     } else {
       this.human.awaitOpponentServe();
       this.hooks.hint('Saque do adversário — prepare a recepção!');
-      this.after(rand(1.4, 2.4), () => this.ai.serve(this.ctx));
+      this.after(this.random.ai.range(1.4, 2.4), () => this.ai.serve(this.ctx));
     }
   }
 
@@ -330,7 +350,7 @@ export class Match {
       athlete = team.nearestTo(cPoint.x, cPoint.z, this.rally.excludedPasser(landSide));
     }
 
-    const isHuman = landSide === TeamSide.HOME;
+    const isHuman = this.isHumanSide(landSide);
     this.rally.plan = {
       planId: this.rally.allocatePlanId(),
       side: landSide,
@@ -367,8 +387,9 @@ export class Match {
     // controle: humano assume seu lado; contra a cortada da IA, pode bloquear
     if (isHuman) {
       this.human.onAssigned(this.ctx, this.rally.plan);
-    } else if (nextKind === 'spike') {
-      this.human.assignBlock(this.home.nearestFrontRowTo(cPoint.z), this.ctx);
+    } else if (nextKind === 'spike' && this.isHumanSide(otherSide(landSide))) {
+      const humanTeam = this.teamOf(otherSide(landSide));
+      this.human.assignBlock(humanTeam.nearestFrontRowTo(cPoint.z), this.ctx);
     } else {
       this.human.idle(this.ctx);
     }
@@ -447,9 +468,9 @@ export class Match {
       // peixinho!
       a.act('dive', 0.8);
       const saveP = hard ? 0.35 : 0.75;
-      if (chance(saveP)) {
+      if (this.random.contact.chance(saveP)) {
         this.hooks.crowd.excite(0.6);
-        const q = rand(0.08, 0.35);
+        const q = this.random.contact.range(0.08, 0.35);
         if (isHuman && intent) this.emitTimingFeedback(plan, q);
         executeTouch(this.ctx, plan, q, intent ?? undefined);
       } else if (isHuman && intent) {
@@ -469,7 +490,7 @@ export class Match {
     const intent = isHuman ? this.human.takeContactIntent(plan.planId) : null;
 
     if (airborne && d <= 1.0) {
-      const q = isHuman ? this.human.spikeQuality() : this.ai.spikeQuality();
+      const q = isHuman ? this.human.spikeQuality() : this.ai.spikeQuality(this.ctx);
       if (isHuman && intent) this.emitTimingFeedback(plan, q);
       executeTouch(this.ctx, plan, q, intent ?? undefined);
     } else if (d <= CONTACT.lungeReach) {
@@ -479,9 +500,17 @@ export class Match {
       this.hooks.audio.hitSoft();
       const enemy = otherSide(plan.side);
       const s = sideSign(enemy);
-      const target = chance(0.12)
-        ? new THREE.Vector3(s * rand(9.6, 10.8), 0, rand(-5, 5))
-        : new THREE.Vector3(s * rand(3, 7), 0, rand(-3, 3));
+      const target = this.random.contact.chance(0.12)
+        ? new THREE.Vector3(
+            s * this.random.contact.range(9.6, 10.8),
+            0,
+            this.random.contact.range(-5, 5),
+          )
+        : new THREE.Vector3(
+            s * this.random.contact.range(3, 7),
+            0,
+            this.random.contact.range(-3, 3),
+          );
       const { v0 } = ballisticArc(plan.point.clone(), target, 3.2);
       this.ball.launch(plan.point.clone(), v0);
       // conta o toque
@@ -564,6 +593,8 @@ export class Match {
       rally: this.rally,
       hooks: this.hooks,
       aim: this.human.aim,
+      random: this.random,
+      isHumanSide: (side) => this.isHumanSide(side),
       get diff() {
         return diff();
       },
@@ -647,7 +678,7 @@ export class Match {
       set firstServerOfSet(s) {
         setFirstServer(s);
       },
-      coinTossSide: () => (chance(0.5) ? TeamSide.HOME : TeamSide.AWAY),
+      coinTossSide: () => (this.random.rules.chance(0.5) ? TeamSide.HOME : TeamSide.AWAY),
       teamOf: (side) => this.teamOf(side),
       after: (t, fn) => this.after(t, fn),
       releaseControl: () => this.human.release(),
@@ -670,6 +701,10 @@ export class Match {
 
   private teamOf(side: TeamSide): Team {
     return side === TeamSide.HOME ? this.home : this.away;
+  }
+
+  private isHumanSide(side: TeamSide): boolean {
+    return this.humanSide !== null && side === this.humanSide;
   }
 
   private after(t: number, fn: () => void): void {

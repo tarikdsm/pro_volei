@@ -10,7 +10,7 @@ import {
   otherSide,
   sideSign,
 } from '../../core/constants';
-import { ballisticDrive, rand, chance, clamp } from '../../core/math3d';
+import { ballisticDrive, clamp } from '../../core/math3d';
 import { computeNetCrossing } from './net';
 import type { MechanicsCtx } from './context';
 
@@ -85,14 +85,14 @@ export function prepareBlock(
 ): void {
   ctx.rally.blockers = [];
   const team = ctx.teamOf(side);
-  const isAI = side === TeamSide.AWAY;
+  const isAI = !ctx.isHumanSide(side);
   const blocker = team.nearestFrontRowTo(z);
   const bx = sideSign(side) * BLOCK.netX;
   blocker.moveTo(bx, clamp(z, -COURT.halfWidth + 0.4, COURT.halfWidth - 0.4));
-  if (isAI && chance(ctx.diff.blockChance)) {
+  if (isAI && ctx.random.ai.chance(ctx.diff.blockChance)) {
     ctx.rally.blockers.push({
       athlete: blocker,
-      jumpIn: contactIn + rand(BLOCK.jumpDelayRange[0], BLOCK.jumpDelayRange[1]),
+      jumpIn: contactIn + ctx.random.ai.range(BLOCK.jumpDelayRange[0], BLOCK.jumpDelayRange[1]),
       jumped: false,
     });
   }
@@ -108,7 +108,7 @@ export function resolveBlock(ctx: MechanicsCtx, attackSide: TeamSide): void {
 
   // candidatos: bloqueadores da linha de frente que estarão no ar
   const team = ctx.teamOf(defSide);
-  const isHumanDef = defSide === TeamSide.HOME;
+  const isHumanDef = ctx.isHumanSide(defSide);
   const humanIntent = isHumanDef
     ? (ctx.takeHumanBlockIntent?.(ctx.rally.plan?.planId ?? -1) ?? null)
     : null;
@@ -137,7 +137,7 @@ export function resolveBlock(ctx: MechanicsCtx, attackSide: TeamSide): void {
       1,
     );
     ctx.after(cross.t, () => {
-      const r = Math.random();
+      const r = ctx.random.contact.nextFloat();
       // origem no ponto analítico de cruzamento da rede (x=0), não na pos stale da bola
       const bp = new THREE.Vector3(0, cross.y, cross.z);
       ctx.hooks.audio.block();
@@ -155,9 +155,9 @@ export function resolveBlock(ctx: MechanicsCtx, attackSide: TeamSide): void {
       if (r < prox * BLOCK.stuffThreshold) {
         // STUFF: devolve no chão do atacante
         const tgt = new THREE.Vector3(
-          sideSign(attackSide) * rand(1, 3.5),
+          sideSign(attackSide) * ctx.random.contact.range(1, 3.5),
           0,
-          bp.z + rand(-1.5, 1.5),
+          bp.z + ctx.random.contact.range(-1.5, 1.5),
         );
         const { v0 } = ballisticDrive(bp, tgt, 0.32);
         ctx.ball.launch(bp, v0);
@@ -179,7 +179,7 @@ export function resolveBlock(ctx: MechanicsCtx, attackSide: TeamSide): void {
         const v = ctx.ball.vel.clone();
         v.x *= -0.3;
         v.y = 2;
-        v.z = rand(-6, 6);
+        v.z = ctx.random.contact.range(-6, 6);
         ctx.ball.launch(bp, v);
         ctx.planNext('pass');
       }

@@ -1,7 +1,6 @@
 // Decisões da IA: agendamento de aproximação/pulo e rolagens de qualidade, parametrizadas por
 // ctx.diff. Sem estado próprio. A seleção de alvo da IA fica em mechanics/ (touch/serve).
 import { PLAYER, sideSign } from '../../core/constants';
-import { rand, chance } from '../../core/math3d';
 import { TouchPlan } from '../RallyState';
 import { aiServe } from '../mechanics/serve';
 import type { MechanicsCtx } from '../mechanics/context';
@@ -66,14 +65,14 @@ export class AiController {
   /** Qualidade do toque da IA; contra bola forte depende da dificuldade. -1 = não defende. */
   reachQuality(ctx: MechanicsCtx, hard: boolean): number {
     const diff = ctx.diff;
-    if (hard && !chance(diff.digChance)) {
-      return chance(0.55) ? rand(0.03, 0.12) : -1;
+    if (hard && !ctx.random.contact.chance(diff.digChance)) {
+      return ctx.random.contact.chance(0.55) ? ctx.random.contact.range(0.03, 0.12) : -1;
     }
-    return rand(diff.passQuality[0], diff.passQuality[1]) * (hard ? 0.75 : 1);
+    return ctx.random.contact.range(diff.passQuality[0], diff.passQuality[1]) * (hard ? 0.75 : 1);
   }
 
   /** Qualidade da cortada da IA. */
-  spikeQuality(): number {
-    return rand(0.6, 1);
+  spikeQuality(ctx: MechanicsCtx): number {
+    return ctx.random.contact.range(0.6, 1);
   }
 }

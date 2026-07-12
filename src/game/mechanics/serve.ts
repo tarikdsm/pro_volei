@@ -2,7 +2,7 @@
 // Funções livres sobre o MechanicsCtx, extraídas de Match.ts.
 import * as THREE from 'three';
 import { COURT, otherSide, sideSign } from '../../core/constants';
-import { serveDrive, rand, chance, lerp } from '../../core/math3d';
+import { serveDrive, lerp } from '../../core/math3d';
 import { Athlete } from '../Team';
 import type { MechanicsCtx } from './context';
 
@@ -38,22 +38,34 @@ export function performServe(
 export function aiServe(ctx: MechanicsCtx): void {
   const team = ctx.teamOf(ctx.servingTeam);
   const server = team.server();
-  const power = rand(ctx.diff.servePower[0], ctx.diff.servePower[1]);
-  const err = chance(ctx.diff.serveError);
+  const power = ctx.random.ai.range(ctx.diff.servePower[0], ctx.diff.servePower[1]);
+  const err = ctx.random.contact.chance(ctx.diff.serveError);
   const s = sideSign(otherSide(ctx.servingTeam)); // lado alvo
   let target: THREE.Vector3;
   let clearance: number;
   if (err) {
-    if (chance(0.5)) {
-      target = new THREE.Vector3(s * rand(9.6, 11), 0, rand(-4, 4)); // fora, longa
-      clearance = rand(0.3, 0.8);
+    if (ctx.random.contact.chance(0.5)) {
+      target = new THREE.Vector3(
+        s * ctx.random.contact.range(9.6, 11),
+        0,
+        ctx.random.contact.range(-4, 4),
+      ); // fora, longa
+      clearance = ctx.random.contact.range(0.3, 0.8);
     } else {
-      target = new THREE.Vector3(s * rand(3.5, 7), 0, rand(-3, 3)); // na rede
-      clearance = -rand(0.18, 0.5);
+      target = new THREE.Vector3(
+        s * ctx.random.contact.range(3.5, 7),
+        0,
+        ctx.random.contact.range(-3, 3),
+      ); // na rede
+      clearance = -ctx.random.contact.range(0.18, 0.5);
     }
   } else {
-    target = new THREE.Vector3(s * rand(3.5, 8.4), 0, rand(-3.9, 3.9));
-    clearance = lerp(1.3, 0.16, power) * rand(0.9, 1.1);
+    target = new THREE.Vector3(
+      s * ctx.random.ai.range(3.5, 8.4),
+      0,
+      ctx.random.ai.range(-3.9, 3.9),
+    );
+    clearance = lerp(1.3, 0.16, power) * ctx.random.contact.range(0.9, 1.1);
   }
   performServe(ctx, server, power, target, clearance);
 }

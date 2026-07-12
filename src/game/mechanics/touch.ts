@@ -2,15 +2,7 @@
 // Funções livres sobre o MechanicsCtx, extraídas de Match.ts.
 import * as THREE from 'three';
 import { CONTACT, ATTACK_ZONES, TeamSide, otherSide, sideSign } from '../../core/constants';
-import {
-  ballisticArc,
-  ballisticDrive,
-  rand,
-  chance,
-  clamp,
-  randPick,
-  lerp,
-} from '../../core/math3d';
+import { ballisticArc, ballisticDrive, clamp, lerp } from '../../core/math3d';
 import { TouchPlan } from '../RallyState';
 import type { ActionIntent } from '../control/ActionIntent';
 import { resolveBlock } from './block';
@@ -73,17 +65,21 @@ function doPass(ctx: MechanicsCtx, plan: TouchPlan, q: number, intent?: ActionIn
   let target: THREE.Vector3;
   if (q < 0.15) {
     // escorregou: bola explode em direção imprevisível (pode sair, voltar, tudo)
-    target = new THREE.Vector3(plan.point.x + rand(-6, 6), CONTACT.set, plan.point.z + rand(-6, 6));
+    target = new THREE.Vector3(
+      plan.point.x + ctx.random.contact.range(-6, 6),
+      CONTACT.set,
+      plan.point.z + ctx.random.contact.range(-6, 6),
+    );
   } else {
     const noise = (1 - q) * 2.6;
     target = new THREE.Vector3(
       clamp(
-        sp.x + rand(-noise, noise),
+        sp.x + ctx.random.contact.range(-noise, noise),
         side === TeamSide.HOME ? -8.5 : 0.6,
         side === TeamSide.HOME ? -0.6 : 8.5,
       ),
       CONTACT.set,
-      clamp(sp.z + rand(-noise, noise), -4, 4),
+      clamp(sp.z + ctx.random.contact.range(-noise, noise), -4, 4),
     );
     if (intent) {
       target.x = clamp(
@@ -108,7 +104,7 @@ function doPass(ctx: MechanicsCtx, plan: TouchPlan, q: number, intent?: ActionIn
   ctx.rally.plannedAttacker = null;
 
   // passe horrível vira bola de graça pro outro lado às vezes
-  if (q < 0.18 && chance(0.5)) {
+  if (q < 0.18 && ctx.random.contact.chance(0.5)) {
     ctx.planNext('pass'); // deixa o motor decidir pelo lado em que vai cair
     return;
   }
@@ -122,16 +118,16 @@ function doSet(ctx: MechanicsCtx, plan: TouchPlan, q: number, intent?: ActionInt
 
   const team = ctx.teamOf(side);
   // zona de ataque: humano escolheu com A/W/D; IA escolhe aleatória
-  const zoneIdx = side === TeamSide.HOME ? ctx.chosenZone : randPick([0, 1, 2]);
+  const zoneIdx = plan.isHuman ? ctx.chosenZone : ctx.random.ai.pick([0, 1, 2]);
   const zoneZ = side === TeamSide.HOME ? ATTACK_ZONES[zoneIdx] : -ATTACK_ZONES[zoneIdx];
   const attacker = team.nearestFrontRowTo(zoneZ, athlete);
   ctx.rally.plannedAttacker = attacker;
   ctx.rally.setterHold = null;
 
   const contact = new THREE.Vector3(
-    sideSign(side) * rand(0.8, 1.1),
+    sideSign(side) * ctx.random.contact.range(0.8, 1.1),
     CONTACT.spike,
-    clamp(zoneZ + rand(-0.3, 0.3) * (1 - q), -4.1, 4.1),
+    clamp(zoneZ + ctx.random.contact.range(-0.3, 0.3) * (1 - q), -4.1, 4.1),
   );
   const baseApex = zoneIdx === 1 ? 0.6 : 1.5;
   const apex =
@@ -158,27 +154,31 @@ function doSpike(ctx: MechanicsCtx, plan: TouchPlan, q: number, intent?: ActionI
   const enemy = otherSide(side);
   const s = sideSign(enemy);
   let target: THREE.Vector3;
-  const isAI = side === TeamSide.AWAY;
+  const isAI = !plan.isHuman;
 
-  if (isAI && chance(ctx.diff.attackError)) {
-    target = chance(0.5)
-      ? new THREE.Vector3(s * rand(9.5, 11.5), 0, rand(-5, 5)) // pra fora
-      : new THREE.Vector3(s * 0.3, 1.0, rand(-3, 3)); // na rede
+  if (isAI && ctx.random.contact.chance(ctx.diff.attackError)) {
+    target = ctx.random.contact.chance(0.5)
+      ? new THREE.Vector3(
+          s * ctx.random.contact.range(9.5, 11.5),
+          0,
+          ctx.random.contact.range(-5, 5),
+        ) // pra fora
+      : new THREE.Vector3(s * 0.3, 1.0, ctx.random.contact.range(-3, 3)); // na rede
   } else if (isAI) {
     const spots = [
-      new THREE.Vector3(s * rand(6.5, 8.5), 0, rand(-3.8, -2.2)),
-      new THREE.Vector3(s * rand(6.5, 8.5), 0, rand(2.2, 3.8)),
-      new THREE.Vector3(s * rand(2.5, 4.5), 0, rand(-3.5, 3.5)),
-      new THREE.Vector3(s * rand(5, 8), 0, rand(-1.5, 1.5)),
+      new THREE.Vector3(s * ctx.random.ai.range(6.5, 8.5), 0, ctx.random.ai.range(-3.8, -2.2)),
+      new THREE.Vector3(s * ctx.random.ai.range(6.5, 8.5), 0, ctx.random.ai.range(2.2, 3.8)),
+      new THREE.Vector3(s * ctx.random.ai.range(2.5, 4.5), 0, ctx.random.ai.range(-3.5, 3.5)),
+      new THREE.Vector3(s * ctx.random.ai.range(5, 8), 0, ctx.random.ai.range(-1.5, 1.5)),
     ];
-    target = randPick(spots);
+    target = ctx.random.ai.pick(spots);
   } else {
     // humano: mira + erro pela qualidade do pulo
     const err = (1 - q) * 2.4;
     target = new THREE.Vector3(
-      ctx.aim.x + (intent?.direction.x ?? 0) * 1.1 + rand(-err, err),
+      ctx.aim.x + (intent?.direction.x ?? 0) * 1.1 + ctx.random.contact.range(-err, err),
       0,
-      ctx.aim.z + (intent?.direction.z ?? 0) * 1.4 + rand(-err, err),
+      ctx.aim.z + (intent?.direction.z ?? 0) * 1.4 + ctx.random.contact.range(-err, err),
     );
   }
 
