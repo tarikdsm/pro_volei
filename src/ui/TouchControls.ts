@@ -60,9 +60,9 @@ export class TouchControls {
   }
 
   /** Cancela input e ownership juntos; usado pelo coordenador em pausa e lifecycle. */
-  cancel(reason: InputCancelReason): void {
+  cancel(reason: InputCancelReason, atMs = this.now()): void {
     this.resetPointers();
-    this.input.cancel(reason, this.now());
+    this.input.cancel(reason, atMs);
   }
 
   /** Limpa somente a superfície touch quando outro adaptador já cancelou o hub (ex.: blur). */

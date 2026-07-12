@@ -120,11 +120,8 @@ export class Match {
     this.beginServePrep();
   }
 
-  /**
-   * Chamado pelo bootstrap ao pausar (respeita a fronteira Hooks: main.ts não toca no
-   * controle humano direto). Cancela o carregamento do saque para não travar ao retomar.
-   */
-  onPause(): void {
+  /** Cancela ações pendentes sem expor o controle humano ao composition root. */
+  cancelPendingAction(): void {
     this.human.cancelServeCharge(this.ctx);
   }
 

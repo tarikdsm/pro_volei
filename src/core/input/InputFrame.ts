@@ -15,7 +15,7 @@ export interface ActionEdge {
 }
 
 export type InputCancelReason =
-  'blur' | 'pause' | 'portrait' | 'point-end' | 'plan-changed' | 'pointer-cancel';
+  'blur' | 'pause' | 'portrait' | 'point-end' | 'plan-changed' | 'stall' | 'pointer-cancel';
 
 export interface InputCancellation {
   readonly reason: InputCancelReason;

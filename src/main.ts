@@ -13,15 +13,24 @@ import { HUD } from './ui/HUD';
 import { Menu } from './ui/Menu';
 import { TouchControls } from './ui/TouchControls';
 import { AppState, nextAppState } from './ui/appState';
-import { CROWD } from './core/constants';
+import { CROWD, SIMULATION_TIMING } from './core/constants';
 import { exporDebugHabilitado } from './core/debug';
 import { mapScreenToCourt } from './core/input/CameraSpaceMapper';
+import { FixedStepRunner, type FixedStepDiscard } from './core/time/FixedStepRunner';
+import { SlowMotionClock } from './core/time/SlowMotionClock';
 
 const app = document.getElementById('app')!;
 const debugWindow = window as unknown as {
   __match?: Match;
   __renderer?: THREE.WebGLRenderer;
   __controlFrame?: { screenAxis: { right: number; up: number }; actionDown: boolean };
+  __simulationClock?: {
+    tick: number;
+    simulationSeconds: number;
+    alpha: number;
+    discardedWallSeconds: number;
+    discardedSimulationSeconds: number;
+  };
 };
 
 // dispositivo de toque? (celular/tablet) — ?touch=1 força para testes no desktop
@@ -73,12 +82,11 @@ rotateTip.id = 'rotate-tip';
 rotateTip.textContent = '↻ Gire o celular — o jogo é melhor na horizontal';
 app.appendChild(rotateTip);
 
-// ---------- slow motion ----------
-let timeScale = 1;
-let slowMoLeft = 0;
+// ---------- tempo de simulação ----------
+const slowMotionClock = new SlowMotionClock();
+const fixedStepRunner = new FixedStepRunner(slowMotionClock);
 function slowMo(scale: number, dur: number): void {
-  timeScale = scale;
-  slowMoLeft = dur;
+  slowMotionClock.trigger(scale, dur);
 }
 
 // ---------- estado do app (título → jogo → pausa → fim) ----------
@@ -143,7 +151,7 @@ function togglePause(): void {
   if (appState === 'paused') {
     if (touch) touch.cancel('pause');
     else input.cancel('pause');
-    match.onPause();
+    match.cancelPendingAction();
     menu.showPause();
   } else if (previous === 'paused') {
     menu.hide();
@@ -169,41 +177,60 @@ window.addEventListener('resize', () => {
   director.camera.updateProjectionMatrix();
 });
 
+function discardStalledInput(discard: FixedStepDiscard): void {
+  // Step-cap também ocorre em hardware lento: preserva estado contínuo e entrega suas bordas no
+  // próximo tick. Wall-cap representa suspensão/lifecycle e invalida ações antigas por segurança.
+  if (discard.reason !== 'wall-cap') return;
+  if (touch) touch.cancel('stall', discard.toMs);
+  else input.cancel('stall', discard.toMs);
+  input.consumeUntil(discard.toMs);
+  match.cancelPendingAction();
+}
+
 // ---------- loop ----------
-let last = performance.now();
+let lastPresentationNow = performance.now();
 function frame(now: number): void {
   requestAnimationFrame(frame);
-  const rawDt = Math.min(0.05, (now - last) / 1000);
-  last = now;
-
-  // recuperação do slow motion
-  if (slowMoLeft > 0) {
-    slowMoLeft -= rawDt;
-    if (slowMoLeft <= 0) timeScale = 1;
-  } else if (timeScale < 1) {
-    timeScale = Math.min(1, timeScale + rawDt * 3);
-  }
+  const visualDt = Math.min(0.05, Math.max(0, (now - lastPresentationNow) / 1000));
+  lastPresentationNow = Math.max(lastPresentationNow, now);
 
   // só o estado 'playing' avança a partida; título/pausa/fim congelam o tempo de jogo
   const active = appState === 'playing';
-  const dt = rawDt * (active ? timeScale : 0);
-  // O hub é consumido também em menus/pausa para nenhuma borda antiga vazar ao retomar.
-  const inputFrame = input.consumeUntil(now);
+  const cameraBasis = director.inputBasis();
+  const simulationFrame = fixedStepRunner.advance(now, {
+    paused: !active,
+    onDiscard: discardStalledInput,
+    onTick: (ticket) => {
+      const inputFrame = input.consumeUntil(ticket.inputThroughMs);
+      const controlFrame = {
+        ...inputFrame,
+        courtAxis: mapScreenToCourt(inputFrame.screenAxis, cameraBasis),
+      };
+      if (debugEnabled) debugWindow.__controlFrame = controlFrame;
+      match.update(ticket.dt, controlFrame);
+    },
+  });
 
-  if (active) {
-    const controlFrame = {
-      ...inputFrame,
-      courtAxis: mapScreenToCourt(inputFrame.screenAxis, director.inputBasis()),
+  // Menus/pausa/fim drenam bordas antigas sem entregá-las à simulação.
+  if (!active) input.consumeUntil(now);
+
+  const simulatedDt = simulationFrame.steps / SIMULATION_TIMING.hz;
+  crowd.update(active ? simulatedDt : visualDt * 0.2);
+  referee.update(simulatedDt);
+  effects.update(simulatedDt);
+  audio.update(visualDt);
+  hud.update(visualDt);
+  director.update(visualDt);
+
+  if (debugEnabled) {
+    debugWindow.__simulationClock = {
+      tick: simulationFrame.tick,
+      simulationSeconds: simulationFrame.simulationSeconds,
+      alpha: simulationFrame.alpha,
+      discardedWallSeconds: simulationFrame.diagnostics.discardedWallSeconds,
+      discardedSimulationSeconds: simulationFrame.diagnostics.discardedSimulationSeconds,
     };
-    if (debugEnabled) debugWindow.__controlFrame = controlFrame;
-    match.update(dt, controlFrame);
   }
-  crowd.update(dt > 0 ? dt : rawDt * 0.2);
-  referee.update(dt);
-  effects.update(dt);
-  audio.update(rawDt);
-  hud.update(rawDt);
-  director.update(rawDt);
 
   renderer.render(scene, director.camera);
 }
