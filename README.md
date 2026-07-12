@@ -32,7 +32,7 @@ npm run lint    # ESLint (lint:fix aplica correções)
 npm run format  # Prettier
 ```
 
-O CI (GitHub Actions) roda o mesmo `check` + build em cada push/PR. Guia completo de
+O CI (GitHub Actions) roda o mesmo `check` + build em cada push em main. Guia completo de
 setup, estilo e fluxo em **[CONTRIBUTING.md](CONTRIBUTING.md)**.
 
 ## Publicar no GitHub Pages

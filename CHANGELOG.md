@@ -11,7 +11,7 @@ Todas as mudanças notáveis do Pró Volei. Formato baseado em
 - Ferramental de qualidade: ESLint 10 (flat config) + Prettier 3, `.editorconfig`,
   `.gitattributes` (LF), `.nvmrc` (Node 22).
 - Testes com Vitest 4 e primeira suíte cobrindo os solvers balísticos (`math3d`).
-- CI no GitHub Actions: typecheck · lint · format · test · build em push/PR.
+- CI no GitHub Actions: typecheck · lint · format · test · build em push em main.
 - Scripts npm: `typecheck`, `lint`, `lint:fix`, `format`, `format:check`, `test`,
   `test:watch`, `check`.
 - Documentação: `CLAUDE.md`, `CONTRIBUTING.md`, `CHANGELOG.md`,

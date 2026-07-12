@@ -23,13 +23,21 @@ describe('políticas canônicas do projeto', () => {
     const claude = readRepo('CLAUDE.md');
     const contributing = readRepo('CONTRIBUTING.md');
     const ci = readRepo('.github/workflows/ci.yml');
+    const readme = readRepo('README.md');
+    const changelog = readRepo('CHANGELOG.md');
+    const triggerBlock = ci.match(/on:\r?\n[\s\S]*?(?=\r?\n# Cancela)/)?.[0];
 
     expect(claude).toContain('Fluxo main-only');
     expect(contributing).toContain('commits diretamente em `main`');
     expect(contributing).not.toContain('git checkout -b');
     expect(contributing).not.toContain('Abra PR');
+    expect(triggerBlock?.trim()).toBe('on:\n  push:\n    branches: [main]');
     expect(ci).not.toMatch(/^\s*pull_request:/m);
     expect(ci).not.toContain('branch/PR');
+    expect(readme).not.toContain('push/PR');
+    expect(changelog).not.toContain('push/PR');
+    expect(readme).toContain('push em main');
+    expect(changelog).toContain('push em main');
   });
 
   it('aponta arquitetura e roadmap para o design 2.0 sem contagem obsoleta', () => {
