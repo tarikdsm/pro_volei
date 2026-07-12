@@ -27,7 +27,8 @@ essas entregas sem expandir `Match.ts` com outra máquina ad hoc.
 - Release resolve uma intenção uma única vez. Contato compatível durante hold resolve com a carga
   atual e ignora o release posterior.
 - Existe no máximo um gesto consumido por token. Release e contato no mesmo tick resolvem input
-  primeiro; após cancelamento com o botão ainda baixo, um release é obrigatório antes de rearmar.
+  primeiro. Cancelamento do `InputHub` invalida o ownership atual; somente um novo edge de press
+  rearma (teclado/touch exigem release físico antes de conseguirem gerar esse novo press).
 - `locked-illegal` cancela explicitamente; não transfere intenção nem produz defesa milagrosa.
 
 ## Matriz semântica
@@ -37,7 +38,7 @@ essas entregas sem expandir `Match.ts` com outra máquina ad hoc.
 | Saque | `float-serve` seguro | `power-serve` progressivo | força aumenta erro e reduz folga |
 | Recepção | `platform-pass` estável | `emergency-dive` | mais alcance, menor precisão |
 | Levantamento | `high-set` seguro | `quick-set` | mais rápido e exigente |
-| Ataque | `placed-shot` | `power-spike` | potência cresce; timing ruim amplia erro |
+| Ataque | neutro `tip`; direcionado `placed-shot` | `power-spike` | potência cresce; timing ruim amplia erro |
 | Bloqueio | `quick-block` | `penetrating-block` | mais penetração, mas salto mais tardio |
 | Bola quebrada | `safe-save` | `reaching-freeball` | mais alcance e chance de mandar à rival |
 
