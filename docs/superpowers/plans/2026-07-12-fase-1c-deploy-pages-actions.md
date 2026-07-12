@@ -50,24 +50,32 @@ enquanto `deploy` usa um grupo próprio que nunca cancela uma publicação já i
 - Modificar: `tests/config/ci-production-gate.test.ts`
 - Criar: `tests/config/support/workflowContract.ts`
 - Criar: `tests/config/pages-deploy-gate.test.ts`
+- Modificar: `package.json`
+- Modificar: `package-lock.json`
 - Testar: `tests/config/ci-production-gate.test.ts`
 - Testar: `tests/config/pages-deploy-gate.test.ts`
 
-1. Extrair de forma estrutural os jobs `check` e `deploy`, ignorando comentários e outros jobs.
-2. Fazer o teste falhar exigindo no job `check`, depois do smoke:
+1. Extrair o parser textual controlado atual para `workflowContract.ts`, sem mudar expectativas;
+   todos os testes existentes devem continuar verdes.
+2. Adicionar `@action-validator/core` e `@action-validator/cli`, expor `npm run workflow:check` e
+   incluí-lo em `npm run check`, garantindo validação de sintaxe/schema do workflow antes do push.
+3. Escrever todos os contratos novos e confirmar RED. Exigir no job `check`, em ordem:
+   `actions/checkout@v7`, `actions/setup-node@v6`, os gates existentes e, somente depois do smoke,
    `actions/upload-pages-artifact@v5` com `path: dist`.
-3. Extrair o parser YAML controlado atual para `workflowContract.ts`, preservando os testes verdes,
-   e então exigir no job `deploy`:
+4. Exigir no job `deploy`:
    - `needs: check`;
    - `permissions` com `contents: read`, `pages: write` e `id-token: write`;
    - ambiente `github-pages` e URL vinda do output `deployment.page_url`;
    - exatamente `actions/configure-pages@v6` e `actions/deploy-pages@v5`, esta última com
      `id: deployment`;
    - nenhum checkout nem comando `run`, para não executar código do repositório com privilégio.
-4. Exigir concorrência de deploy com grupo `pages` e `cancel-in-progress: false`.
-5. Adicionar mutações negativas para upload antes do smoke, artefato diferente de `dist`, ausência
+5. Exigir concorrência do `check` com cancelamento e do `deploy` com grupo `pages` e
+   `cancel-in-progress: false`.
+6. Exigir trigger somente em `push` da `main`, `permissions: contents: read` exato no topo e
+   ausência de `concurrency` global, impedindo que um push novo cancele o job `deploy`.
+7. Adicionar mutações negativas para upload antes do smoke, artefato diferente de `dist`, ausência
    de `needs`, permissão ausente, action presente apenas em comentário e deploy duplicado.
-6. Rodar o teste focado e confirmar RED antes da alteração do workflow.
+8. Rodar os testes focados e confirmar RED antes da alteração do workflow.
 
 ## Tarefa 2 — Publicar o artefato aprovado
 
@@ -92,7 +100,31 @@ enquanto `deploy` usa um grupo próprio que nunca cancela uma publicação já i
 8. Rodar teste focado, `npm run check`, `npm run build` e smoke de produção. Esperado: GREEN.
 9. Solicitar revisão independente de requisitos e qualidade; corrigir achados antes do commit.
 
-## Tarefa 3 — Documentar operação e rollback
+## Tarefa 3 — Migrar o estado remoto e fazer o primeiro deploy
+
+**Pré-condição:** árvore limpa; apenas o commit do pipeline revisado está à frente de
+`origin/main`; gates locais e `npm run workflow:check` verdes.
+
+1. Registrar novamente o estado remoto:
+
+   ```powershell
+   gh api 'repos/tarikdsm/pro_volei/pages'
+   gh api 'repos/tarikdsm/pro_volei/environments/github-pages/deployment-branch-policies'
+   ```
+
+2. Derivar o id da policy retornada e abortar se não existir exatamente uma policy do tipo branch
+   chamada `gh-pages`; não usar id histórico fixo.
+3. Atualizar essa policy para `main` e validar por GET o mesmo id e o novo nome.
+4. Atualizar Pages para `build_type=workflow` e confirmar por GET; só então fazer push do commit do
+   pipeline.
+5. Acompanhar o run do SHA até o fim. Confirmar `check`, upload, `deploy` e environment verdes.
+6. Se qualquer etapa falhar, restaurar `build_type=legacy`, fonte `gh-pages:/` e a policy derivada
+   para `gh-pages`; depois criar commit corretivo normal antes de tentar novamente.
+7. Verificar a URL pública em contexto limpo de navegador real, sem `?debug`, usando query única
+   por SHA/attempt e retentativas limitadas: carregamento, console, menu e início de partida.
+   Confirmar também HTTPS e assets relativos.
+
+## Tarefa 4 — Documentar operação e rollback após o primeiro deploy
 
 **Arquivos:**
 
@@ -109,46 +141,43 @@ enquanto `deploy` usa um grupo próprio que nunca cancela uma publicação já i
    - transição: voltar para `legacy`/`gh-pages` enquanto a branch existir;
    - produção: reexecutar um run verde anterior ou criar `git revert`, sem force-push.
 4. Manter explícito que o script e a branch legados só serão removidos na Fase 1D, após a prova.
-5. Atualizar o roadmap para marcar 1C concluída somente depois do deploy público e rollback.
+5. Registrar o primeiro deploy público, mantendo a Fase 1C como “rollback em validação”.
 6. Rodar guardas documentais, formatação e revisão independente.
-
-## Tarefa 4 — Migrar o estado remoto com fallback
-
-**Pré-condição:** árvore limpa; commit do pipeline revisado e gates locais verdes; `origin/main` é
-ancestral de `HEAD`.
-
-1. Registrar novamente o estado remoto:
-
-   ```powershell
-   gh api 'repos/tarikdsm/pro_volei/pages'
-   gh api 'repos/tarikdsm/pro_volei/environments/github-pages/deployment-branch-policies'
-   ```
-
-2. Atualizar a política id `53766422` de `gh-pages` para `main` pela API oficial.
-3. Atualizar Pages para `build_type=workflow` pela API oficial.
-4. Confirmar por leitura que ambos os valores mudaram; só então fazer push do commit do pipeline.
-5. Acompanhar o run do SHA até o fim. Confirmar `check`, upload, `deploy` e environment verdes.
-6. Se qualquer etapa falhar, restaurar `build_type=legacy`, fonte `gh-pages:/` e a política para
-   `gh-pages`; depois criar commit corretivo normal antes de tentar novamente.
-7. Verificar a URL pública em navegador real, sem `?debug`: carregamento, console, menu e início de
-   partida. Confirmar também resposta HTTPS e carregamento dos assets relativos.
 
 ## Tarefa 5 — Comprovar rollback e restauração
 
-1. Depois do primeiro deploy Actions verde, enviar o commit documental final da Tarefa 3 para
-   produzir um segundo deployment verde e distinguível.
+1. Depois do primeiro deploy Actions verde, enviar o commit documental da Tarefa 4 para produzir
+   um segundo deployment verde com SHA diferente no histórico do ambiente.
 2. Reexecutar integralmente o primeiro run Actions com `gh run rerun RUN_ID`; confirmar que o run
-   usa o SHA antigo, republica e deixa o smoke público verde.
+   usa o SHA antigo, vira o deployment mais recente no ambiente e deixa o smoke público verde.
 3. Reexecutar integralmente o run mais recente; confirmar que o SHA atual volta a ser o deployment
    ativo e o site permanece jogável.
 4. Não fazer novos pushes enquanto as duas reexecuções estiverem em andamento.
-5. Registrar os run ids e resultados no relatório da fase, não em metadados de runtime.
-6. Só após essa prova autorizar a Fase 1D a remover pacote/script/branch `gh-pages`.
+5. Tratar a prova como controle de promoção por SHA, não como diferença visual: os dois commits
+   podem gerar bytes idênticos porque documentação não entra em `dist/`.
+6. Guardar os run ids e resultados para o registro final, não em metadados de runtime.
+7. Só após essa prova autorizar a finalização documental e a Fase 1D.
+
+## Tarefa 6 — Finalizar o registro da Fase 1C
+
+**Arquivos:**
+
+- Modificar: `docs/ROADMAP.md`
+- Modificar: `CHANGELOG.md`
+- Modificar: `docs/deployment/web.md`, se necessário para registrar a prova sem informação
+  efêmera ou redundante.
+
+1. Registrar os runs do primeiro deploy, rollback e restauração, seus SHAs e os resultados do smoke
+   público.
+2. Marcar a Fase 1C concluída e liberar explicitamente a Fase 1D.
+3. Rodar gates documentais, revisar, commitar e fazer push.
+4. Acompanhar o novo workflow até deploy verde e repetir o smoke público com query sem cache.
 
 ## Gate final da Fase 1C
 
 ```powershell
 npm ci
+npm run workflow:check
 npm run check
 npm run build
 npm run test:e2e:smoke:prod
