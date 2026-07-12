@@ -13,6 +13,15 @@ import type { ControlFrame } from './ControlFrame';
 
 export type CtlMode = 'none' | 'serve' | 'receive' | 'attack' | 'block';
 
+interface TimedInputEvent {
+  readonly atMs: number;
+  readonly sequence: number;
+}
+
+function compareInputEvents(left: TimedInputEvent, right: TimedInputEvent): number {
+  return left.atMs - right.atMs || left.sequence - right.sequence;
+}
+
 export class HumanController {
   private ctl: CtlMode = 'none';
   private controlled: Athlete | null = null;
@@ -172,12 +181,21 @@ export class HumanController {
   update(dt: number, frame: ControlFrame, ctx: MechanicsCtx): void {
     if (frame.cancellations.length > 0) {
       this.cancelServeCharge(ctx);
-      return;
     }
 
     const axis = frame.courtAxis;
-    const actionPressed = frame.actionEdges.some((edge) => edge.kind === 'press');
-    const actionReleased = frame.actionEdges.some((edge) => edge.kind === 'release');
+    const lastCancellation = frame.cancellations.reduce<
+      (typeof frame.cancellations)[number] | null
+    >(
+      (latest, cancellation) =>
+        !latest || compareInputEvents(cancellation, latest) > 0 ? cancellation : latest,
+      null,
+    );
+    const actionEdges = frame.actionEdges
+      .filter((edge) => !lastCancellation || compareInputEvents(edge, lastCancellation) > 0)
+      .slice()
+      .sort(compareInputEvents);
+    const actionPressed = actionEdges.some((edge) => edge.kind === 'press');
 
     if (this.ctl === 'serve' && this.controlled) {
       // mira
@@ -185,12 +203,18 @@ export class HumanController {
       this.aim.z = clamp(this.aim.z + axis.z * dt * 5, -4.2, 4.2);
       ctx.hooks.effects.showAim(this.aim);
 
-      if (actionPressed) {
-        this.serveCharging = true;
-        this.servePower = 0;
-        this.serveDir = 1;
+      for (const edge of actionEdges) {
+        if (this.ctl !== 'serve' || !this.controlled) break;
+        if (edge.kind === 'press') {
+          this.serveCharging = true;
+          this.servePower = 0;
+          this.serveDir = 1;
+        } else if (this.serveCharging) {
+          this.finishServe(ctx);
+        }
       }
-      if (this.serveCharging) {
+
+      if (this.ctl === 'serve' && this.serveCharging) {
         this.servePower += this.serveDir * dt * SERVE_TUNING.chargeRate;
         if (this.servePower >= 1) {
           this.servePower = 1;
@@ -201,31 +225,6 @@ export class HumanController {
           this.serveDir = 1;
         }
         ctx.hooks.serveMeter(true, this.servePower);
-        if (actionReleased) {
-          this.serveCharging = false;
-          this.ctl = 'none';
-          const p = this.servePower;
-          const target = this.aim.clone();
-          let power = p;
-          // folga sobre a rede: força alta = raspando na fita, baixa = flutuante
-          let clearance =
-            lerp(SERVE_TUNING.clearanceHi, SERVE_TUNING.clearanceLo, p) *
-            rand(SERVE_TUNING.clearanceJitter[0], SERVE_TUNING.clearanceJitter[1]);
-          if (p > SERVE_TUNING.perfectHi) {
-            // arriscou demais: pode sair longa
-            if (chance((p - SERVE_TUNING.perfectHi) * 4)) {
-              target.x = rand(9.6, 11.5);
-              clearance = rand(0.25, 0.6);
-            }
-          } else if (p >= SERVE_TUNING.perfectLo) {
-            ctx.hooks.banner('SAQUE PERFEITO!', '');
-            power = SERVE_TUNING.perfectPower;
-            clearance = rand(0.16, 0.28);
-          }
-          // pouca força morre na rede às vezes
-          if (p < 0.25 && chance(0.7)) clearance = -rand(0.2, 0.5);
-          performServe(ctx, this.controlled, Math.max(0.3, power), target, clearance);
-        }
       }
     }
 
@@ -283,6 +282,34 @@ export class HumanController {
         this.controlled.jump(PLAYER.blockJumpVel);
       }
     }
+  }
+
+  private finishServe(ctx: MechanicsCtx): void {
+    if (!this.controlled) return;
+
+    this.serveCharging = false;
+    this.ctl = 'none';
+    const p = this.servePower;
+    const target = this.aim.clone();
+    let power = p;
+    // folga sobre a rede: força alta = raspando na fita, baixa = flutuante
+    let clearance =
+      lerp(SERVE_TUNING.clearanceHi, SERVE_TUNING.clearanceLo, p) *
+      rand(SERVE_TUNING.clearanceJitter[0], SERVE_TUNING.clearanceJitter[1]);
+    if (p > SERVE_TUNING.perfectHi) {
+      // arriscou demais: pode sair longa
+      if (chance((p - SERVE_TUNING.perfectHi) * 4)) {
+        target.x = rand(9.6, 11.5);
+        clearance = rand(0.25, 0.6);
+      }
+    } else if (p >= SERVE_TUNING.perfectLo) {
+      ctx.hooks.banner('SAQUE PERFEITO!', '');
+      power = SERVE_TUNING.perfectPower;
+      clearance = rand(0.16, 0.28);
+    }
+    // pouca força morre na rede às vezes
+    if (p < 0.25 && chance(0.7)) clearance = -rand(0.2, 0.5);
+    performServe(ctx, this.controlled, Math.max(0.3, power), target, clearance);
   }
 
   /** Atualiza o anel sob o jogador controlado. Chamar após o movimento dos times integrar. */

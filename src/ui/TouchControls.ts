@@ -1,4 +1,4 @@
-import type { InputSink } from '../core/input/InputFrame';
+import type { InputCancelReason, InputSink } from '../core/input/InputFrame';
 import { screenAxisFromStick } from './touchMapping';
 
 // Rótulos de acessibilidade (role + aria-label, pt-BR) dos controles de toque.
@@ -54,7 +54,26 @@ export class TouchControls {
 
   show(visible: boolean): void {
     this.root.style.display = visible ? 'block' : 'none';
-    if (!visible) this.cancelActivePointers();
+    if (!visible && (this.stickPointer !== null || this.actionPointer !== null)) {
+      this.cancel('point-end');
+    }
+  }
+
+  /** Cancela input e ownership juntos; usado pelo coordenador em pausa e lifecycle. */
+  cancel(reason: InputCancelReason): void {
+    this.resetPointers();
+    this.input.cancel(reason, this.now());
+  }
+
+  /** Limpa somente a superfície touch quando outro adaptador já cancelou o hub (ex.: blur). */
+  resetPointers(): void {
+    const stickPointer = this.stickPointer;
+    const actionPointer = this.actionPointer;
+    this.stickPointer = null;
+    this.actionPointer = null;
+    this.resetVisuals();
+    this.releaseCapture(this.stickBase, stickPointer);
+    this.releaseCapture(this.actionButton, actionPointer);
   }
 
   private bindStick(): void {
@@ -128,19 +147,7 @@ export class TouchControls {
 
   private onPointerCancelled(event: PointerEvent): void {
     if (event.pointerId !== this.stickPointer && event.pointerId !== this.actionPointer) return;
-    this.stickPointer = null;
-    this.actionPointer = null;
-    this.resetVisuals();
-    this.input.cancel('pointer-cancel', this.now());
-  }
-
-  private cancelActivePointers(): void {
-    if (this.stickPointer !== null || this.actionPointer !== null) {
-      this.input.cancel('point-end', this.now());
-    }
-    this.stickPointer = null;
-    this.actionPointer = null;
-    this.resetVisuals();
+    this.cancel('pointer-cancel');
   }
 
   private resetStick(atMs: number): void {
@@ -151,5 +158,10 @@ export class TouchControls {
   private resetVisuals(): void {
     this.knob.style.transform = 'translate(-50%, -50%)';
     this.actionButton.classList.remove('pressed');
+  }
+
+  private releaseCapture(element: HTMLElement, pointerId: number | null): void {
+    if (pointerId === null || !element.hasPointerCapture(pointerId)) return;
+    element.releasePointerCapture(pointerId);
   }
 }

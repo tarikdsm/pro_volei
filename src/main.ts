@@ -18,6 +18,11 @@ import { exporDebugHabilitado } from './core/debug';
 import { mapScreenToCourt } from './core/input/CameraSpaceMapper';
 
 const app = document.getElementById('app')!;
+const debugWindow = window as unknown as {
+  __match?: Match;
+  __renderer?: THREE.WebGLRenderer;
+  __controlFrame?: { screenAxis: { right: number; up: number }; actionDown: boolean };
+};
 
 // dispositivo de toque? (celular/tablet) — ?touch=1 força para testes no desktop
 const isTouch =
@@ -59,6 +64,7 @@ const audio = new AudioEngine();
 const hud = new HUD(app, isTouch);
 const menu = new Menu(app, isTouch);
 const touch = isTouch ? new TouchControls(app, input, togglePause) : null;
+window.addEventListener('blur', () => touch?.resetPointers());
 hud.show(false);
 
 // aviso para jogar na horizontal
@@ -105,12 +111,13 @@ scene.add(match.group);
 
 // ganchos de depuração globais: em dev sempre; no build de produção só com ?debug na URL
 // (mesmo opt-in do ?touch=1), para não vazar a superfície de depuração no bundle publicado.
-if (exporDebugHabilitado({ dev: import.meta.env.DEV, search: location.search })) {
+const debugEnabled = exporDebugHabilitado({ dev: import.meta.env.DEV, search: location.search });
+if (debugEnabled) {
   // acesso de depuração no console do browser
-  (window as unknown as { __match?: Match }).__match = match;
+  debugWindow.__match = match;
   // hook de perf: expõe o renderer para o harness de baseline ler renderer.info.render
   // (draw calls / triângulos por frame). Só leitura; não altera o jogo.
-  (window as unknown as { __renderer?: THREE.WebGLRenderer }).__renderer = renderer;
+  debugWindow.__renderer = renderer;
 }
 
 menu.onStart = () => {
@@ -134,7 +141,8 @@ function togglePause(): void {
   const previous = appState;
   appState = nextAppState(appState, 'togglePause');
   if (appState === 'paused') {
-    input.cancel('pause');
+    if (touch) touch.cancel('pause');
+    else input.cancel('pause');
     match.onPause();
     menu.showPause();
   } else if (previous === 'paused') {
@@ -183,10 +191,12 @@ function frame(now: number): void {
   const inputFrame = input.consumeUntil(now);
 
   if (active) {
-    match.update(dt, {
+    const controlFrame = {
       ...inputFrame,
       courtAxis: mapScreenToCourt(inputFrame.screenAxis, director.inputBasis()),
-    });
+    };
+    if (debugEnabled) debugWindow.__controlFrame = controlFrame;
+    match.update(dt, controlFrame);
   }
   crowd.update(dt > 0 ? dt : rawDt * 0.2);
   referee.update(dt);

@@ -1,5 +1,11 @@
 import { expect, test } from '@playwright/test';
-import { collectBrowserProblems, expectNoBrowserProblems, openWithTouch } from './gameHarness';
+import {
+  collectBrowserProblems,
+  expectNoBrowserProblems,
+  openWithTouch,
+  readActionDown,
+  readScreenAxis,
+} from './gameHarness';
 
 test('joystick e ação aceitam dois dedos reais e pausa não sintetiza teclado', async ({
   page,
@@ -34,10 +40,37 @@ test('joystick e ação aceitam dois dedos reais e pausa não sintetiza teclado'
 
   await expect(page.locator('#tc-action')).toHaveClass(/pressed/);
   await expect(page.locator('#tc-knob')).toHaveAttribute('style', /calc/);
+  await expect.poll(() => readActionDown(page)).toBe(true);
+  await expect
+    .poll(async () => Math.hypot(...Object.values(await readScreenAxis(page))))
+    .toBeGreaterThan(0.2);
 
-  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  // Pausar enquanto os dois dedos continuam na tela deve cancelar hub, captures e feedback visual.
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#menu')).toContainText('PAUSA');
   await expect(page.locator('#tc-action')).not.toHaveClass(/pressed/);
   await expect(page.locator('#tc-knob')).toHaveAttribute('style', /translate\(-50%, -50%\)/);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+
+  await page.getByRole('button', { name: 'CONTINUAR' }).click();
+  await expect.poll(() => readActionDown(page)).toBe(false);
+
+  // Pointer capture mantém a ação pressionada fora do botão e libera somente no pointerup real.
+  await cdp.send('Input.dispatchTouchEvent', {
+    type: 'touchStart',
+    touchPoints: [{ ...action, id: 4, radiusX: 8, radiusY: 8 }],
+  });
+  await expect(page.locator('#tc-action')).toHaveClass(/pressed/);
+  await cdp.send('Input.dispatchTouchEvent', {
+    type: 'touchMove',
+    touchPoints: [
+      { x: action.x - 240, y: Math.max(20, action.y - 120), id: 4, radiusX: 8, radiusY: 8 },
+    ],
+  });
+  await expect(page.locator('#tc-action')).toHaveClass(/pressed/);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await expect(page.locator('#tc-action')).not.toHaveClass(/pressed/);
+  await expect.poll(() => readActionDown(page)).toBe(false);
 
   await page.locator('#tc-pause').tap();
   await expect(page.locator('#menu')).toContainText('PAUSA');

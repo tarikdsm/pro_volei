@@ -42,6 +42,31 @@ function makeFrame(
   };
 }
 
+function makeTimelineFrame(timeline: Array<'press' | 'release' | 'cancel'>): ControlFrame {
+  let actionDown = false;
+  const actionEdges: ControlFrame['actionEdges'][number][] = [];
+  const cancellations: ControlFrame['cancellations'][number][] = [];
+
+  timeline.forEach((kind, sequence) => {
+    if (kind === 'cancel') {
+      actionDown = false;
+      cancellations.push({ reason: 'pause', atMs: 90 + sequence, sequence });
+    } else {
+      actionDown = kind === 'press';
+      actionEdges.push({ kind, source: 'keyboard', atMs: 90 + sequence, sequence });
+    }
+  });
+
+  return {
+    sampledAtMs: 100,
+    screenAxis: { right: 0, up: 0 },
+    courtAxis: { x: 0, z: 0 },
+    actionDown,
+    actionEdges,
+    cancellations,
+  };
+}
+
 // ctx mínimo: captura serveMeter, os lançamentos da bola e as dicas de zona (zoneHint).
 function makeCtx() {
   const serveMeterCalls: Array<[boolean, number | undefined]> = [];
@@ -57,6 +82,7 @@ function makeCtx() {
     },
     rally: new RallyState(),
     hooks: {
+      banner: noop,
       hint: noop,
       serveMeter: (v: boolean, val?: number) => {
         serveMeterCalls.push([v, val]);
@@ -65,7 +91,10 @@ function makeCtx() {
         zoneHintCalls.push(zone);
       },
       effects: { showAim: noop, showLanding: noop },
+      audio: { hitHard: noop },
+      camera: { setMode: noop },
     },
+    after: noop,
   } as unknown as MechanicsCtx;
   return { ctx, serveMeterCalls, launches, zoneHintCalls };
 }
@@ -97,8 +126,10 @@ function assignReceive(hc: HumanController, ctx: MechanicsCtx, athlete: Athlete)
   hc.onAssigned(ctx, plan);
 }
 
-// server é só armazenado como `controlled` no saque; nenhum método é chamado nestes testes.
-const server = {} as unknown as Athlete;
+const server = {
+  act: (): void => {},
+  reachPoint: () => new THREE.Vector3(),
+} as unknown as Athlete;
 
 describe('HumanController.cancelServeCharge', () => {
   it('zera o medidor durante o saque (última chamada de serveMeter é (true, 0))', () => {
@@ -205,6 +236,53 @@ describe('HumanController — cancelamento sem release', () => {
 
     expect(launches).toHaveLength(0);
     expect(serveMeterCalls.at(-1)).toEqual([true, 0]);
+  });
+
+  it('preserva release antes de press no mesmo frame sem zerar a carga anterior', () => {
+    const hc = new HumanController();
+    const { ctx, launches, serveMeterCalls } = makeCtx();
+    hc.beginServe(server, ctx);
+    hc.update(0.2, makeFrame({ actionDown: true, pressed: true }), ctx);
+    const callsBeforeTimeline = serveMeterCalls.length;
+
+    hc.update(0.016, makeTimelineFrame(['release', 'press']), ctx);
+
+    expect(launches).toHaveLength(1);
+    expect(serveMeterCalls.slice(callsBeforeTimeline)).toEqual([[false, undefined]]);
+  });
+
+  it('aceita nova pressão posterior ao cancelamento no mesmo frame', () => {
+    const hc = new HumanController();
+    const { ctx, launches, serveMeterCalls } = makeCtx();
+    hc.beginServe(server, ctx);
+    hc.update(0.2, makeFrame({ actionDown: true, pressed: true }), ctx);
+
+    hc.update(0.1, makeTimelineFrame(['cancel', 'press']), ctx);
+
+    expect(launches).toHaveLength(0);
+    expect(serveMeterCalls.at(-2)).toEqual([true, 0]);
+    expect(serveMeterCalls.at(-1)?.[1]).toBeGreaterThan(0);
+  });
+
+  it('ordena cancelamento e pressão por timestamp antes da sequência de inserção', () => {
+    const hc = new HumanController();
+    const { ctx, serveMeterCalls } = makeCtx();
+    hc.beginServe(server, ctx);
+    hc.update(0.2, makeFrame({ actionDown: true, pressed: true }), ctx);
+
+    hc.update(
+      0.1,
+      {
+        ...makeFrame(),
+        actionDown: true,
+        cancellations: [{ reason: 'pause', atMs: 90, sequence: 9 }],
+        actionEdges: [{ kind: 'press', source: 'keyboard', atMs: 91, sequence: 2 }],
+      },
+      ctx,
+    );
+
+    expect(serveMeterCalls.at(-2)).toEqual([true, 0]);
+    expect(serveMeterCalls.at(-1)?.[1]).toBeGreaterThan(0);
   });
 });
 

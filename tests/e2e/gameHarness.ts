@@ -17,6 +17,10 @@ type MatchWindow = Window &
       // 0 = HOME (humano), 1 = AWAY (CPU) — ver TeamSide em src/core/constants.ts
       debugWinMatch(side: number): void;
     };
+    __controlFrame?: {
+      screenAxis: { right: number; up: number };
+      actionDown: boolean;
+    };
   };
 
 // Instantâneo do estado observável da partida — base das asserções de congelamento (pausa).
@@ -37,6 +41,22 @@ export function readMatchSnapshot(page: Page): Promise<MatchSnapshot> {
       sets: [...m.sets] as [number, number],
       setNumber: m.setNumber,
     };
+  });
+}
+
+export function readScreenAxis(page: Page): Promise<{ right: number; up: number }> {
+  return page.evaluate(() => {
+    const frame = (window as MatchWindow).__controlFrame;
+    if (!frame) throw new Error('window.__controlFrame ausente (esperado em DEV)');
+    return { ...frame.screenAxis };
+  });
+}
+
+export function readActionDown(page: Page): Promise<boolean> {
+  return page.evaluate(() => {
+    const frame = (window as MatchWindow).__controlFrame;
+    if (!frame) throw new Error('window.__controlFrame ausente (esperado em DEV)');
+    return frame.actionDown;
   });
 }
 
