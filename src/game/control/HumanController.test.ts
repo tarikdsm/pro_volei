@@ -4,29 +4,42 @@ import { HumanController } from './HumanController';
 import { RallyState, type TouchPlan } from '../RallyState';
 import { TeamSide } from '../../core/constants';
 import type { MechanicsCtx } from '../mechanics/context';
-import type { Input } from '../../core/Input';
 import type { Athlete } from '../Team';
+import type { ControlFrame } from './ControlFrame';
 
-// Input falso controlável por frame: estado contínuo (down) + bordas (pressed/released) e o
-// vetor de movimento (axis) que o controller lê via moveAxis().
-function makeInput(
+function makeFrame(
   opts: {
-    down?: string[];
-    pressed?: string[];
-    released?: string[];
+    actionDown?: boolean;
+    pressed?: boolean;
+    released?: boolean;
+    cancelled?: boolean;
     axis?: { x: number; z: number };
   } = {},
-): Input {
-  const down = new Set(opts.down ?? []);
-  const pressed = new Set(opts.pressed ?? []);
-  const released = new Set(opts.released ?? []);
+): ControlFrame {
   const axis = opts.axis ?? { x: 0, z: 0 };
+  let sequence = 0;
   return {
-    isDown: (k: string) => down.has(k),
-    wasPressed: (k: string) => pressed.has(k),
-    wasReleased: (k: string) => released.has(k),
-    moveAxis: () => axis,
-  } as unknown as Input;
+    sampledAtMs: 100,
+    screenAxis: { right: 0, up: 0 },
+    courtAxis: axis,
+    actionDown: opts.actionDown ?? false,
+    actionEdges: [
+      ...(opts.pressed
+        ? [{ kind: 'press' as const, source: 'keyboard' as const, atMs: 90, sequence: sequence++ }]
+        : []),
+      ...(opts.released
+        ? [
+            {
+              kind: 'release' as const,
+              source: 'keyboard' as const,
+              atMs: 95,
+              sequence: sequence++,
+            },
+          ]
+        : []),
+    ],
+    cancellations: opts.cancelled ? [{ reason: 'pause', atMs: 98, sequence }] : [],
+  };
 }
 
 // ctx mínimo: captura serveMeter, os lançamentos da bola e as dicas de zona (zoneHint).
@@ -93,7 +106,7 @@ describe('HumanController.cancelServeCharge', () => {
     const { ctx, serveMeterCalls } = makeCtx();
     hc.beginServe(server, ctx);
     // um frame segurando ESPAÇO: liga o carregamento e acumula potência (sem soltar)
-    hc.update(0.2, makeInput({ down: ['Space'], pressed: ['Space'] }), ctx);
+    hc.update(0.2, makeFrame({ actionDown: true, pressed: true }), ctx);
     // durante o carregamento a potência subiu acima de 0
     expect(serveMeterCalls[serveMeterCalls.length - 1][1]).toBeGreaterThan(0);
 
@@ -106,14 +119,14 @@ describe('HumanController.cancelServeCharge', () => {
     const hc = new HumanController();
     const { ctx, serveMeterCalls, launches } = makeCtx();
     hc.beginServe(server, ctx);
-    hc.update(0.2, makeInput({ down: ['Space'], pressed: ['Space'] }), ctx);
+    hc.update(0.2, makeFrame({ actionDown: true, pressed: true }), ctx);
     hc.cancelServeCharge(ctx);
 
     const callsBeforeResume = serveMeterCalls.length;
     // retomada após a pausa: ESPAÇO segue 'down', mas o edge de soltar foi engolido na pausa.
     // Sem o cancelamento, serveCharging continuaria true e o medidor oscilaria a cada frame.
     for (let i = 0; i < 5; i++) {
-      hc.update(0.2, makeInput({ down: ['Space'] }), ctx);
+      hc.update(0.2, makeFrame({ actionDown: true }), ctx);
     }
     expect(serveMeterCalls.length).toBe(callsBeforeResume); // medidor não oscila mais
     expect(launches).toHaveLength(0); // nenhum saque disparado sem re-apertar/soltar
@@ -127,30 +140,29 @@ describe('HumanController.cancelServeCharge', () => {
   });
 });
 
-describe('HumanController — WASD move na recepção sem trocar a zona (M5)', () => {
-  it('mover para frente (W) na recepção move o atleta e mantém a zona', () => {
+describe('HumanController — direção de quadra move na recepção sem trocar a zona', () => {
+  it('movimento relativo à câmera move o atleta e mantém a zona', () => {
     const hc = new HumanController();
     const { ctx, zoneHintCalls } = makeCtx();
     const { athlete, moveToCalls } = makeAthlete(0, 0);
     hc.chosenZone = 2;
     assignReceive(hc, ctx, athlete);
 
-    hc.update(0.016, makeInput({ down: ['KeyW'], pressed: ['KeyW'], axis: { x: 1, z: 0 } }), ctx);
+    hc.update(0.016, makeFrame({ axis: { x: 1, z: 0 } }), ctx);
 
-    expect(hc.chosenZone).toBe(2); // zona intacta: WASD não troca zona na recepção
+    expect(hc.chosenZone).toBe(2); // zona intacta: movimento não troca zona na recepção
     expect(moveToCalls.length).toBeGreaterThan(0); // o atleta se moveu
     expect(zoneHintCalls).toHaveLength(0); // nenhuma dica de zona disparada na recepção
   });
 
-  it('joystick para a esquerda (A) na recepção não troca a zona', () => {
+  it('joystick lateral na recepção não troca a zona', () => {
     const hc = new HumanController();
     const { ctx, zoneHintCalls } = makeCtx();
     const { athlete, moveToCalls } = makeAthlete(0, 0);
     hc.chosenZone = 2;
     assignReceive(hc, ctx, athlete);
 
-    // o joystick sintetiza KeyA ao cruzar o limiar; deve só mover, nunca trocar a zona.
-    hc.update(0.016, makeInput({ down: ['KeyA'], pressed: ['KeyA'], axis: { x: 0, z: -1 } }), ctx);
+    hc.update(0.016, makeFrame({ axis: { x: 0, z: -1 } }), ctx);
 
     expect(hc.chosenZone).toBe(2);
     expect(moveToCalls.length).toBeGreaterThan(0);
@@ -158,8 +170,8 @@ describe('HumanController — WASD move na recepção sem trocar a zona (M5)', (
   });
 });
 
-describe('HumanController — troca de zona na fase de levantamento (M5)', () => {
-  it('W/A/D trocam a zona quando ctl é none e o plano é set do lado humano', () => {
+describe('HumanController — troca de zona na fase de levantamento', () => {
+  it('a direção da quadra troca a zona e neutro preserva a recomendação', () => {
     const hc = new HumanController();
     const { ctx, zoneHintCalls } = makeCtx();
     // ctl permanece 'none' (default); plano de levantamento do HOME abre a janela de zona.
@@ -169,16 +181,30 @@ describe('HumanController — troca de zona na fase de levantamento (M5)', () =>
       done: false,
     } as unknown as TouchPlan;
 
-    hc.update(0.016, makeInput({ pressed: ['KeyW'] }), ctx);
-    expect(hc.chosenZone).toBe(1); // W = centro
+    hc.chosenZone = 1;
+    hc.update(0.016, makeFrame({ axis: { x: 0, z: -1 } }), ctx);
+    expect(hc.chosenZone).toBe(0);
 
-    hc.update(0.016, makeInput({ pressed: ['KeyA'] }), ctx);
-    expect(hc.chosenZone).toBe(0); // A = esquerda
+    hc.update(0.016, makeFrame(), ctx);
+    expect(hc.chosenZone).toBe(0);
 
-    hc.update(0.016, makeInput({ pressed: ['KeyD'] }), ctx);
-    expect(hc.chosenZone).toBe(2); // D = direita
+    hc.update(0.016, makeFrame({ axis: { x: 0, z: 1 } }), ctx);
+    expect(hc.chosenZone).toBe(2);
+    expect(zoneHintCalls).toEqual([0, 2]);
+  });
+});
 
-    expect(zoneHintCalls).toEqual([1, 0, 2]);
+describe('HumanController — cancelamento sem release', () => {
+  it('cancela uma carga em andamento sem disparar o saque', () => {
+    const hc = new HumanController();
+    const { ctx, launches, serveMeterCalls } = makeCtx();
+    hc.beginServe(server, ctx);
+    hc.update(0.2, makeFrame({ actionDown: true, pressed: true }), ctx);
+
+    hc.update(0.016, makeFrame({ cancelled: true }), ctx);
+
+    expect(launches).toHaveLength(0);
+    expect(serveMeterCalls.at(-1)).toEqual([true, 0]);
   });
 });
 

@@ -41,9 +41,9 @@ export function makePlaywrightConfig(mode: TestServerMode) {
         testIgnore: /touch\.spec\.ts/,
       },
       {
-        // mobile: só a suíte de toque, num viewport de celular (valida os controles e o HUD tocável)
+        // mobile: suíte de toque no uso real em landscape; portrait gate entra na Fase 5A.
         name: 'mobile',
-        use: { ...devices['Pixel 5'] },
+        use: { ...devices['Pixel 5'], viewport: { width: 844, height: 390 } },
         testMatch: /touch\.spec\.ts/,
       },
     ],

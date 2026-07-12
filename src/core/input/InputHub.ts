@@ -43,6 +43,7 @@ interface CancelEvent extends TimedEventBase {
 type InputEvent = MoveEvent | ActionEvent | CancelEvent;
 
 function normalizeAxis(axis: ScreenAxis): ScreenAxis {
+  if (!Number.isFinite(axis.right) || !Number.isFinite(axis.up)) return NEUTRAL_AXIS;
   const magnitude = Math.hypot(axis.right, axis.up);
   if (magnitude === 0) return NEUTRAL_AXIS;
 
@@ -68,6 +69,7 @@ export class InputHub implements InputSink {
   private lastConsumedAtMs = Number.NEGATIVE_INFINITY;
 
   setMove(source: InputSource, axis: ScreenAxis, atMs: number): void {
+    this.assertEventTime(atMs);
     this.pending.push({
       type: 'move',
       source,
@@ -78,6 +80,7 @@ export class InputHub implements InputSink {
   }
 
   setAction(source: InputSource, down: boolean, atMs: number): void {
+    this.assertEventTime(atMs);
     this.pending.push({
       type: 'action',
       source,
@@ -88,6 +91,7 @@ export class InputHub implements InputSink {
   }
 
   cancel(reason: InputCancelReason, atMs: number): void {
+    this.assertEventTime(atMs);
     this.pending.push({
       type: 'cancel',
       reason,
@@ -97,7 +101,7 @@ export class InputHub implements InputSink {
   }
 
   consumeUntil(atMs: number): InputFrame {
-    if (atMs < this.lastConsumedAtMs) {
+    if (!Number.isFinite(atMs) || atMs < this.lastConsumedAtMs) {
       throw new RangeError('InputHub.consumeUntil exige timestamps monotônicos');
     }
     this.lastConsumedAtMs = atMs;
@@ -186,6 +190,12 @@ export class InputHub implements InputSink {
 
   private stateFor(source: InputSource): SourceState {
     return this.states.get(source)!;
+  }
+
+  private assertEventTime(atMs: number): void {
+    if (!Number.isFinite(atMs) || atMs < this.lastConsumedAtMs) {
+      throw new RangeError('InputHub exige eventos no relógio monotônico atual');
+    }
   }
 
   private createSourceState(): SourceState {

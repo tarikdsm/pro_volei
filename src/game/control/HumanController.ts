@@ -2,7 +2,6 @@
 // o processamento de Input por frame. Reage ao teclado; escreve intenções que as mecânicas leem
 // via ctx (aim/chosenZone). Extraído do Match (1.5b).
 import * as THREE from 'three';
-import { Input } from '../../core/Input';
 import { BLOCK, PLAYER, SERVE_TUNING, TeamSide } from '../../core/constants';
 import { clamp, lerp, rand, chance, randPick } from '../../core/math3d';
 import { Athlete } from '../Team';
@@ -10,6 +9,7 @@ import { TouchPlan } from '../RallyState';
 import { performServe } from '../mechanics/serve';
 import type { MechanicsCtx } from '../mechanics/context';
 import { receiveTimingQuality, jumpTimingQuality, humanContactQuality } from './timing';
+import type { ControlFrame } from './ControlFrame';
 
 export type CtlMode = 'none' | 'serve' | 'receive' | 'attack' | 'block';
 
@@ -75,7 +75,7 @@ export class HumanController {
     this.serveCharging = false;
     this.aim.set(rand(4, 6.5), 0, rand(-2, 2));
     ctx.hooks.hint(
-      'SEGURE ESPAÇO para carregar o saque — solte na zona verde · WASD ajusta a mira',
+      'SEGURE ESPAÇO para carregar o saque — solte na zona verde · setas ajustam a mira',
     );
     ctx.hooks.serveMeter(true, 0);
   }
@@ -92,17 +92,17 @@ export class HumanController {
       this.controlled = plan.athlete;
       this.jumpQ = -1;
       this.aim.set(rand(4.5, 6.5), 0, rand(-2.5, 2.5));
-      ctx.hooks.hint('ESPAÇO pula (timing = força) · WASD mira a cortada');
+      ctx.hooks.hint('ESPAÇO pula (timing = força) · setas miram a cortada');
     } else if (plan.kind === 'set') {
       this.ctl = 'none';
       this.controlled = null;
-      ctx.hooks.hint('Escolha o ataque: A esquerda · W centro · D direita');
+      ctx.hooks.hint('Escolha o ataque: setas escolhem o ataque');
       ctx.hooks.zoneHint(this.chosenZone);
     } else {
       this.ctl = 'receive';
       this.controlled = plan.athlete;
       this.timingQ = -1;
-      ctx.hooks.hint('WASD move · ESPAÇO no momento do toque = passe perfeito');
+      ctx.hooks.hint('SETAS movem · ESPAÇO no momento do toque = passe perfeito');
       ctx.hooks.effects.showLanding(plan.point);
     }
   }
@@ -111,7 +111,7 @@ export class HumanController {
   assignBlock(blocker: Athlete, ctx: MechanicsCtx): void {
     this.ctl = 'block';
     this.controlled = blocker;
-    ctx.hooks.hint('BLOQUEIO: A/D desliza na rede · ESPAÇO pula!');
+    ctx.hooks.hint('BLOQUEIO: setas deslizam na rede · ESPAÇO pula!');
   }
 
   /** IA com a bola num contato não-bloqueável: humano fica ocioso. */
@@ -168,9 +168,16 @@ export class HumanController {
     }
   }
 
-  /** Processa o Input do frame + atualiza o marker do jogador controlado. */
-  update(dt: number, input: Input, ctx: MechanicsCtx): void {
-    const axis = input.moveAxis();
+  /** Processa o frame semântico; DOM, teclas concretas e câmera ficam fora do gameplay. */
+  update(dt: number, frame: ControlFrame, ctx: MechanicsCtx): void {
+    if (frame.cancellations.length > 0) {
+      this.cancelServeCharge(ctx);
+      return;
+    }
+
+    const axis = frame.courtAxis;
+    const actionPressed = frame.actionEdges.some((edge) => edge.kind === 'press');
+    const actionReleased = frame.actionEdges.some((edge) => edge.kind === 'release');
 
     if (this.ctl === 'serve' && this.controlled) {
       // mira
@@ -178,7 +185,7 @@ export class HumanController {
       this.aim.z = clamp(this.aim.z + axis.z * dt * 5, -4.2, 4.2);
       ctx.hooks.effects.showAim(this.aim);
 
-      if (input.wasPressed('Space')) {
+      if (actionPressed) {
         this.serveCharging = true;
         this.servePower = 0;
         this.serveDir = 1;
@@ -194,7 +201,7 @@ export class HumanController {
           this.serveDir = 1;
         }
         ctx.hooks.serveMeter(true, this.servePower);
-        if (input.wasReleased('Space')) {
+        if (actionReleased) {
           this.serveCharging = false;
           this.ctl = 'none';
           const p = this.servePower;
@@ -231,12 +238,11 @@ export class HumanController {
         );
       }
       // timing do passe
-      if (input.wasPressed('Space') && ctx.rally.plan.contactIn < 0.5) {
+      if (actionPressed && ctx.rally.plan.contactIn < 0.5) {
         this.timingQ = receiveTimingQuality(ctx.rally.plan.contactIn);
       }
-      // A escolha de zona NÃO acontece aqui: WASD só move o atleta na recepção. A troca de
-      // zona tem janela dedicada na fase de levantamento (ctl==='none' && kind==='set') abaixo,
-      // evitando que mover (ou o joystick, que sintetiza WASD) troque a zona sem querer. (M5)
+      // A escolha de zona NÃO acontece aqui: a direção só move a atleta na recepção. A troca de
+      // zona tem janela dedicada no levantamento para não mudar o ataque sem querer.
     }
 
     if (
@@ -245,18 +251,11 @@ export class HumanController {
       ctx.rally.plan.kind === 'set' &&
       ctx.rally.plan.side === TeamSide.HOME
     ) {
-      // durante o voo até o levantador
-      if (input.wasPressed('KeyA')) {
-        this.chosenZone = 0;
-        ctx.hooks.zoneHint(0);
-      }
-      if (input.wasPressed('KeyW')) {
-        this.chosenZone = 1;
-        ctx.hooks.zoneHint(1);
-      }
-      if (input.wasPressed('KeyD')) {
-        this.chosenZone = 2;
-        ctx.hooks.zoneHint(2);
+      // A direção transversal da quadra seleciona uma ponta; neutro preserva a recomendação atual.
+      const selectedZone = axis.z < -0.35 ? 0 : axis.z > 0.35 ? 2 : this.chosenZone;
+      if (selectedZone !== this.chosenZone) {
+        this.chosenZone = selectedZone;
+        ctx.hooks.zoneHint(selectedZone);
       }
     }
 
@@ -266,7 +265,7 @@ export class HumanController {
       this.aim.z = clamp(this.aim.z + axis.z * dt * 6, -4.2, 4.2);
       ctx.hooks.effects.showAim(this.aim);
 
-      if (input.wasPressed('Space') && !this.controlled.isAirborne) {
+      if (actionPressed && !this.controlled.isAirborne) {
         // qualidade = quão perto do instante ideal (0.26s antes do contato)
         this.jumpQ = jumpTimingQuality(ctx.rally.plan.contactIn);
         this.controlled.act('spikeWindup', 0.4);
@@ -279,7 +278,7 @@ export class HumanController {
       if (axis.z !== 0) {
         this.controlled.moveTo(-BLOCK.netX, clamp(this.controlled.pos.z + axis.z * 1.2, -4.2, 4.2));
       }
-      if (input.wasPressed('Space') && !this.controlled.isAirborne) {
+      if (actionPressed && !this.controlled.isAirborne) {
         this.controlled.act('block', 0.8);
         this.controlled.jump(PLAYER.blockJumpVel);
       }

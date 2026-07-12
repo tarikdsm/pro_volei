@@ -15,6 +15,7 @@ import { TouchControls } from './ui/TouchControls';
 import { AppState, nextAppState } from './ui/appState';
 import { CROWD } from './core/constants';
 import { exporDebugHabilitado } from './core/debug';
+import { mapScreenToCourt } from './core/input/CameraSpaceMapper';
 
 const app = document.getElementById('app')!;
 
@@ -57,7 +58,7 @@ const input = new Input();
 const audio = new AudioEngine();
 const hud = new HUD(app, isTouch);
 const menu = new Menu(app, isTouch);
-const touch = isTouch ? new TouchControls(app, () => director.mode) : null;
+const touch = isTouch ? new TouchControls(app, input, togglePause) : null;
 hud.show(false);
 
 // aviso para jogar na horizontal
@@ -127,19 +128,24 @@ menu.onResume = () => {
   audio.resume(); // retoma o áudio caso o contexto tenha sido suspenso durante a pausa
 };
 
+function togglePause(): void {
+  if (appState !== 'playing' && appState !== 'paused') return;
+
+  const previous = appState;
+  appState = nextAppState(appState, 'togglePause');
+  if (appState === 'paused') {
+    input.cancel('pause');
+    match.onPause();
+    menu.showPause();
+  } else if (previous === 'paused') {
+    menu.hide();
+    audio.resume();
+  }
+}
+
 window.addEventListener('keydown', (e) => {
   // ignora auto-repeat (segurar Escape não deve piscar a pausa) e só alterna em jogo/pausa
-  if (e.code === 'Escape' && !e.repeat && (appState === 'playing' || appState === 'paused')) {
-    const prev = appState;
-    appState = nextAppState(appState, 'togglePause');
-    if (appState === 'paused') {
-      match.onPause(); // cancela o carregamento do saque para não travar ao retomar
-      menu.showPause();
-    } else if (prev === 'paused') {
-      menu.hide();
-      audio.resume(); // despausar por Escape não passa por onResume — retoma o áudio aqui também
-    }
-  }
+  if (e.code === 'Escape' && !e.repeat) togglePause();
 });
 
 // o browser costuma suspender o AudioContext quando a aba vai para background (troca de app
@@ -173,9 +179,14 @@ function frame(now: number): void {
   // só o estado 'playing' avança a partida; título/pausa/fim congelam o tempo de jogo
   const active = appState === 'playing';
   const dt = rawDt * (active ? timeScale : 0);
+  // O hub é consumido também em menus/pausa para nenhuma borda antiga vazar ao retomar.
+  const inputFrame = input.consumeUntil(now);
 
   if (active) {
-    match.update(dt, input);
+    match.update(dt, {
+      ...inputFrame,
+      courtAxis: mapScreenToCourt(inputFrame.screenAxis, director.inputBasis()),
+    });
   }
   crowd.update(dt > 0 ? dt : rawDt * 0.2);
   referee.update(dt);
@@ -184,7 +195,6 @@ function frame(now: number): void {
   hud.update(rawDt);
   director.update(rawDt);
 
-  input.endFrame();
   renderer.render(scene, director.camera);
 }
 requestAnimationFrame(frame);

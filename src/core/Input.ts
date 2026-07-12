@@ -1,41 +1,44 @@
-import { KeyState } from './KeyState';
+import type {
+  InputCancelReason,
+  InputFrame,
+  InputSink,
+  InputSource,
+  ScreenAxis,
+} from './input/InputFrame';
+import { InputHub } from './input/InputHub';
+import { KeyboardInput } from './input/KeyboardInput';
 
-// Entrada de teclado: liga os listeners de window e delega o estado a um KeyState puro (testável
-// em Node). A superfície pública (isDown/wasPressed/wasReleased/moveAxis/endFrame) permanece
-// idêntica — HumanController.update e o loop em main.ts a consomem.
-export class Input {
-  private keys = new KeyState();
+/** Composition root de entrada: liga DOM, teclado e fontes touch ao hub semântico. */
+export class Input implements InputSink {
+  private readonly hub = new InputHub();
+  private readonly keyboard = new KeyboardInput(this.hub);
 
-  constructor() {
-    window.addEventListener('keydown', (e) => {
-      this.keys.keyDown(e.code, e.repeat);
-      // não bloqueia o auto-repeat: só a primeira pressão precisa cancelar o scroll/rolagem
-      if (
-        !e.repeat &&
-        ['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)
-      ) {
-        e.preventDefault();
-      }
+  constructor(
+    target: Window = window,
+    private readonly now: () => number = () => performance.now(),
+  ) {
+    target.addEventListener('keydown', (event) => {
+      if (this.keyboard.keyDown(event.code, event.repeat, this.now())) event.preventDefault();
     });
-    window.addEventListener('keyup', (e) => this.keys.keyUp(e.code));
-    window.addEventListener('blur', () => this.keys.blur());
+    target.addEventListener('keyup', (event) => {
+      if (this.keyboard.keyUp(event.code, this.now())) event.preventDefault();
+    });
+    target.addEventListener('blur', () => this.cancel('blur', this.now()));
   }
 
-  isDown(key: string): boolean {
-    return this.keys.isDown(key);
-  }
-  wasPressed(key: string): boolean {
-    return this.keys.wasPressed(key);
-  }
-  wasReleased(key: string): boolean {
-    return this.keys.wasReleased(key);
+  consumeUntil(atMs: number): InputFrame {
+    return this.hub.consumeUntil(atMs);
   }
 
-  moveAxis(): { x: number; z: number } {
-    return this.keys.moveAxis();
+  setMove(source: InputSource, axis: ScreenAxis, atMs: number): void {
+    this.hub.setMove(source, axis, atMs);
   }
 
-  endFrame(): void {
-    this.keys.endFrame();
+  setAction(source: InputSource, down: boolean, atMs: number): void {
+    this.hub.setAction(source, down, atMs);
+  }
+
+  cancel(reason: InputCancelReason, atMs = this.now()): void {
+    this.keyboard.cancel(reason, atMs);
   }
 }

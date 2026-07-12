@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import { Ball } from '../entities/Ball';
 import { Team, Athlete } from './Team';
-import { Input } from '../core/Input';
 import { AudioEngine } from '../core/AudioEngine';
 import { Effects } from '../systems/Effects';
 import { CameraDirector, camModeForTouch } from '../systems/CameraDirector';
@@ -28,6 +27,7 @@ import { prepareBlock } from './mechanics/block';
 import { executeTouch } from './mechanics/touch';
 import { MechanicsCtx } from './mechanics/context';
 import { HumanController } from './control/HumanController';
+import type { ControlFrame } from './control/ControlFrame';
 import { AiController } from './ai/AiController';
 import { resolvePoint, awardPoint, pushScore, endSet, ScoringCtx } from './rules/SetMatch';
 import { outOfAntennaWinner, isMatchOver } from './rules/scoring';
@@ -230,7 +230,7 @@ export class Match {
     };
 
     // aproximação: a IA agenda o deslocamento (reactionDelay) e o pulo no ataque; o humano recebe
-    // um nudge inicial (delay 0) e assume com WASD — o levantador humano é automático.
+    // um nudge inicial (delay 0) e assume pelo ControlFrame — o levantador humano é automático.
     if (isHuman) {
       if (nextKind === 'spike') {
         const backoff = sideSign(landSide) * 0.85;
@@ -277,7 +277,7 @@ export class Match {
   }
 
   // ---------------------------------------------------------------- UPDATE
-  update(dt: number, input: Input): void {
+  update(dt: number, frame: ControlFrame): void {
     this.stateTime += dt;
 
     // eventos agendados
@@ -290,7 +290,7 @@ export class Match {
     }
 
     // entrada humana
-    this.human.update(dt, input, this.ctx);
+    this.human.update(dt, frame, this.ctx);
 
     // contato agendado
     if (this.rally.plan && !this.rally.plan.done && this.state === 'rally') {

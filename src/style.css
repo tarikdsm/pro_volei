@@ -293,14 +293,6 @@ body,
   pointer-events: auto;
   touch-action: none;
 }
-#zones.tappable {
-  pointer-events: auto;
-}
-#zones.tappable span {
-  touch-action: none;
-  padding: 12px 18px;
-}
-
 #rotate-tip {
   display: none;
   position: fixed;

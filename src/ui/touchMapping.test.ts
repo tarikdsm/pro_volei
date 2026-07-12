@@ -1,44 +1,37 @@
-import { describe, it, expect } from 'vitest';
-import { stickKeys } from './touchMapping';
+import { describe, expect, it } from 'vitest';
+import { screenAxisFromStick } from './touchMapping';
 
-const R = 52; // mesmo raio usado em TouchControls.updateStick
-const FAR = 40; // > limiar (0.35 * 52 ≈ 18.2)
-const NEAR = 10; // < limiar (zona morta)
+const RADIUS = 52;
 
-describe('stickKeys — câmera broadcast (serveCam=false)', () => {
-  it('direita da tela (dx>0) → KeyW (rumo à rede)', () => {
-    expect(stickKeys(FAR, 0, R, false).has('KeyW')).toBe(true);
-  });
-  it('esquerda da tela (dx<0) → KeyS', () => {
-    expect(stickKeys(-FAR, 0, R, false).has('KeyS')).toBe(true);
-  });
-  it('baixo da tela (dy>0) → KeyD (mundo +z)', () => {
-    expect(stickKeys(0, FAR, R, false).has('KeyD')).toBe(true);
-  });
-  it('cima da tela (dy<0) → KeyA', () => {
-    expect(stickKeys(0, -FAR, R, false).has('KeyA')).toBe(true);
-  });
-});
-
-describe('stickKeys — câmera de saque (serveCam=true)', () => {
-  it('cima (dy<0) → KeyW (mais fundo)', () => {
-    expect(stickKeys(0, -FAR, R, true).has('KeyW')).toBe(true);
-  });
-  it('direita (dx>0) → KeyD', () => {
-    expect(stickKeys(FAR, 0, R, true).has('KeyD')).toBe(true);
-  });
-});
-
-describe('stickKeys — limiar e diagonais', () => {
-  it('dentro do limiar (|d| < 0.35*R) não sintetiza tecla', () => {
-    expect(stickKeys(NEAR, NEAR, R, false).size).toBe(0);
-    expect(stickKeys(NEAR, NEAR, R, true).size).toBe(0);
+describe('screenAxisFromStick', () => {
+  it('mantém o centro e toda a deadzone radial em zero', () => {
+    expect(screenAxisFromStick(0, 0, RADIUS)).toEqual({ right: 0, up: 0 });
+    expect(screenAxisFromStick(RADIUS * 0.2, RADIUS * 0.2, RADIUS)).toEqual({
+      right: 0,
+      up: 0,
+    });
   });
 
-  it('diagonal acima do limiar em ambos os eixos sintetiza duas teclas', () => {
-    const keys = stickKeys(FAR, FAR, R, false); // dx>0 → KeyW, dy>0 → KeyD
-    expect(keys.size).toBe(2);
-    expect(keys.has('KeyW')).toBe(true);
-    expect(keys.has('KeyD')).toBe(true);
+  it('mapeia direita e cima da tela para eixos positivos', () => {
+    expect(screenAxisFromStick(RADIUS, 0, RADIUS)).toEqual({ right: 1, up: -0 });
+    expect(screenAxisFromStick(0, -RADIUS, RADIUS)).toEqual({ right: 0, up: 1 });
+  });
+
+  it('remapeia suavemente o restante da deadzone até deflexão total', () => {
+    const half = screenAxisFromStick(RADIUS * 0.675, 0, RADIUS);
+    expect(half.right).toBeCloseTo(0.5);
+    expect(half.up).toBeCloseTo(0);
+  });
+
+  it('normaliza diagonal e limita deslocamento além do raio', () => {
+    const diagonal = screenAxisFromStick(RADIUS, -RADIUS, RADIUS);
+    expect(Math.hypot(diagonal.right, diagonal.up)).toBeCloseTo(1);
+    expect(diagonal.right).toBeCloseTo(Math.SQRT1_2);
+    expect(diagonal.up).toBeCloseTo(Math.SQRT1_2);
+  });
+
+  it('tolera raio inválido sem produzir NaN', () => {
+    expect(screenAxisFromStick(10, -10, 0)).toEqual({ right: 0, up: 0 });
+    expect(screenAxisFromStick(Number.NaN, 0, RADIUS)).toEqual({ right: 0, up: 0 });
   });
 });

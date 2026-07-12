@@ -146,7 +146,7 @@ export async function exerciseServeControls(page: Page): Promise<void> {
   await page.waitForTimeout(450);
   await page.keyboard.up('Space');
 
-  for (const key of ['KeyA', 'KeyD', 'KeyW']) {
+  for (const key of ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown']) {
     await page.keyboard.down(key);
     await page.waitForTimeout(120);
     await page.keyboard.up(key);

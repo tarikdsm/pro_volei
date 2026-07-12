@@ -1,14 +1,8 @@
 import { TeamSide } from '../core/constants';
 
-// Zonas de ataque tocáveis (celular): código de tecla sintetizada + rótulo de acessibilidade (pt-BR).
-// Índices alinhados: 0 = esquerda (KeyA), 1 = centro (KeyW), 2 = direita (KeyD).
-// Exportados para permitir teste puro sem DOM (ver HUD.a11y.spec.ts).
-export const ZONE_CODES = ['KeyA', 'KeyW', 'KeyD'] as const;
-export const ZONE_A11Y = [
-  'Atacar pela esquerda',
-  'Atacar pelo centro',
-  'Atacar pela direita',
-] as const;
+// Feedback visual da escolha transitória de levantamento. A direção agora vem do InputFrame;
+// estes elementos não são botões e nunca sintetizam teclado.
+export const ZONE_LABELS = ['← ESQUERDA', 'AUTO', 'DIREITA →'] as const;
 
 // HUD em HTML/CSS sobre o canvas: placar, medidor de saque, banners, dicas, zonas.
 export class HUD {
@@ -38,8 +32,8 @@ export class HUD {
       <div id="banner"><div id="banner-text"></div><div id="banner-sub"></div></div>
       <div id="hint"></div>
       <div id="meter"><div id="meter-perfect"></div><div id="meter-fill"></div></div>
-      <div id="zones">
-        <span data-z="0">A · ESQUERDA</span><span data-z="1">W · CENTRO</span><span data-z="2">D · DIREITA</span>
+      <div id="zones" aria-label="Direção do levantamento">
+        ${ZONE_LABELS.map((label, zone) => `<span data-z="${zone}">${label}</span>`).join('')}
       </div>
     `;
     parent.appendChild(this.root);
@@ -50,23 +44,6 @@ export class HUD {
     this.meterWrap = this.root.querySelector('#meter')!;
     this.meterFill = this.root.querySelector('#meter-fill')!;
     this.zonesEl = this.root.querySelector('#zones')!;
-
-    // no celular as zonas são botões tocáveis (sintetizam A/W/D)
-    if (this.touchMode) {
-      this.zonesEl.classList.add('tappable');
-      this.zonesEl.querySelectorAll('span').forEach((s) => {
-        const z = Number((s as HTMLElement).dataset.z);
-        // rotula a zona para leitores de tela (não altera comportamento nem layout)
-        s.setAttribute('role', 'button');
-        s.setAttribute('aria-label', ZONE_A11Y[z]);
-        s.addEventListener('pointerdown', (e) => {
-          const code = ZONE_CODES[z];
-          window.dispatchEvent(new KeyboardEvent('keydown', { code, bubbles: true }));
-          window.dispatchEvent(new KeyboardEvent('keyup', { code, bubbles: true }));
-          e.preventDefault();
-        });
-      });
-    }
   }
 
   show(visible: boolean): void {
@@ -103,15 +80,12 @@ export class HUD {
     if (this.touchMode && text) {
       // traduz as dicas de teclado para os controles de toque
       text = text
+        .replace(/setas/gi, 'direcional')
         .replace('SEGURE ESPAÇO', 'SEGURE 🏐')
         .replace('ESPAÇO pula', '🏐 pula')
         .replace('ESPAÇO no momento do toque', '🏐 no momento do toque')
         .replace('ESPAÇO pula!', '🏐 pula!')
         .replace('ESPAÇO', '🏐')
-        .replace('WASD ajusta a mira', 'direcional ajusta a mira')
-        .replace('WASD move', 'direcional move')
-        .replace('WASD mira a cortada', 'direcional mira')
-        .replace('A esquerda · W centro · D direita', 'toque na zona de ataque')
         .replace('A/D desliza na rede', 'direcional desliza na rede');
     }
     this.hintEl.textContent = text;

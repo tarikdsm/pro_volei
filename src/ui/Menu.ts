@@ -43,12 +43,12 @@ export class Menu {
             this.touchMode
               ? `
           <div><b>🏐 botão</b> sacar / passar / pular / bloquear (segure para carregar o saque)</div>
-          <div><b>direcional</b> mover e mirar · <b>toque na zona</b> para escolher o ataque</div>
+          <div><b>direcional</b> mover, mirar e escolher o ataque</div>
           <div>📱 jogue na horizontal para a melhor experiência</div>
           `
               : `
           <div><b>ESPAÇO</b> sacar / passar / pular / bloquear</div>
-          <div><b>WASD</b> mover e mirar · <b>A/W/D</b> escolher zona de ataque</div>
+          <div><b>SETAS</b> mover, mirar e escolher o ataque</div>
           <div><b>ESC</b> pausa</div>
           `
           }

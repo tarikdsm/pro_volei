@@ -65,6 +65,15 @@ describe('InputHub — fila temporal', () => {
 
     expect(() => hub.consumeUntil(9)).toThrow(RangeError);
   });
+
+  it('recusa timestamps não finitos e eventos anteriores ao último consumo', () => {
+    const hub = new InputHub();
+    expect(() => hub.setAction('keyboard', true, Number.NaN)).toThrow(RangeError);
+    expect(() => hub.consumeUntil(Number.POSITIVE_INFINITY)).toThrow(RangeError);
+
+    hub.consumeUntil(10);
+    expect(() => hub.setMove('touch', { right: 1, up: 0 }, 9)).toThrow(RangeError);
+  });
 });
 
 describe('InputHub — composição de fontes', () => {
@@ -123,6 +132,13 @@ describe('InputHub — composição de fontes', () => {
     expect(Math.hypot(axis.right, axis.up)).toBeCloseTo(1);
     expect(axis.right).toBeCloseTo(Math.SQRT1_2);
     expect(axis.up).toBeCloseTo(-Math.SQRT1_2);
+  });
+
+  it('neutraliza componentes de movimento não finitos', () => {
+    const hub = new InputHub();
+    hub.setMove('touch', { right: Number.NaN, up: 1 }, 1);
+
+    expect(hub.consumeUntil(1).screenAxis).toEqual({ right: 0, up: 0 });
   });
 });
 

@@ -1,21 +1,31 @@
-// Mapeamento puro do joystick de toque → teclas WASD, extraído de TouchControls para ser testável
-// em ambiente Node (sem DOM). Recebe o deslocamento do knob em pixels (dx, dy) já clampado ao raio,
-// o raio do stick e se a câmera de saque está ativa; devolve o conjunto de teclas sintéticas.
-//  - câmera de saque (serveCam, atrás da sacadora): cima = mais fundo, direita = direita
-//  - câmera broadcast (lateral): direita da tela = rumo à rede (mundo +x), baixo = mundo +z
-export function stickKeys(dx: number, dy: number, radius: number, serveCam: boolean): Set<string> {
-  const t = 0.35 * radius; // zona morta central: abaixo do limiar não sintetiza tecla
-  const want = new Set<string>();
-  if (serveCam) {
-    if (dy < -t) want.add('KeyW'); // cima = mais fundo
-    if (dy > t) want.add('KeyS');
-    if (dx > t) want.add('KeyD'); // direita = direita
-    if (dx < -t) want.add('KeyA');
-  } else {
-    if (dx > t) want.add('KeyW'); // direita da tela = rumo à rede (mundo +x)
-    if (dx < -t) want.add('KeyS');
-    if (dy > t) want.add('KeyD'); // baixo da tela = mundo +z
-    if (dy < -t) want.add('KeyA');
+export interface TouchScreenAxis {
+  right: number;
+  up: number;
+}
+
+const DEFAULT_DEADZONE = 0.35;
+
+/** Converte o deslocamento do joystick em um eixo analógico relativo à tela. */
+export function screenAxisFromStick(
+  dx: number,
+  dy: number,
+  radius: number,
+  deadzone = DEFAULT_DEADZONE,
+): TouchScreenAxis {
+  if (![dx, dy, radius, deadzone].every(Number.isFinite) || radius <= 0) {
+    return { right: 0, up: 0 };
   }
-  return want;
+
+  const length = Math.hypot(dx, dy);
+  const normalizedLength = Math.min(1, length / radius);
+  const safeDeadzone = Math.min(0.99, Math.max(0, deadzone));
+  if (normalizedLength <= safeDeadzone || length === 0) {
+    return { right: 0, up: 0 };
+  }
+
+  const magnitude = (normalizedLength - safeDeadzone) / (1 - safeDeadzone);
+  return {
+    right: (dx / length) * magnitude,
+    up: (-dy / length) * magnitude,
+  };
 }
