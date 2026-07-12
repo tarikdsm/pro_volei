@@ -19,6 +19,7 @@ function makeFrame(
   const axis = opts.axis ?? { x: 0, z: 0 };
   let sequence = 0;
   return {
+    simulationTick: 1,
     sampledAtMs: 100,
     screenAxis: { right: 0, up: 0 },
     courtAxis: axis,
@@ -58,6 +59,7 @@ function makeTimelineFrame(timeline: Array<'press' | 'release' | 'cancel'>): Con
   });
 
   return {
+    simulationTick: 1,
     sampledAtMs: 100,
     screenAxis: { right: 0, up: 0 },
     courtAxis: { x: 0, z: 0 },

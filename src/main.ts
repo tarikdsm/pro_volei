@@ -23,7 +23,11 @@ const app = document.getElementById('app')!;
 const debugWindow = window as unknown as {
   __match?: Match;
   __renderer?: THREE.WebGLRenderer;
-  __controlFrame?: { screenAxis: { right: number; up: number }; actionDown: boolean };
+  __controlFrame?: {
+    simulationTick: number;
+    screenAxis: { right: number; up: number };
+    actionDown: boolean;
+  };
   __selection?: ReturnType<Match['selectionSnapshot']>;
   __simulationClock?: {
     tick: number;
@@ -206,6 +210,7 @@ function frame(now: number): void {
       const inputFrame = input.consumeUntil(ticket.inputThroughMs);
       const controlFrame = {
         ...inputFrame,
+        simulationTick: ticket.tick,
         courtAxis: mapScreenToCourt(inputFrame.screenAxis, cameraBasis),
       };
       if (debugEnabled) debugWindow.__controlFrame = controlFrame;
