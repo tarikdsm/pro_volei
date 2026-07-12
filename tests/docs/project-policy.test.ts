@@ -25,7 +25,7 @@ describe('políticas canônicas do projeto', () => {
     const ci = readRepo('.github/workflows/ci.yml');
     const readme = readRepo('README.md');
     const changelog = readRepo('CHANGELOG.md');
-    const triggerBlock = ci.match(/on:\r?\n[\s\S]*?(?=\r?\n# Cancela)/)?.[0];
+    const triggerBlock = ci.match(/^on:\r?\n(?:^[ \t]+.*(?:\r?\n|$))+/m)?.[0];
 
     expect(claude).toContain('Fluxo main-only');
     expect(contributing).toContain('commits diretamente em `main`');
