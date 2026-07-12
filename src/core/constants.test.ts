@@ -7,6 +7,7 @@ import {
   PLAYER,
   SERVE_TUNING,
   SIMULATION_TIMING,
+  TIMING_FEEDBACK,
 } from './constants';
 import * as C from './constants';
 
@@ -36,16 +37,6 @@ describe('BLOCK — invariantes de tuning', () => {
 });
 
 describe('HUMAN_TIMING — invariantes de tuning', () => {
-  it('slopes positivos (senão a qualidade nunca decai)', () => {
-    expect(HUMAN_TIMING.receiveSlope).toBeGreaterThan(0);
-    expect(HUMAN_TIMING.jumpSlope).toBeGreaterThan(0);
-  });
-
-  it('sweet-spots não-negativos', () => {
-    expect(HUMAN_TIMING.receiveSweet).toBeGreaterThanOrEqual(0);
-    expect(HUMAN_TIMING.jumpSweet).toBeGreaterThanOrEqual(0);
-  });
-
   it('qualidade do toque permanece em [0,1] e penalidade em (0,1]', () => {
     expect(HUMAN_TIMING.contactBase).toBeGreaterThanOrEqual(0);
     expect(HUMAN_TIMING.contactBase + HUMAN_TIMING.contactSpan).toBeLessThanOrEqual(1);
@@ -106,6 +97,18 @@ describe('ACTION_BUTTON — gramática temporal a 60 Hz', () => {
       blockIdealTicks: 19,
       freeballIdealTicks: 5,
     });
+  });
+});
+
+describe('TIMING_FEEDBACK — tiers e apresentação', () => {
+  it('ordena thresholds, durações e padrões hápticos canônicos', () => {
+    expect(TIMING_FEEDBACK.perfectMin).toBeGreaterThan(TIMING_FEEDBACK.goodMin);
+    expect(TIMING_FEEDBACK.goodMin).toBeGreaterThan(0);
+    expect(TIMING_FEEDBACK.visualDuration.perfect).toBeGreaterThan(
+      TIMING_FEEDBACK.visualDuration.good,
+    );
+    expect(TIMING_FEEDBACK.visualDuration.good).toBeGreaterThan(TIMING_FEEDBACK.visualDuration.off);
+    expect(TIMING_FEEDBACK.haptics).toEqual({ perfect: [20, 30, 20], good: [15], off: [10] });
   });
 });
 

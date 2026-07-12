@@ -1,7 +1,7 @@
 // Controle humano: adapta a gramática única do botão aos contextos da partida e preserva
 // AutoSelector, mira e movimento sem conhecer DOM, teclado concreto ou câmera.
 import * as THREE from 'three';
-import { ACTION_WINDOWS, CONTACT, PLAYER, SERVE_TUNING, TeamSide } from '../../core/constants';
+import { CONTACT, PLAYER, SERVE_TUNING, TeamSide } from '../../core/constants';
 import type { InputCancelReason } from '../../core/input/InputFrame';
 import { chance, clamp, lerp, rand, randPick } from '../../core/math3d';
 import type { TouchPlan } from '../RallyState';
@@ -17,6 +17,7 @@ import type { ActionContext, ActionIntent } from './ActionIntent';
 import type { ControlFrame } from './ControlFrame';
 import { HumanAutoControl } from './HumanAutoControl';
 import { humanContactQuality } from './timing';
+import { evaluateTiming, type TimingEvaluation } from '../feedback/TimingFeedback';
 
 export type CtlMode = 'none' | 'serve' | 'receive' | 'set' | 'attack' | 'block' | 'freeball';
 
@@ -34,7 +35,7 @@ export class HumanController {
   private lastFrame: ControlFrame | null = null;
   private lastRequest: ActionControlRequest | null = null;
   private consumedContactIntent: ActionIntent | null = null;
-  private resolvedTimingQuality = 0;
+  private resolvedTiming: TimingEvaluation | null = null;
   private jumpedToken: number | null = null;
 
   readonly aim = new THREE.Vector3(5.5, 0, 0);
@@ -153,7 +154,7 @@ export class HumanController {
     const intent = this.contactQualityIntent();
     if (intent && intent.context !== 'attack') {
       const semanticQuality =
-        this.resolvedTimingQuality * intent.precision * (0.85 + intent.power * 0.15);
+        (this.resolvedTiming?.quality ?? 0) * intent.precision * (0.85 + intent.power * 0.15);
       const quality = humanContactQuality(semanticQuality, hard);
       if (semanticQuality > 0.8 && !hard) ctx.hooks.banner('PERFEITO!', '');
       if (semanticQuality > 0.7 && hard) ctx.hooks.banner('DEFESAÇA!', '');
@@ -170,7 +171,7 @@ export class HumanController {
     const intent = this.contactQualityIntent();
     if (!intent || intent.context !== 'attack') return 0.4;
     return clamp(
-      0.2 + intent.power * 0.6 + intent.precision * this.resolvedTimingQuality * 0.2,
+      0.2 + intent.power * 0.6 + intent.precision * (this.resolvedTiming?.quality ?? 0) * 0.2,
       0,
       1,
     );
@@ -364,15 +365,7 @@ export class HumanController {
   }
 
   private registerResolvedIntent(intent: ActionIntent, contactInTicks: number): void {
-    const ideal = idealLeadTicks(intent.context);
-    const pressLead = contactInTicks + (intent.resolvedTick - intent.pressedTick);
-    const measuredLead =
-      intent.context === 'attack' || intent.context === 'block' ? pressLead : contactInTicks;
-    this.resolvedTimingQuality = clamp(
-      1 - Math.abs(measuredLead - ideal) / Math.max(12, ideal),
-      0,
-      1,
-    );
+    if (intent.context !== 'serve') this.resolvedTiming = evaluateTiming(intent, contactInTicks);
   }
 
   private contactQualityIntent(): ActionIntent | null {
@@ -391,7 +384,7 @@ export class HumanController {
 
   private clearResolvedIntent(): void {
     this.consumedContactIntent = null;
-    this.resolvedTimingQuality = 0;
+    this.resolvedTiming = null;
   }
 
   private startJump(token: number, context: 'attack' | 'block'): void {
@@ -541,21 +534,4 @@ function contextForPlan(plan: TouchPlan): ActionContext {
 function secondsToTicks(seconds: number): number {
   if (!Number.isFinite(seconds)) return Number.POSITIVE_INFINITY;
   return Math.max(0, Math.ceil(seconds * FIXED_HZ - 1e-9));
-}
-
-function idealLeadTicks(context: ActionContext): number {
-  switch (context) {
-    case 'receive':
-      return ACTION_WINDOWS.receiveIdealTicks;
-    case 'set':
-      return ACTION_WINDOWS.setIdealTicks;
-    case 'attack':
-      return ACTION_WINDOWS.attackIdealTicks;
-    case 'block':
-      return ACTION_WINDOWS.blockIdealTicks;
-    case 'freeball':
-      return ACTION_WINDOWS.freeballIdealTicks;
-    case 'serve':
-      return 0;
-  }
 }

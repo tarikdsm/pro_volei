@@ -117,10 +117,6 @@ export const BLOCK = {
 
 // Sweet-spots e curvas do timing humano (control/timing.ts).
 export const HUMAN_TIMING = {
-  receiveSweet: 0.08, // instante ideal (s antes do contato) do toque na recepção
-  receiveSlope: 3.2, // queda de qualidade por s de erro na recepção
-  jumpSweet: 0.26, // instante ideal (s antes do contato) do pulo no ataque
-  jumpSlope: 2.8, // queda de qualidade por s de erro no pulo
   contactBase: 0.45, // qualidade mínima do toque (timing zerado)
   contactSpan: 0.55, // ganho de qualidade do toque com timing perfeito
   hardPenalty: 0.8, // fator sobre bola forte (penaliza 20%)
@@ -198,6 +194,15 @@ export const ACTION_WINDOWS = {
   attackIdealTicks: 16,
   blockIdealTicks: 19,
   freeballIdealTicks: 5,
+} as const;
+
+export const TIMING_FEEDBACK = {
+  perfectMin: 0.85,
+  goodMin: 0.55,
+  onTimeToleranceTicks: 1,
+  visualDuration: { perfect: 0.24, good: 0.19, off: 0.15 },
+  colors: { perfect: 0xeaffff, good: 0xffd45a, off: 0xff665f },
+  haptics: { perfect: [20, 30, 20], good: [15], off: [10] },
 } as const;
 
 export const MATCH_FORMATS = [
