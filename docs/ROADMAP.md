@@ -31,11 +31,18 @@ Quebrar `Match.ts` antes de crescer o jogo. Detalhes e passo a passo em
 - [x] Introduzir `RallyState` explícito
 - [x] Extrair `mechanics/` (Serve, Touch, Block)
 - [x] Separar `ai/AiController` de `control/HumanController`
-- [x] `Match.ts` vira orquestrador fino (~490 linhas; state machine + event queue + update loop)
+- [x] `Match.ts` vira orquestrador de state machine + event queue + update loop; permanece acima
+      do tamanho-alvo e não deve crescer
 
 **Saída:** cada regra testável isoladamente; IA e dificuldades plugáveis.
 
-## Fase 2 — Qualidade de jogo e conteúdo 🔜 (prioridade atual)
+## Roadmap legado absorvido pelo plano 2.0
+
+As antigas Fases 2–5 abaixo registram o roadmap anterior. Seus objetivos foram absorvidos e
+reordenados pelo design 2.0 e pelas subfases publicáveis descritas acima; não definem a ordem
+vigente de execução.
+
+### Fase 2 — Qualidade de jogo e conteúdo
 
 Aprofundar o que já roda, agora sobre base limpa.
 
@@ -46,7 +53,7 @@ Aprofundar o que já roda, agora sobre base limpa.
 - [ ] Persistência local (recordes, preferências) via `localStorage`
 - [ ] Acessibilidade: daltonismo, escala de UI, legendas de eventos
 
-## Fase 3 — Performance e arte
+### Fase 3 — Performance e arte
 
 Elevar qualidade percebida e garantir 60fps em mobile.
 
@@ -55,7 +62,7 @@ Elevar qualidade percebida e garantir 60fps em mobile.
 - [ ] Passe de iluminação e materiais; pós-processamento opcional no desktop
 - [ ] Profiling em dispositivos reais de baixo/médio porte
 
-## Fase 4 — Empacotamento multiplataforma
+### Fase 4 — Empacotamento multiplataforma
 
 Mesmo código web, três alvos de loja. Guias em [docs/deployment/](deployment/).
 
@@ -66,7 +73,7 @@ Mesmo código web, três alvos de loja. Guias em [docs/deployment/](deployment/)
       safe-areas, ciclo das lojas)
 - [ ] Matriz de release: um `git tag` gera artefatos para as três plataformas
 
-## Fase 5 — Produção contínua
+### Fase 5 — Produção contínua
 
 - [ ] Versionamento semântico + CHANGELOG mantido a cada release
 - [ ] Telemetria opcional e anônima (opt-in) para balanceamento
@@ -77,7 +84,8 @@ Mesmo código web, três alvos de loja. Guias em [docs/deployment/](deployment/)
 
 ## Princípios
 
-- **Offline-first:** nada de assets remotos; tudo procedural. É um diferencial — preservar.
+- **Offline-first:** assets de runtime devem ser locais, originais ou licenciados; zero URLs
+  remotas em runtime.
 - **Refatorar antes de crescer:** não empilhar features sobre `Match.ts` monolítico.
 - **Verde sempre:** `npm run check` passando; `main` sempre buildável e jogável.
 - **Um código, três lojas:** evitar divergência de plataforma; isolar o específico nos wrappers.
