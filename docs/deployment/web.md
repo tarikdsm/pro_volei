@@ -76,8 +76,9 @@ Há dois mecanismos, com propósitos diferentes:
 1. **Fallback transitório da migração:** enquanto a Fase 1C valida o rollback, a branch remota
    `gh-pages`, o pacote `gh-pages` e o script `npm run deploy` continuam preservados. Em emergência,
    restaure a policy do ambiente para `gh-pages`, altere Pages para `build_type=legacy` com fonte
-   `gh-pages:/` e só então use o script legado. Depois confirme novamente Pages, policy e URL
-   pública. Esse caminho será removido apenas na Fase 1D.
+   `gh-pages:/` e valide a URL pública. **Não execute `npm run deploy` durante a restauração:** a
+   troca de fonte já reativa a branch conhecida, enquanto o script reconstruiria o `HEAD` e poderia
+   substituir o fallback por outro artefato. Esse caminho será removido apenas na Fase 1D.
 2. **Rollback normal de produção:** reexecute integralmente um run verde anterior com
    `gh run rerun RUN_ID --repo tarikdsm/pro_volei`; o workflow preserva o `GITHUB_SHA` daquele run
    e publica seu artefato isolado por tentativa. Se a correção precisa permanecer no histórico,
