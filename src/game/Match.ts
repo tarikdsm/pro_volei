@@ -19,6 +19,7 @@ import {
   SERVE_SPOT,
   MATCH_FORMATS,
   TouchKind,
+  CAMERA_FEEL,
 } from '../core/constants';
 import { ballisticArc, clamp, rand, chance } from '../core/math3d';
 import { computeNetCrossing, netTouchPoint } from './mechanics/net';
@@ -34,6 +35,7 @@ import { resolvePoint, awardPoint, pushScore, endSet, ScoringCtx } from './rules
 import { outOfAntennaWinner, isMatchOver } from './rules/scoring';
 import { MatchTimeline } from './simulation/MatchTimeline';
 import type { FeedbackPort } from './feedback/TimingFeedback';
+import type { CameraFrame, CameraPhase } from '../systems/camera/CameraFrame';
 
 export interface MatchStats {
   aces: number;
@@ -60,6 +62,21 @@ export interface Hooks {
 }
 
 type MState = 'idle' | 'servePrep' | 'rally' | 'point' | 'setEnd' | 'matchEnd';
+
+const CAMERA_BOUNDS = {
+  min: { x: -14, y: 0, z: -8 },
+  max: { x: 14, y: 10, z: 8 },
+} as const;
+
+type MutableCameraPoint = { x: number; y: number; z: number };
+type MutableCameraFrame = {
+  ball: MutableCameraPoint;
+  controlled?: MutableCameraPoint;
+  destination?: MutableCameraPoint;
+  bounds: CameraFrame['bounds'];
+  phase: CameraPhase;
+  contactIn: number | null;
+};
 
 export class Match {
   group = new THREE.Group();
@@ -89,6 +106,15 @@ export class Match {
   private ai = new AiController();
 
   private stats: MatchStats = { aces: 0, blocks: 0, longestRally: 0, points: [0, 0] };
+  private readonly cameraBall: MutableCameraPoint = { x: 0, y: 0, z: 0 };
+  private readonly cameraControlled: MutableCameraPoint = { x: 0, y: 0, z: 0 };
+  private readonly cameraDestination: MutableCameraPoint = { x: 0, y: 0, z: 0 };
+  private readonly cameraFrame: MutableCameraFrame = {
+    ball: this.cameraBall,
+    bounds: CAMERA_BOUNDS,
+    phase: 'rally',
+    contactIn: null,
+  };
 
   // contextos injetados (mecânica e pontuação), montados no construtor
   private ctx!: MechanicsCtx;
@@ -148,6 +174,38 @@ export class Match {
     return this.human.actionSnapshot();
   }
 
+  /** Snapshot readonly para o solver de apresentação; não permite mutar gameplay pela câmera. */
+  cameraFrameSnapshot(): Readonly<CameraFrame> {
+    const plan = this.rally.plan && !this.rally.plan.done ? this.rally.plan : null;
+    const phase: CameraPhase =
+      this.state === 'servePrep'
+        ? 'serve'
+        : this.state === 'point'
+          ? 'point'
+          : this.state === 'setEnd' || this.state === 'matchEnd'
+            ? 'setEnd'
+            : plan?.kind === 'spike' && plan.contactIn <= CAMERA_FEEL.spikeAnticipationSeconds
+              ? 'spike'
+              : 'rally';
+    this.cameraBall.x = this.hooks.camera.ballPos.x;
+    this.cameraBall.y = this.hooks.camera.ballPos.y;
+    this.cameraBall.z = this.hooks.camera.ballPos.z;
+    this.cameraFrame.controlled = this.human.writeCameraSubject(this.cameraControlled)
+      ? this.cameraControlled
+      : undefined;
+    if (plan) {
+      this.cameraDestination.x = plan.point.x;
+      this.cameraDestination.y = plan.point.y;
+      this.cameraDestination.z = plan.point.z;
+      this.cameraFrame.destination = this.cameraDestination;
+    } else {
+      this.cameraFrame.destination = undefined;
+    }
+    this.cameraFrame.phase = phase;
+    this.cameraFrame.contactIn = plan?.contactIn ?? null;
+    return this.cameraFrame;
+  }
+
   /**
    * Costura DE TESTE, só em desenvolvimento (import.meta.env.DEV): força o fim da partida a favor
    * de `side`, encerrando sets até bater os sets necessários do formato. Reaproveita
@@ -185,7 +243,9 @@ export class Match {
       done: false,
     };
     this.rally.plan = plan;
+    this.ball.hold(new THREE.Vector3(plan.point.x, plan.point.y + 0.4, plan.point.z));
     this.human.onAssigned(this.ctx, plan);
+    this.hooks.camera.setMode('rally', { cut: true });
   }
 
   /** Cenário DEV determinístico de saque para E2E de tap/hold/cancelamento. */

@@ -53,6 +53,25 @@ type MatchWindow = Window &
       lastCharge: number;
       lastResolvedToken: number | null;
     };
+    __cameraFrame?: {
+      activeMode: string;
+      motionProfile: 'full' | 'reduced';
+      fov: number;
+      solution: {
+        safeRect: { x: number; y: number; width: number; height: number };
+        subjects: {
+          ball: { x: number; y: number };
+          controlled?: { x: number; y: number };
+          destination?: { x: number; y: number };
+        };
+        destinationIncluded: boolean;
+      } | null;
+      actualSubjects: {
+        ball: { x: number; y: number };
+        controlled?: { x: number; y: number };
+        destination?: { x: number; y: number };
+      } | null;
+    };
   };
 
 // Instantâneo do estado observável da partida — base das asserções de congelamento (pausa).
@@ -115,6 +134,14 @@ export function readActionSnapshot(page: Page): Promise<NonNullable<MatchWindow[
     const action = (window as MatchWindow).__action;
     if (!action) throw new Error('window.__action ausente (esperado em DEV)');
     return { ...action };
+  });
+}
+
+export function readCameraFrame(page: Page): Promise<NonNullable<MatchWindow['__cameraFrame']>> {
+  return page.evaluate(() => {
+    const camera = (window as MatchWindow).__cameraFrame;
+    if (!camera) throw new Error('window.__cameraFrame ausente (esperado em DEV)');
+    return structuredClone(camera);
   });
 }
 

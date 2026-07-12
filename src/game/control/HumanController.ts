@@ -254,6 +254,15 @@ export class HumanController {
     return this.actionControl.snapshot();
   }
 
+  /** Ponto apresentado da atleta controlada, sem expor Athlete/Three.js ao consumidor de câmera. */
+  writeCameraSubject(out: { x: number; y: number; z: number }): boolean {
+    if (!this.isControlling || !this.controlled) return false;
+    out.x = this.controlled.char.root.position.x;
+    out.y = 1 + this.controlled.jumpY;
+    out.z = this.controlled.char.root.position.z;
+    return true;
+  }
+
   peekActionIntent(): ActionIntent | null {
     return this.actionControl.peek();
   }

@@ -20,6 +20,9 @@ import { FixedStepRunner, type FixedStepDiscard } from './core/time/FixedStepRun
 import { SlowMotionClock } from './core/time/SlowMotionClock';
 import { Haptics } from './systems/Haptics';
 import { PresentationFeedback } from './systems/PresentationFeedback';
+import { detectMotionProfile } from './systems/camera/MotionProfile';
+import { createSafeFrame } from './ui/SafeFrameLayout';
+import type { SafeFrame, ScreenRect } from './systems/camera/CameraFrame';
 
 const app = document.getElementById('app')!;
 const debugWindow = window as unknown as {
@@ -33,6 +36,7 @@ const debugWindow = window as unknown as {
   __selection?: ReturnType<Match['selectionSnapshot']>;
   __action?: ReturnType<Match['actionSnapshot']>;
   __feedback?: ReturnType<PresentationFeedback['snapshot']>;
+  __cameraFrame?: ReturnType<CameraDirector['presentationSnapshot']>;
   __simulationClock?: {
     tick: number;
     simulationSeconds: number;
@@ -76,7 +80,10 @@ const referee = new Referee();
 const effects = new Effects();
 scene.add(court.group, arena.group, crowd.mesh, referee.group, effects.group);
 
-const director = new CameraDirector(window.innerWidth / window.innerHeight);
+const director = new CameraDirector(
+  window.innerWidth / window.innerHeight,
+  detectMotionProfile(window.matchMedia.bind(window)),
+);
 const input = new Input();
 const audio = new AudioEngine();
 const haptics = new Haptics();
@@ -86,6 +93,53 @@ const menu = new Menu(app, isTouch);
 const touch = isTouch ? new TouchControls(app, input, togglePause) : null;
 window.addEventListener('blur', () => touch?.resetPointers());
 hud.show(false);
+
+const cameraOverlaySelectors = [
+  '#scoreboard',
+  '#hint',
+  '#meter',
+  '#zones',
+  '#tc-stick',
+  '#tc-action',
+  '#tc-pause',
+] as const;
+let cameraLayoutDirty = true;
+let meterWasVisible = false;
+let zonesWereVisible = false;
+let cameraSafeFrame: Readonly<SafeFrame> = createSafeFrame(
+  { width: window.innerWidth, height: window.innerHeight },
+  { top: 0, right: 0, bottom: 0, left: 0 },
+  [],
+);
+
+function markCameraLayoutDirty(): void {
+  cameraLayoutDirty = true;
+}
+
+function measureCameraSafeFrame(): Readonly<SafeFrame> {
+  const rootStyle = getComputedStyle(document.documentElement);
+  const inset = (name: string) => Number.parseFloat(rootStyle.getPropertyValue(name)) || 0;
+  const overlays: ScreenRect[] = [];
+  for (const selector of cameraOverlaySelectors) {
+    const element = document.querySelector<HTMLElement>(selector);
+    if (!element) continue;
+    const style = getComputedStyle(element);
+    if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0')
+      continue;
+    const rect = element.getBoundingClientRect();
+    overlays.push({ x: rect.x, y: rect.y, width: rect.width, height: rect.height });
+  }
+  return createSafeFrame(
+    { width: window.innerWidth, height: window.innerHeight },
+    {
+      top: inset('--safe-area-top'),
+      right: inset('--safe-area-right'),
+      bottom: inset('--safe-area-bottom'),
+      left: inset('--safe-area-left'),
+    },
+    overlays,
+  );
+}
 
 // aviso para jogar na horizontal
 const rotateTip = document.createElement('div');
@@ -106,10 +160,29 @@ let appState: AppState = 'title';
 // ---------- partida ----------
 const match = new Match({
   banner: (t, s) => hud.banner(t, s),
-  hint: (t) => hud.hint(t),
-  setScore: (h, a, hs, as, n, sv) => hud.setScore(h, a, hs, as, n, sv),
-  serveMeter: (v, val) => hud.serveMeter(v, val),
-  zoneHint: (z) => hud.zoneHint(z),
+  hint: (t) => {
+    hud.hint(t);
+    markCameraLayoutDirty();
+  },
+  setScore: (h, a, hs, as, n, sv) => {
+    hud.setScore(h, a, hs, as, n, sv);
+    markCameraLayoutDirty();
+  },
+  serveMeter: (v, val) => {
+    hud.serveMeter(v, val);
+    if (v !== meterWasVisible) {
+      meterWasVisible = v;
+      markCameraLayoutDirty();
+    }
+  },
+  zoneHint: (z) => {
+    hud.zoneHint(z);
+    const visible = z !== null;
+    if (visible !== zonesWereVisible) {
+      zonesWereVisible = visible;
+      markCameraLayoutDirty();
+    }
+  },
   slowMo,
   matchEnd: (homeWon, stats, scoreline) => {
     // fim da partida: trava o estado em 'ended' para o Escape não abrir a pausa
@@ -118,6 +191,7 @@ const match = new Match({
     hud.show(false);
     touch?.show(false);
     menu.showVictory(homeWon, stats, scoreline);
+    markCameraLayoutDirty();
   },
   feedback,
   audio,
@@ -147,6 +221,7 @@ menu.onStart = () => {
   hud.show(true);
   touch?.show(true);
   match.startMatch(menu.difficulty, menu.format);
+  markCameraLayoutDirty();
 };
 menu.onResume = () => {
   // botão CONTINUAR: o Menu já chamou hide(); aqui só destravamos o estado.
@@ -154,6 +229,7 @@ menu.onResume = () => {
   appState = nextAppState(appState, 'resume');
   audio.uiClick();
   audio.resume(); // retoma o áudio caso o contexto tenha sido suspenso durante a pausa
+  markCameraLayoutDirty();
 };
 
 function togglePause(): void {
@@ -171,6 +247,7 @@ function togglePause(): void {
     menu.hide();
     audio.resume();
   }
+  markCameraLayoutDirty();
 }
 
 window.addEventListener('keydown', (e) => {
@@ -189,6 +266,7 @@ window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
   director.camera.aspect = window.innerWidth / window.innerHeight;
   director.camera.updateProjectionMatrix();
+  markCameraLayoutDirty();
 });
 
 function discardStalledInput(discard: FixedStepDiscard): void {
@@ -228,6 +306,11 @@ function frame(now: number): void {
   // Menus/pausa/fim drenam bordas antigas sem entregá-las à simulação.
   if (!active) input.consumeUntil(now);
   match.present(active ? simulationFrame.alpha : 1);
+  if (cameraLayoutDirty) {
+    cameraSafeFrame = measureCameraSafeFrame();
+    cameraLayoutDirty = false;
+  }
+  director.setFrame(match.cameraFrameSnapshot(), cameraSafeFrame);
 
   const simulatedDt = simulationFrame.steps / SIMULATION_TIMING.hz;
   crowd.update(active ? simulatedDt : visualDt * 0.2);
@@ -241,6 +324,7 @@ function frame(now: number): void {
     debugWindow.__selection = match.selectionSnapshot();
     debugWindow.__action = match.actionSnapshot();
     debugWindow.__feedback = feedback.snapshot();
+    debugWindow.__cameraFrame = director.presentationSnapshot();
     debugWindow.__simulationClock = {
       tick: simulationFrame.tick,
       simulationSeconds: simulationFrame.simulationSeconds,

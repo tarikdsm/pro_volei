@@ -1,5 +1,5 @@
 {
-  "collectedAt": "2026-07-09T01:46:39.001Z",
+  "collectedAt": "2026-07-12T23:08:29.895Z",
   "environment": {
     "project": "chromium",
     "headless": true,
@@ -10,24 +10,24 @@
     "note": "Baseline INFORMATIVO em Chromium headless. NÃO é orçamento de hardware nem gate de CI; use só para comparar antes/depois das otimizações de perf."
   },
   "frameTime": {
-    "averageFps": 9.2,
+    "averageFps": 9.4,
     "p50Ms": 116.6,
-    "p95Ms": 133.3,
-    "p99Ms": 150,
+    "p95Ms": 116.7,
+    "p99Ms": 116.8,
     "frameCount": 47,
-    "durationMs": 5103
+    "durationMs": 5012
   },
   "rendering": {
-    "drawCallsPerFrameAvg": 535.5,
-    "drawCallsPerFrameMax": 551,
-    "rendererInfoCallsAvg": 545.6,
-    "rendererInfoTrianglesAvg": 111857,
+    "drawCallsPerFrameAvg": 514.9,
+    "drawCallsPerFrameMax": 526,
+    "rendererInfoCallsAvg": 526,
+    "rendererInfoTrianglesAvg": 111080,
     "sampleCount": 50
   },
   "heap": {
-    "browserUsedBytes": 23100000,
+    "browserUsedBytes": 26000000,
     "browserDeltaBytes": 0,
-    "cdpUsedBytes": 17252292,
-    "cdpTotalBytes": 32505856
+    "cdpUsedBytes": 22063208,
+    "cdpTotalBytes": 32768000
   }
 }

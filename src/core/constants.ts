@@ -25,6 +25,21 @@ export const SIMULATION_TIMING = {
   maxStepsPerFrame: 5,
 } as const satisfies SimulationTiming;
 
+/** Envelopes de câmera da apresentação; todos avançam somente pelo dt recebido. */
+export const CAMERA_FEEL = {
+  baseFov: 55,
+  fovKickMax: 6,
+  fovAttackSeconds: 0.05,
+  fovReleaseSeconds: 0.25,
+  fovProjectionEpsilon: 0.01,
+  shakeDurationSeconds: 0.3,
+  shakeWorldMax: 0.35,
+  shakeDesktopPixels: 12,
+  shakeTouchPixels: 8,
+  shakeFrequency: 45,
+  spikeAnticipationSeconds: 0.35,
+} as const;
+
 // Nº máximo de pontos do rastro luminoso da bola (capacidade do ring buffer).
 export const TRAIL_MAX_POINTS = 26;
 

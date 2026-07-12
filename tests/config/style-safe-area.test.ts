@@ -61,3 +61,11 @@ describe('safe areas nos controles de toque (B4)', () => {
     expect(meta).toContain('viewport-fit=cover');
   });
 });
+
+describe('preferência de movimento reduzido', () => {
+  it('desativa animações e transições decorativas sem esconder conteúdo', () => {
+    expect(css).toContain('@media (prefers-reduced-motion: reduce)');
+    expect(css).toContain('animation-duration: 0.001ms !important');
+    expect(css).toContain('transition-duration: 0.001ms !important');
+  });
+});
