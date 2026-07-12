@@ -10,7 +10,8 @@ import {
 test('carrega o jogo e inicia uma partida sem erro de browser', async ({ page }, testInfo) => {
   const browserProblems = collectBrowserProblems(page);
 
-  await openGameAndStartMatch(page);
+  // A prova de input usa a costura de diagnóstico; no build ela exige opt-in explícito.
+  await openGameAndStartMatch(page, { search: '?debug=1' });
 
   await page.keyboard.down('ArrowRight');
   await expect.poll(async () => (await readScreenAxis(page)).right).toBeGreaterThan(0.9);

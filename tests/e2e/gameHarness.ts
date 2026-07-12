@@ -92,9 +92,9 @@ export async function expectNoBrowserProblems(
 
 export async function openGameAndStartMatch(
   page: Page,
-  opts: { format?: number } = {},
+  opts: { format?: number; search?: string } = {},
 ): Promise<void> {
-  await page.goto('/');
+  await page.goto(`/${opts.search ?? ''}`);
 
   await expect(page.locator('#app')).toBeVisible();
   await expect(page.locator('canvas')).toBeVisible();
