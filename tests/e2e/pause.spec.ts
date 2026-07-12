@@ -5,6 +5,7 @@ import {
   openGameAndStartMatch,
   pauseGame,
   readMatchSnapshot,
+  readSimulationClock,
   resumeGame,
 } from './gameHarness';
 
@@ -16,14 +17,22 @@ test('pausa congela a partida e retomar volta ao jogo', async ({ page }, testInf
 
   // com appState='paused', main.ts não chama match.update — o estado deve ficar congelado.
   const before = await readMatchSnapshot(page);
+  const clockBefore = await readSimulationClock(page);
   await page.waitForTimeout(1_000);
   const after = await readMatchSnapshot(page);
+  const clockAfter = await readSimulationClock(page);
   expect(after).toEqual(before);
+  expect(clockAfter.tick).toBe(clockBefore.tick);
+  expect(clockAfter.simulationSeconds).toBe(clockBefore.simulationSeconds);
+  expect(clockAfter.alpha).toBe(0);
 
   await resumeGame(page);
   // de volta ao ar: HUD visível e placar ainda presente (não zerou nem quebrou)
   await expect(page.locator('#hud')).toBeVisible();
   await expect(page.locator('#score-main')).toHaveText(/\d+\s:\s\d+/);
+  await expect
+    .poll(async () => (await readSimulationClock(page)).tick)
+    .toBeGreaterThan(clockAfter.tick);
 
   await expectNoBrowserProblems(browserProblems, testInfo);
 });

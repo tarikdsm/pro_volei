@@ -47,6 +47,36 @@ describe('EventTimeline', () => {
     });
   });
 
+  it('trata diferenças dentro do epsilon como empate e aplica prioridade', () => {
+    const earlier = candidate('earlier-low-priority', 0.01, 20, 0);
+    const epsilonLater = candidate('epsilon-later-high-priority', 0.01 + 1e-10, 10, 1);
+
+    const selected = selectNextTimelineEvent([earlier, epsilonLater], {
+      at: 0,
+      remaining: 0.02,
+    });
+
+    expect(selected?.event.token).toBe('epsilon-later-high-priority');
+  });
+
+  it('forma um bucket a partir do menor instante sem depender da ordem de entrada', () => {
+    const a = candidate('a', 0, 30, 0);
+    const b = candidate('b', 0.75e-9, 20, 1);
+    const c = candidate('c', 1.5e-9, 10, 2);
+    const permutations = [
+      [a, b, c],
+      [a, c, b],
+      [b, a, c],
+      [b, c, a],
+      [c, a, b],
+      [c, b, a],
+    ];
+
+    for (const events of permutations) {
+      expect(selectNextTimelineEvent(events, { at: 0, remaining: 0.01 })?.event.token).toBe('b');
+    }
+  });
+
   it('ignora tempos não finitos, negativos, anteriores ao cursor e posteriores à janela', () => {
     const selected = selectNextTimelineEvent(
       [
@@ -73,6 +103,21 @@ describe('EventTimeline', () => {
     );
     expect(selectNextTimelineEvent([end], { at: 0.005, remaining: 0.01 })?.event).toBe(end);
     expect(selectNextTimelineEvent([start, end], { at: 0.005, remaining: 0 })?.event).toBe(start);
+  });
+
+  it('absorve erro sub-nanossegundo nas fronteiras sem avançar além da janela', () => {
+    const justBeforeCursor = candidate('start-epsilon', 0.005 - 1e-13, 0, 0);
+    const justAfterEnd = candidate('end-epsilon', 0.015 + 1e-13, 0, 1);
+
+    expect(
+      selectNextTimelineEvent([justBeforeCursor], { at: 0.005, remaining: 0.01 }),
+    ).toMatchObject({ at: 0.005, timeFromCursor: 0 });
+    const selectedEnd = selectNextTimelineEvent([justAfterEnd], {
+      at: 0.005,
+      remaining: 0.01,
+    });
+    expect(selectedEnd?.at).toBeCloseTo(0.015, 12);
+    expect(selectedEnd?.timeFromCursor).toBeCloseTo(0.01, 12);
   });
 
   it('exige consumo explícito para não repetir um evento no cursor sem avanço temporal', () => {

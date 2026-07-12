@@ -45,6 +45,7 @@ export interface CharVisual {
   jumpY: number;
   setAction(a: CharAction): void;
   update(dt: number): void;
+  presentJump?(jumpY: number): void;
 }
 
 // Fábrica de personagem visual (default no browser = new PlayerCharacter).
@@ -211,6 +212,10 @@ export class PlayerCharacter implements CharVisual {
       this.action = a;
       this.actionTime = 0;
     }
+  }
+
+  presentJump(jumpY: number): void {
+    this.body.position.y = jumpY;
   }
 
   // Pose paramétrica computada a cada frame — transições suaves via damping das juntas.

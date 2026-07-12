@@ -21,6 +21,13 @@ type MatchWindow = Window &
       screenAxis: { right: number; up: number };
       actionDown: boolean;
     };
+    __simulationClock?: {
+      tick: number;
+      simulationSeconds: number;
+      alpha: number;
+      discardedWallSeconds: number;
+      discardedSimulationSeconds: number;
+    };
   };
 
 // Instantâneo do estado observável da partida — base das asserções de congelamento (pausa).
@@ -30,6 +37,16 @@ export type MatchSnapshot = {
   sets: [number, number];
   setNumber: number;
 };
+
+export type SimulationClockSnapshot = NonNullable<MatchWindow['__simulationClock']>;
+
+export function readSimulationClock(page: Page): Promise<SimulationClockSnapshot> {
+  return page.evaluate(() => {
+    const clock = (window as MatchWindow).__simulationClock;
+    if (!clock) throw new Error('window.__simulationClock ausente (esperado em DEV)');
+    return { ...clock };
+  });
+}
 
 export function readMatchSnapshot(page: Page): Promise<MatchSnapshot> {
   return page.evaluate(() => {

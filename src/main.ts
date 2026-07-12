@@ -138,6 +138,7 @@ menu.onStart = () => {
 };
 menu.onResume = () => {
   // botão CONTINUAR: o Menu já chamou hide(); aqui só destravamos o estado.
+  match.snapPresentation();
   appState = nextAppState(appState, 'resume');
   audio.uiClick();
   audio.resume(); // retoma o áudio caso o contexto tenha sido suspenso durante a pausa
@@ -154,6 +155,7 @@ function togglePause(): void {
     match.cancelPendingAction();
     menu.showPause();
   } else if (previous === 'paused') {
+    match.snapPresentation();
     menu.hide();
     audio.resume();
   }
@@ -213,6 +215,7 @@ function frame(now: number): void {
 
   // Menus/pausa/fim drenam bordas antigas sem entregá-las à simulação.
   if (!active) input.consumeUntil(now);
+  match.present(active ? simulationFrame.alpha : 1);
 
   const simulatedDt = simulationFrame.steps / SIMULATION_TIMING.hz;
   crowd.update(active ? simulatedDt : visualDt * 0.2);

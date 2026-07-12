@@ -8,6 +8,7 @@ import {
 } from '../entities/PlayerCharacter';
 import { BASE_SLOTS, COLORS, PLAYER, TeamSide, SETTER_SPOT } from '../core/constants';
 import { initialSlots, rotateSlots } from './rules/rotation';
+import { lerp, lerpAngle } from '../core/math3d';
 
 const GRAV = -22; // gravidade do pulo dos atletas (mais pesada = pulos secos)
 
@@ -16,12 +17,15 @@ export class Athlete {
   char: CharVisual;
   pos = new THREE.Vector3();
   target = new THREE.Vector3();
+  private previousPos = new THREE.Vector3();
   // escratch por-instância reutilizado a cada update() para evitar alocar um
   // Vector3/atleta/frame (12 atletas). NUNCA compartilhar entre atletas.
   private delta = new THREE.Vector3();
   facing = 0;
+  private previousFacing = 0;
   faceNet = true;
   jumpY = 0;
+  private previousJumpY = 0;
   private jumpVel = 0;
   private airborne = false;
   private actionUntil = 0;
@@ -48,7 +52,9 @@ export class Athlete {
 
   warpTo(x: number, z: number): void {
     this.pos.set(x, 0, z);
+    this.previousPos.copy(this.pos);
     this.target.copy(this.pos);
+    this.present(1);
   }
 
   jump(vel = PLAYER.jumpVel): void {
@@ -111,6 +117,24 @@ export class Athlete {
     this.char.root.position.set(this.pos.x, 0, this.pos.z);
     this.char.root.rotation.y = this.facing;
     this.char.update(dt);
+  }
+
+  beginFixedStep(): void {
+    this.previousPos.copy(this.pos);
+    this.previousFacing = this.facing;
+    this.previousJumpY = this.jumpY;
+  }
+
+  /** Interpola somente o visual entre os dois últimos estados lógicos. */
+  present(alpha: number): void {
+    const t = Math.max(0, Math.min(1, alpha));
+    this.char.root.position.set(
+      lerp(this.previousPos.x, this.pos.x, t),
+      0,
+      lerp(this.previousPos.z, this.pos.z, t),
+    );
+    this.char.root.rotation.y = lerpAngle(this.previousFacing, this.facing, t);
+    this.char.presentJump?.(lerp(this.previousJumpY, this.jumpY, t));
   }
 
   /** posição das mãos p/ contato (aproximada) */
@@ -255,5 +279,13 @@ export class Team {
 
   update(dt: number, maxSpeed: number): void {
     for (const a of this.athletes) a.update(dt, maxSpeed);
+  }
+
+  beginFixedStep(): void {
+    for (const athlete of this.athletes) athlete.beginFixedStep();
+  }
+
+  present(alpha: number): void {
+    for (const athlete of this.athletes) athlete.present(alpha);
   }
 }

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { BALL_RADIUS, COURT, TRAIL_MAX_POINTS } from '../core/constants';
-import { positionAt, timeToHeight, integrateBallistic } from '../core/math3d';
+import { positionAt, timeToHeight, integrateBallistic, lerpAngle } from '../core/math3d';
 import { TrailBuffer } from './TrailBuffer';
 
 // Bola com gomos (textura canvas), rastro luminoso e sombra projetada no chão.
@@ -12,11 +12,15 @@ export class Ball {
   private trailPts = new TrailBuffer(TRAIL_MAX_POINTS);
 
   pos = new THREE.Vector3(0, 1, 0);
+  private previousPos = new THREE.Vector3(0, 1, 0);
+  private presentedPos = new THREE.Vector3(0, 1, 0);
   vel = new THREE.Vector3();
   inFlight = false;
   /** após o ponto, a bola quica no chão em vez de encerrar o rally */
   bouncy = false;
   private spin = new THREE.Vector3();
+  private rotation = new THREE.Vector3();
+  private previousRotation = new THREE.Vector3();
 
   constructor() {
     const tex = makeBallTexture();
@@ -60,6 +64,7 @@ export class Ball {
     );
     this.trail.frustumCulled = false;
     this.group.add(this.trail);
+    this.syncVisualSnapshots();
   }
 
   /** lança a bola com velocidade v0 a partir de p0 */
@@ -75,14 +80,13 @@ export class Ball {
     this.inFlight = false;
     this.pos.copy(p);
     this.vel.set(0, 0, 0);
+    this.syncVisualSnapshots();
   }
 
   step(dt: number): void {
     if (this.inFlight) {
       integrateBallistic(this.pos, this.vel, dt);
-      this.mesh.rotation.x += this.spin.x * dt;
-      this.mesh.rotation.y += this.spin.y * dt;
-      this.mesh.rotation.z += this.spin.z * dt;
+      this.rotation.addScaledVector(this.spin, dt);
       // quicando após o ponto
       if (this.bouncy && this.pos.y <= BALL_RADIUS && this.vel.y < 0) {
         this.pos.y = BALL_RADIUS;
@@ -92,28 +96,24 @@ export class Ball {
         if (Math.abs(this.vel.y) < 0.8) this.vel.set(0, 0, 0);
       }
     }
-    this.mesh.position.copy(this.pos);
+  }
 
-    // sombra segue no chão, some se a bola sai muito da quadra
-    this.shadow.position.set(this.pos.x, 0.012, this.pos.z);
-    const inArea =
-      Math.abs(this.pos.x) < COURT.halfLength + COURT.freeZone &&
-      Math.abs(this.pos.z) < COURT.halfWidth + COURT.freeZone;
-    this.shadow.visible = inArea && this.pos.y > 0.05;
-    const scale = Math.max(0.4, 1.6 - this.pos.y * 0.12);
-    this.shadow.scale.set(scale, scale, 1);
-
-    // rastro (ring buffer pré-alocado: sem clone()/shift() por frame)
+  /** Amostra o rastro uma única vez por tick, independentemente da segmentação de eventos. */
+  endFixedStep(): void {
     if (this.inFlight && this.vel.length() > 6) {
       this.trailPts.push(this.pos);
     } else if (this.trailPts.length) {
       this.trailPts.shift();
     }
+  }
+
+  private updateTrailGeometry(): void {
     const posAttr = this.trail.geometry.attributes.position as THREE.BufferAttribute;
     const colAttr = this.trail.geometry.attributes.color as THREE.BufferAttribute;
     const n = this.trailPts.length;
     for (let i = 0; i < TRAIL_MAX_POINTS; i++) {
-      const p = n > 0 ? this.trailPts.at(Math.min(i, n - 1)) : this.pos;
+      // A ponta acompanha a bola apresentada, nunca o estado lógico um tick à frente.
+      const p = n > 0 && i < n - 1 ? this.trailPts.at(i) : this.presentedPos;
       posAttr.setXYZ(i, p.x, p.y, p.z);
       const a = n > 1 ? i / (n - 1) : 0;
       colAttr.setXYZ(i, a * 1.0, a * 0.85, a * 0.3);
@@ -121,6 +121,39 @@ export class Ball {
     posAttr.needsUpdate = true;
     colAttr.needsUpdate = true;
     this.trail.geometry.setDrawRange(0, Math.max(2, n));
+  }
+
+  beginFixedStep(): void {
+    this.previousPos.copy(this.pos);
+    this.previousRotation.copy(this.rotation);
+  }
+
+  /** Interpola somente meshes/sombra; `pos`, `vel` e rotação lógica permanecem intactos. */
+  present(alpha: number): THREE.Vector3 {
+    const t = Math.max(0, Math.min(1, alpha));
+    this.presentedPos.lerpVectors(this.previousPos, this.pos, t);
+    this.mesh.position.copy(this.presentedPos);
+    this.mesh.rotation.set(
+      lerpAngle(this.previousRotation.x, this.rotation.x, t),
+      lerpAngle(this.previousRotation.y, this.rotation.y, t),
+      lerpAngle(this.previousRotation.z, this.rotation.z, t),
+    );
+
+    this.shadow.position.set(this.presentedPos.x, 0.012, this.presentedPos.z);
+    const inArea =
+      Math.abs(this.presentedPos.x) < COURT.halfLength + COURT.freeZone &&
+      Math.abs(this.presentedPos.z) < COURT.halfWidth + COURT.freeZone;
+    this.shadow.visible = inArea && this.presentedPos.y > 0.05;
+    const scale = Math.max(0.4, 1.6 - this.presentedPos.y * 0.12);
+    this.shadow.scale.set(scale, scale, 1);
+    this.updateTrailGeometry();
+    return this.presentedPos;
+  }
+
+  private syncVisualSnapshots(): void {
+    this.previousPos.copy(this.pos);
+    this.previousRotation.copy(this.rotation);
+    this.present(1);
   }
 
   /** ponto e tempo previstos de queda ao nível do chão (analítico) */

@@ -3,6 +3,9 @@ export const EVENT_TIMELINE_KINDS = ['scheduled', 'contact', 'net', 'antenna', '
 export type EventTimelineKind = (typeof EVENT_TIMELINE_KINDS)[number];
 export type EventTimelineToken = string | number;
 
+// Folga menor que um nanossegundo: absorve apenas ruído de soma binária nas fronteiras do tick.
+const TIMELINE_EPSILON_SECONDS = 1e-9;
+
 export interface EventTimelineCandidate {
   readonly kind: EventTimelineKind;
   readonly timeWithinTick: number;
@@ -28,12 +31,13 @@ export interface SelectedTimelineEvent<T extends EventTimelineCandidate> {
   readonly consumptionToken: EventTimelineToken;
 }
 
-function comesBefore(candidate: EventTimelineCandidate, selected: EventTimelineCandidate): boolean {
+function hasHigherPrecedence(
+  candidate: EventTimelineCandidate,
+  selected: EventTimelineCandidate,
+): boolean {
   return (
-    candidate.timeWithinTick < selected.timeWithinTick ||
-    (candidate.timeWithinTick === selected.timeWithinTick &&
-      (candidate.priority < selected.priority ||
-        (candidate.priority === selected.priority && candidate.sequence < selected.sequence)))
+    candidate.priority < selected.priority ||
+    (candidate.priority === selected.priority && candidate.sequence < selected.sequence)
   );
 }
 
@@ -46,28 +50,43 @@ export function selectNextTimelineEvent<T extends EventTimelineCandidate>(
   }
 
   const end = cursor.at + cursor.remaining;
-  let selected: T | null = null;
+  const eligible: { event: T; at: number }[] = [];
+  let earliestAt = Number.POSITIVE_INFINITY;
 
   for (const candidate of candidates) {
     if (
       !Number.isFinite(candidate.timeWithinTick) ||
       candidate.timeWithinTick < 0 ||
-      candidate.timeWithinTick < cursor.at ||
-      candidate.timeWithinTick > end ||
+      candidate.timeWithinTick < cursor.at - TIMELINE_EPSILON_SECONDS ||
+      candidate.timeWithinTick > end + TIMELINE_EPSILON_SECONDS ||
       cursor.consumedTokens?.has(candidate.token)
     ) {
       continue;
     }
 
-    if (selected === null || comesBefore(candidate, selected)) selected = candidate;
+    const at = Math.max(cursor.at, Math.min(end, candidate.timeWithinTick));
+    eligible.push({ event: candidate, at });
+    earliestAt = Math.min(earliestAt, at);
+  }
+
+  let selected: T | null = null;
+  let selectedAt = 0;
+
+  // Bucket ancorado no menor instante: evita a não transitividade de comparações pairwise.
+  for (const candidate of eligible) {
+    if (candidate.at > earliestAt + TIMELINE_EPSILON_SECONDS) continue;
+    if (selected === null || hasHigherPrecedence(candidate.event, selected)) {
+      selected = candidate.event;
+      selectedAt = candidate.at;
+    }
   }
 
   if (selected === null) return null;
 
   return {
     event: selected,
-    at: selected.timeWithinTick,
-    timeFromCursor: selected.timeWithinTick - cursor.at,
+    at: selectedAt,
+    timeFromCursor: selectedAt - cursor.at,
     consumptionToken: selected.token,
   };
 }

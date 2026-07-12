@@ -7,6 +7,7 @@ import {
   integrateBallistic,
   clamp,
   lerp,
+  lerpAngle,
   easeOutCubic,
   easeInOutCubic,
 } from './math3d';
@@ -25,6 +26,17 @@ describe('lerp', () => {
     expect(lerp(0, 10, 0)).toBe(0);
     expect(lerp(0, 10, 1)).toBe(10);
     expect(lerp(0, 10, 0.5)).toBe(5);
+  });
+});
+
+describe('lerpAngle', () => {
+  it('usa o menor arco ao atravessar a fronteira ±π', () => {
+    const from = Math.PI - 0.1;
+    const to = -Math.PI + 0.1;
+
+    expect(Math.abs(lerpAngle(from, to, 0.5))).toBeCloseTo(Math.PI);
+    expect(lerpAngle(from, to, 0)).toBeCloseTo(from);
+    expect(lerpAngle(from, to, 1)).toBeCloseTo(Math.PI + 0.1);
   });
 });
 

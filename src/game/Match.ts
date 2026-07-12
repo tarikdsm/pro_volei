@@ -31,6 +31,7 @@ import type { ControlFrame } from './control/ControlFrame';
 import { AiController } from './ai/AiController';
 import { resolvePoint, awardPoint, pushScore, endSet, ScoringCtx } from './rules/SetMatch';
 import { outOfAntennaWinner, isMatchOver } from './rules/scoring';
+import { MatchTimeline } from './simulation/MatchTimeline';
 
 export interface MatchStats {
   aces: number;
@@ -57,11 +58,6 @@ export interface Hooks {
 
 type MState = 'idle' | 'servePrep' | 'rally' | 'point' | 'setEnd' | 'matchEnd';
 
-interface PendingEvent {
-  t: number;
-  fn: () => void;
-}
-
 export class Match {
   group = new THREE.Group();
   ball = new Ball();
@@ -70,7 +66,7 @@ export class Match {
 
   state: MState = 'idle';
   private stateTime = 0;
-  private events: PendingEvent[] = [];
+  private timeline!: MatchTimeline;
 
   private diff: Difficulty = DIFFICULTIES[1];
   private format = MATCH_FORMATS[0];
@@ -101,6 +97,22 @@ export class Match {
     this.ball.hold(new THREE.Vector3(0, 1.2, 0));
     this.ctx = this.makeCtx();
     this.scoringCtx = this.makeScoringCtx();
+    this.timeline = new MatchTimeline({
+      rally: this.rally,
+      ball: this.ball,
+      ai: this.ai,
+      mechanics: this.ctx,
+      isRally: () => this.state === 'rally',
+      advanceWorld: (seconds) => {
+        this.stateTime += seconds;
+        this.home.update(seconds, this.humanSpeed());
+        this.away.update(seconds, PLAYER.aiSpeed * this.diff.moveSpeed);
+      },
+      resolveContact: (plan) => this.attemptContact(plan),
+      resolveNet: () => this.onNetTouch(),
+      resolveAntenna: () => this.onOutOfAntenna(),
+      resolveFloor: () => this.resolveFloorContact(),
+    });
   }
 
   startMatch(diffIdx: number, fmtIdx: number): void {
@@ -145,7 +157,7 @@ export class Match {
   private beginServePrep(): void {
     this.state = 'servePrep';
     this.stateTime = 0;
-    this.events = [];
+    this.timeline.clearScheduled();
     this.rally.reset();
     this.human.resetForServe();
     this.hooks.zoneHint(null);
@@ -182,6 +194,7 @@ export class Match {
   /** Após cada lançamento da bola, agenda o próximo contato e eventos de rede/queda. */
   private planNext(nextKind: TouchKind): void {
     this.rally.plan = null;
+    this.timeline.beginPlan();
     this.computeNetEvent();
 
     const landing = this.ball.predictLanding();
@@ -261,6 +274,7 @@ export class Match {
   }
 
   private computeNetEvent(): void {
+    this.timeline.beginTrajectory();
     this.rally.netEventIn = null;
     this.rally.outAntennaIn = null;
     this.rally.netEventPoint = null;
@@ -275,71 +289,28 @@ export class Match {
 
   // ---------------------------------------------------------------- UPDATE
   update(dt: number, frame: ControlFrame): void {
-    this.stateTime += dt;
-
-    // eventos agendados
-    for (let i = this.events.length - 1; i >= 0; i--) {
-      this.events[i].t -= dt;
-      if (this.events[i].t <= 0) {
-        const e = this.events.splice(i, 1)[0];
-        e.fn();
-      }
-    }
-
-    // entrada humana
+    this.ball.beginFixedStep();
+    this.home.beginFixedStep();
+    this.away.beginFixedStep();
     this.human.update(dt, frame, this.ctx);
+    this.timeline.step(dt);
+    this.ball.endFixedStep();
+  }
 
-    // contato agendado
-    if (this.rally.plan && !this.rally.plan.done && this.state === 'rally') {
-      this.rally.plan.contactIn -= dt;
+  /** Apresentação interpolada; não altera posições ou timers lógicos da simulação. */
+  present(alpha: number): void {
+    this.home.present(alpha);
+    this.away.present(alpha);
+    this.human.presentMarker();
+    this.hooks.camera.ballPos.copy(this.ball.present(alpha));
+  }
 
-      // pulos agendados da IA (atacante no ápice + bloqueadores)
-      this.ai.updateScheduledJumps(dt, this.ctx);
-
-      if (this.rally.plan.contactIn <= 0) {
-        this.attemptContact(this.rally.plan);
-      }
-    }
-
-    // evento de rede
-    if (this.rally.netEventIn !== null && this.state === 'rally') {
-      this.rally.netEventIn -= dt;
-      if (this.rally.netEventIn <= 0) {
-        this.rally.netEventIn = null;
-        this.onNetTouch();
-      }
-    }
-
-    // cruzamento fora do corredor das antenas → falta imediata de quem enviou
-    if (this.rally.outAntennaIn !== null && this.state === 'rally') {
-      this.rally.outAntennaIn -= dt;
-      if (this.rally.outAntennaIn <= 0) {
-        this.rally.outAntennaIn = null;
-        this.onOutOfAntenna();
-      }
-    }
-
-    // bola no chão durante rally
-    if (
-      this.state === 'rally' &&
-      this.ball.inFlight &&
-      this.ball.pos.y <= BALL_RADIUS + 0.005 &&
-      this.ball.vel.y < 0
-    ) {
-      this.hooks.audio.bounce();
-      this.hooks.effects.burst(this.ball.pos, 0xd8b06a, 14, 3);
-      this.hooks.camera.addShake(0.25);
-      resolvePoint(this.scoringCtx);
-    }
-
-    // física e visual
-    this.ball.step(dt);
-    this.hooks.camera.ballPos.copy(this.ball.pos);
-    this.home.update(dt, this.humanSpeed());
-    this.away.update(dt, PLAYER.aiSpeed * this.diff.moveSpeed);
-
-    // anel do jogador controlado (após o movimento dos times integrar)
-    this.human.updateMarker();
+  /** Alinha previous/current após pausas ou teletransportes para a apresentação não recuar. */
+  snapPresentation(): void {
+    this.ball.beginFixedStep();
+    this.home.beginFixedStep();
+    this.away.beginFixedStep();
+    this.present(1);
   }
 
   private humanSpeed(): number {
@@ -410,6 +381,15 @@ export class Match {
       this.planNext('pass');
     }
     this.human.clearJump();
+  }
+
+  /** Resolve o primeiro contato analítico com o piso no instante exato do tick. */
+  private resolveFloorContact(): void {
+    this.ball.pos.y = BALL_RADIUS;
+    this.hooks.audio.bounce();
+    this.hooks.effects.burst(this.ball.pos, 0xd8b06a, 14, 3);
+    this.hooks.camera.addShake(0.25);
+    resolvePoint(this.scoringCtx);
   }
 
   private onNetTouch(): void {
@@ -546,7 +526,7 @@ export class Match {
       enterPoint: () => {
         this.state = 'point';
         this.stateTime = 0;
-        this.events = [];
+        this.timeline.clearScheduled();
       },
       enterSetEnd: () => {
         this.state = 'setEnd';
@@ -564,6 +544,6 @@ export class Match {
   }
 
   private after(t: number, fn: () => void): void {
-    this.events.push({ t, fn });
+    this.timeline.after(t, fn);
   }
 }

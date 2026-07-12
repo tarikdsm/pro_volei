@@ -98,6 +98,12 @@ export function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
 }
 
+export function lerpAngle(from: number, to: number, t: number): number {
+  const turn = Math.PI * 2;
+  const delta = ((((to - from + Math.PI) % turn) + turn) % turn) - Math.PI;
+  return from + delta * t;
+}
+
 // Amortecimento exponencial independente de framerate
 export function damp(current: number, target: number, lambda: number, dt: number): number {
   return lerp(current, target, 1 - Math.exp(-lambda * dt));

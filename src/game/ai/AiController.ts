@@ -28,14 +28,26 @@ export class AiController {
 
   /** Avança os pulos agendados (atacante no ápice + bloqueadores) durante o rally. */
   updateScheduledJumps(dt: number, ctx: MechanicsCtx): void {
+    this.advanceScheduledJumpTimers(dt, ctx);
+    this.resolveScheduledJumps(ctx);
+  }
+
+  /** Avança somente os relógios; a timeline resolve o pulo após integrar até a fronteira. */
+  advanceScheduledJumpTimers(dt: number, ctx: MechanicsCtx): void {
     const plan = ctx.rally.plan;
-    if (plan && plan.jumpScheduledIn !== undefined) {
-      plan.jumpScheduledIn -= dt;
-      if (plan.jumpScheduledIn <= 0) {
-        plan.athlete.act('spikeWindup', 0.4);
-        plan.athlete.jump(PLAYER.jumpVel);
-        plan.jumpScheduledIn = undefined;
-      }
+    if (plan?.jumpScheduledIn !== undefined) plan.jumpScheduledIn -= dt;
+    for (const blocker of ctx.rally.blockers) {
+      if (!blocker.jumped) blocker.jumpIn -= dt;
+    }
+  }
+
+  /** Resolve todos os pulos cujos relógios alcançaram zero no instante analítico atual. */
+  resolveScheduledJumps(ctx: MechanicsCtx): void {
+    const plan = ctx.rally.plan;
+    if (plan?.jumpScheduledIn !== undefined && plan.jumpScheduledIn <= 0) {
+      plan.athlete.act('spikeWindup', 0.4);
+      plan.athlete.jump(PLAYER.jumpVel);
+      plan.jumpScheduledIn = undefined;
     }
     // não remove a entrada ao pular: marca `jumped` para o pulo disparar uma única vez e
     // a pertinência à lista continuar valendo "bloqueador comprometido" por todo o ataque
@@ -43,7 +55,6 @@ export class AiController {
     // (a cada ataque) e por RallyState.reset() (a cada ponto).
     for (const b of ctx.rally.blockers) {
       if (b.jumped) continue;
-      b.jumpIn -= dt;
       if (b.jumpIn <= 0) {
         b.athlete.act('block', 0.7);
         b.athlete.jump(PLAYER.blockJumpVel);

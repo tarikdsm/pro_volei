@@ -321,4 +321,18 @@ export class HumanController {
       this.marker.visible = false;
     }
   }
+
+  /** Faz o marker acompanhar a transform visual interpolada da atleta controlada. */
+  presentMarker(): void {
+    if (this.isControlling && this.controlled) {
+      this.marker.visible = true;
+      this.marker.position.set(
+        this.controlled.char.root.position.x,
+        0.02,
+        this.controlled.char.root.position.z,
+      );
+    } else {
+      this.marker.visible = false;
+    }
+  }
 }

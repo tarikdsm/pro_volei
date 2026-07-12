@@ -154,12 +154,37 @@ describe('Athlete.update (movimento + reuso de escratch por-instância)', () => 
     const { athlete, char } = makeAthlete();
     athlete.warpTo(0, 0);
     athlete.moveTo(10, 0);
+    athlete.beginFixedStep();
     athlete.update(0.1, 6);
     // step = min(dist=10, speed*dt = 6*0.1) = 0.6
     expect(athlete.pos.x).toBeCloseTo(0.6, 6);
     expect(athlete.pos.z).toBeCloseTo(0, 6);
     expect(char.lastAction).toBe('run'); // moving == true
     expect(char.moveSpeed).toBeCloseTo(6, 6);
+  });
+
+  it('present interpola o visual sem alterar a posição lógica', () => {
+    const { athlete, char } = makeAthlete();
+    athlete.warpTo(0, 0);
+    athlete.moveTo(10, 0);
+    athlete.update(0.1, 6);
+
+    athlete.present(0.5);
+
+    expect(athlete.pos.x).toBeCloseTo(0.6);
+    expect(char.root.position.x).toBeCloseTo(0.3);
+    athlete.present(0.5);
+    expect(athlete.pos.x).toBeCloseTo(0.6);
+  });
+
+  it('warp sincroniza previous/current e não deixa ghosting', () => {
+    const { athlete, char } = makeAthlete();
+    athlete.warpTo(5, -2);
+
+    athlete.present(0);
+
+    expect(char.root.position.x).toBe(5);
+    expect(char.root.position.z).toBe(-2);
   });
 
   it('não ultrapassa o alvo: o passo é limitado à distância (Caso 2)', () => {
