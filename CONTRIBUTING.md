@@ -38,6 +38,7 @@ npm run typecheck    # tsc --noEmit
 npm run lint         # eslint .        (lint:fix aplica correções automáticas)
 npm run format       # prettier --write .   (format:check só verifica)
 npm run test         # vitest run      (test:watch para watch)
+npm run test:coverage # cobertura V8 de todo src, com threshold inicial de 30%
 npm run check        # tudo acima — o portão de qualidade
 ```
 

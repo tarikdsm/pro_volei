@@ -28,6 +28,7 @@ Ferramental profissional configurado. Antes de commitar, rode o portão de quali
 ```bash
 npm run check   # typecheck + lint + format + testes
 npm run test    # só os testes (Vitest)
+npm run test:coverage # testes + cobertura V8 (mínimo de 30% em todo src)
 npm run lint    # ESLint (lint:fix aplica correções)
 npm run format  # Prettier
 ```

@@ -17,5 +17,18 @@ export default defineConfig({
       'tests/docs/**/*.{test,spec}.ts',
       '.claude/hooks/**/*.{test,spec}.mjs',
     ],
+    coverage: {
+      provider: 'v8',
+      include: ['src/**/*.ts'],
+      exclude: ['src/**/*.test.ts', 'src/**/*.spec.ts', 'src/vite-env.d.ts'],
+      reporter: ['text', 'json-summary'],
+      reportsDirectory: '.playwright-mcp/coverage',
+      thresholds: {
+        statements: 30,
+        branches: 30,
+        functions: 30,
+        lines: 30,
+      },
+    },
   },
 });
