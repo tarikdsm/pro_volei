@@ -116,6 +116,17 @@ export class ActionButtonMachine {
     this.cancel(reason, false);
   }
 
+  /** Lifecycle externo revoga inclusive uma intenção emitida mas ainda não executada. */
+  resetAfterCancellation(reason: InputCancelReason): void {
+    this.token = null;
+    this.context = null;
+    this.consumed = false;
+    this.needsRelease = false;
+    this.physicalDown = false;
+    this.lastCancellation = reason;
+    this.clearGesture('idle');
+  }
+
   private bindToken(input: ActionButtonTick): void {
     if (input.token === this.token) {
       this.context = input.context;

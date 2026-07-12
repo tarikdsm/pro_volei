@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   ACTION_BUTTON,
+  ACTION_WINDOWS,
   BLOCK,
   HUMAN_TIMING,
   PLAYER,
@@ -89,6 +90,21 @@ describe('ACTION_BUTTON — gramática temporal a 60 Hz', () => {
       bufferTicks: 9,
       fullChargeTicks: 30,
       deliberateDirection: 0.35,
+    });
+  });
+
+  it('abre cada contexto cedo o bastante para tap/hold e fixa os sweet-spots', () => {
+    expect(ACTION_WINDOWS).toEqual({
+      receiveLeadTicks: 48,
+      setLeadTicks: 48,
+      attackLeadTicks: 42,
+      blockLeadTicks: 45,
+      freeballLeadTicks: 48,
+      receiveIdealTicks: 5,
+      setIdealTicks: 5,
+      attackIdealTicks: 16,
+      blockIdealTicks: 19,
+      freeballIdealTicks: 5,
     });
   });
 });

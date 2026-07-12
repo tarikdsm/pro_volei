@@ -311,6 +311,23 @@ describe('ActionButtonMachine — cancelamentos e ordem temporal', () => {
     );
   });
 
+  it('resetAfterCancellation revoga intenção não executada e permite retry do mesmo token', () => {
+    const machine = new ActionButtonMachine();
+    pressAt(machine, 0);
+    expect(machine.step(tick(1, { actionEdges: [edge('release', 1)] }))).not.toBe(null);
+
+    machine.resetAfterCancellation('pause');
+    expect(machine.snapshot()).toMatchObject({
+      token: null,
+      status: 'idle',
+      consumed: false,
+      lastCancellation: 'pause',
+    });
+
+    pressAt(machine, 2);
+    expect(machine.step(tick(3, { actionEdges: [edge('release', 3)] }))).not.toBe(null);
+  });
+
   it.each<InputCancelReason>([
     'pause',
     'blur',

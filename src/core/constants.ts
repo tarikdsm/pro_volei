@@ -186,6 +186,20 @@ export const ACTION_BUTTON = {
   deliberateDirection: 0.35,
 } as const;
 
+/** Janelas contextuais também expressas em ticks de 60 Hz. */
+export const ACTION_WINDOWS = {
+  receiveLeadTicks: 48,
+  setLeadTicks: 48,
+  attackLeadTicks: 42,
+  blockLeadTicks: 45,
+  freeballLeadTicks: 48,
+  receiveIdealTicks: 5,
+  setIdealTicks: 5,
+  attackIdealTicks: 16,
+  blockIdealTicks: 19,
+  freeballIdealTicks: 5,
+} as const;
+
 export const MATCH_FORMATS = [
   { name: 'Rápida — 1 set de 15', sets: 1, pointsPerSet: 15 },
   { name: 'Clássica — melhor de 3 a 25', sets: 3, pointsPerSet: 25 },
