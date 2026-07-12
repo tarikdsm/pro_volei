@@ -89,6 +89,12 @@ describe('ActionControl', () => {
     expect(control.take(9, 'receive')).toBe(null);
     expect(control.take(9, 'set')).toMatchObject({ token: 9, technique: 'high-set' });
     expect(control.peek()).toBe(null);
+    expect(control.snapshot()).toMatchObject({
+      lastTechnique: 'high-set',
+      lastGesture: 'tap',
+      lastCharge: 0,
+      lastResolvedToken: 9,
+    });
   });
 
   it('contato compatível resolve hold com a carga atual', () => {
@@ -110,6 +116,7 @@ describe('ActionControl', () => {
     });
 
     expect(intent).toMatchObject({ gesture: 'hold', technique: 'power-spike', charge: 0.5 });
+    expect(control.snapshot()).toMatchObject({ lastGesture: 'hold', lastCharge: 0.5 });
   });
 
   it('cancelamento de lifecycle revoga pending e permite retry do mesmo token', () => {
@@ -132,6 +139,7 @@ describe('ActionControl', () => {
       status: 'idle',
       lastCancellation: 'pause',
       pendingTechnique: null,
+      lastTechnique: 'safe-save',
     });
 
     control.step(frame(2, 'press', true), request);

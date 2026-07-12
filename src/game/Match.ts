@@ -142,6 +142,10 @@ export class Match {
     return this.human.selectionSnapshot();
   }
 
+  actionSnapshot() {
+    return this.human.actionSnapshot();
+  }
+
   /**
    * Costura DE TESTE, só em desenvolvimento (import.meta.env.DEV): força o fim da partida a favor
    * de `side`, encerrando sets até bater os sets necessários do formato. Reaproveita
@@ -180,6 +184,13 @@ export class Match {
     };
     this.rally.plan = plan;
     this.human.onAssigned(this.ctx, plan);
+  }
+
+  /** Cenário DEV determinístico de saque para E2E de tap/hold/cancelamento. */
+  debugActionServeScenario(): void {
+    if (!import.meta.env.DEV) return;
+    this.servingTeam = TeamSide.HOME;
+    this.beginServePrep();
   }
 
   // ---------------------------------------------------------------- SAQUE

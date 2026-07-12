@@ -188,6 +188,35 @@ function assignPlan(
 }
 
 describe('HumanController ActionControl 2D', () => {
+  it('representa buffer e carga no anel sem texto modal', () => {
+    const buffered = new HumanController();
+    const bufferedCtx = makeCtx();
+    const bufferedAthlete = makeAthlete();
+    assignPlan(buffered, bufferedCtx.ctx, bufferedAthlete.athlete, 'dig', 18, 1);
+    buffered.update(
+      1 / 60,
+      makeFrame({ tick: 0, actionDown: true, pressed: true }),
+      bufferedCtx.ctx,
+    );
+    buffered.updateMarker();
+    expect((buffered.marker.material as THREE.MeshBasicMaterial).color.getHex()).toBe(0xffc857);
+    expect(buffered.marker.scale.x).toBeGreaterThan(1);
+
+    const charging = new HumanController();
+    const chargingCtx = makeCtx();
+    const chargingAthlete = makeAthlete();
+    assignPlan(charging, chargingCtx.ctx, chargingAthlete.athlete, 'dig', 19, 0.2);
+    charging.update(
+      1 / 60,
+      makeFrame({ tick: 0, actionDown: true, pressed: true }),
+      chargingCtx.ctx,
+    );
+    charging.update(1 / 60, makeFrame({ tick: 27, actionDown: true }), chargingCtx.ctx);
+    charging.updateMarker();
+    expect((charging.marker.material as THREE.MeshBasicMaterial).color.getHex()).toBe(0xff7a45);
+    expect(charging.marker.scale.x).toBeGreaterThan(1.1);
+  });
+
   it('resolve tap e hold de saque por ActionIntent com token negativo monotônico', () => {
     const tap = new HumanController();
     const tapCtx = makeCtx();

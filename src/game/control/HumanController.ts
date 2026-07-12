@@ -277,6 +277,7 @@ export class HumanController {
     if (this.isControlling && this.controlled) {
       this.marker.visible = true;
       this.marker.position.set(this.controlled.pos.x, 0.02, this.controlled.pos.z);
+      this.presentActionMarkerState();
     } else {
       this.marker.visible = false;
     }
@@ -290,6 +291,7 @@ export class HumanController {
         0.02,
         this.controlled.char.root.position.z,
       );
+      this.presentActionMarkerState();
     } else {
       this.marker.visible = false;
     }
@@ -476,6 +478,45 @@ export class HumanController {
     this.controlled = null;
     ctx.hooks.serveMeter(false);
     performServe(ctx, server, Math.max(0.3, intent.power), target, clearance);
+  }
+
+  /** Feedback compacto por forma/cor; não adiciona instrução textual ao gameplay. */
+  private presentActionMarkerState(): void {
+    const snapshot = this.actionControl.snapshot();
+    const material = this.marker.material as THREE.MeshBasicMaterial;
+    let color = 0x40ff9f;
+    let scale = 1;
+    let opacity = 0.9;
+
+    switch (snapshot.status) {
+      case 'buffered':
+        color = 0xffc857;
+        scale = 1.12;
+        opacity = 0.78;
+        break;
+      case 'pressed':
+        color = 0x56d8ff;
+        scale = 1.08;
+        break;
+      case 'charging':
+        color = 0xff7a45;
+        scale = 1.1 + snapshot.charge * 0.18;
+        break;
+      case 'committed':
+        color = 0xffffff;
+        scale = 1.16;
+        break;
+      case 'blocked':
+        color = 0xff4d67;
+        opacity = 0.72;
+        break;
+      case 'idle':
+        break;
+    }
+
+    material.color.setHex(color);
+    material.opacity = opacity;
+    this.marker.scale.setScalar(scale);
   }
 }
 

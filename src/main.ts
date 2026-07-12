@@ -29,6 +29,7 @@ const debugWindow = window as unknown as {
     actionDown: boolean;
   };
   __selection?: ReturnType<Match['selectionSnapshot']>;
+  __action?: ReturnType<Match['actionSnapshot']>;
   __simulationClock?: {
     tick: number;
     simulationSeconds: number;
@@ -232,6 +233,7 @@ function frame(now: number): void {
 
   if (debugEnabled) {
     debugWindow.__selection = match.selectionSnapshot();
+    debugWindow.__action = match.actionSnapshot();
     debugWindow.__simulationClock = {
       tick: simulationFrame.tick,
       simulationSeconds: simulationFrame.simulationSeconds,

@@ -21,12 +21,17 @@ export interface ActionControlRequest {
 export interface ActionControlSnapshot extends ActionMachineSnapshot {
   readonly pendingTechnique: ActionTechnique | null;
   readonly pendingToken: number | null;
+  readonly lastTechnique: ActionTechnique | null;
+  readonly lastGesture: ActionIntent['gesture'] | null;
+  readonly lastCharge: number;
+  readonly lastResolvedToken: number | null;
 }
 
 /** Adapta ControlFrame à máquina pura e mantém a intenção até o contato mecânico. */
 export class ActionControl {
   private readonly machine = new ActionButtonMachine();
   private pending: ActionIntent | null = null;
+  private lastResolved: ActionIntent | null = null;
 
   step(frame: ControlFrame, request: ActionControlRequest): ActionIntent | null {
     if (this.pending && this.pending.token !== request.token) this.pending = null;
@@ -47,6 +52,7 @@ export class ActionControl {
     if (!gesture) return null;
 
     this.pending = resolveAction(gesture);
+    this.lastResolved = this.pending;
     return this.pending;
   }
 
@@ -73,6 +79,10 @@ export class ActionControl {
       ...machine,
       pendingTechnique: this.pending?.technique ?? null,
       pendingToken: this.pending?.token ?? null,
+      lastTechnique: this.lastResolved?.technique ?? null,
+      lastGesture: this.lastResolved?.gesture ?? null,
+      lastCharge: this.lastResolved?.charge ?? 0,
+      lastResolvedToken: this.lastResolved?.token ?? null,
     });
   }
 }

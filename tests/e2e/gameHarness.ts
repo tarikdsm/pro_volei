@@ -17,6 +17,7 @@ type MatchWindow = Window &
       // 0 = HOME (humano), 1 = AWAY (CPU) — ver TeamSide em src/core/constants.ts
       debugWinMatch(side: number): void;
       debugAutoSelectionScenario(): void;
+      debugActionServeScenario(): void;
     };
     __controlFrame?: {
       screenAxis: { right: number; up: number };
@@ -37,6 +38,20 @@ type MatchWindow = Window &
       switches: number;
       locked: boolean;
       status: string;
+    };
+    __action?: {
+      token: number | null;
+      context: string | null;
+      status: string;
+      charge: number;
+      consumed: boolean;
+      lastCancellation: string | null;
+      pendingTechnique: string | null;
+      pendingToken: number | null;
+      lastTechnique: string | null;
+      lastGesture: string | null;
+      lastCharge: number;
+      lastResolvedToken: number | null;
     };
   };
 
@@ -92,6 +107,14 @@ export function readSelection(page: Page): Promise<NonNullable<MatchWindow['__se
     const selection = (window as MatchWindow).__selection;
     if (!selection) throw new Error('window.__selection ausente (esperado em DEV)');
     return { ...selection };
+  });
+}
+
+export function readActionSnapshot(page: Page): Promise<NonNullable<MatchWindow['__action']>> {
+  return page.evaluate(() => {
+    const action = (window as MatchWindow).__action;
+    if (!action) throw new Error('window.__action ausente (esperado em DEV)');
+    return { ...action };
   });
 }
 
@@ -201,6 +224,14 @@ export async function forceAutoSelectionScenario(page: Page): Promise<void> {
     const match = (window as MatchWindow).__match;
     if (!match) throw new Error('window.__match ausente (esperado em DEV)');
     match.debugAutoSelectionScenario();
+  });
+}
+
+export async function forceActionServeScenario(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const match = (window as MatchWindow).__match;
+    if (!match) throw new Error('window.__match ausente (esperado em DEV)');
+    match.debugActionServeScenario();
   });
 }
 
