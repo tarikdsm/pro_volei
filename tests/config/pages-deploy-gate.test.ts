@@ -26,6 +26,7 @@ const CHECK_STEPS = [
   'run:npm run test:e2e:smoke:prod',
   'uses:actions/upload-pages-artifact@v5',
 ];
+const PAGES_ARTIFACT_NAME = 'github-pages-${{ github.run_attempt }}';
 
 interface PackageJson {
   scripts?: Record<string, string>;
@@ -144,8 +145,12 @@ function pagesContractErrors(workflow: string): string[] {
   const upload = checkSteps.filter(
     ({ properties }) => properties.get('uses') === 'actions/upload-pages-artifact@v5',
   );
-  if (upload.length !== 1 || upload[0].with.get('path') !== 'dist') {
-    errors.push('upload Pages deve enviar dist uma única vez');
+  if (
+    upload.length !== 1 ||
+    upload[0].with.get('name') !== PAGES_ARTIFACT_NAME ||
+    upload[0].with.get('path') !== 'dist'
+  ) {
+    errors.push('upload Pages deve enviar dist com nome único por tentativa');
   }
 
   const deploy = nodeAtPath(lines, ['jobs', 'deploy']);
@@ -193,8 +198,12 @@ function pagesContractErrors(workflow: string): string[] {
   const deployments = deploySteps.filter(
     ({ properties }) => properties.get('uses') === 'actions/deploy-pages@v5',
   );
-  if (deployments.length !== 1 || deployments[0].properties.get('id') !== 'deployment') {
-    errors.push('deploy Pages deve ser único e expor id deployment');
+  if (
+    deployments.length !== 1 ||
+    deployments[0].properties.get('id') !== 'deployment' ||
+    deployments[0].with.get('artifact_name') !== PAGES_ARTIFACT_NAME
+  ) {
+    errors.push('deploy Pages deve usar o artefato único e expor id deployment');
   }
 
   return errors;
@@ -222,6 +231,7 @@ jobs:
       - run: npm run test:e2e:smoke:prod
       - uses: actions/upload-pages-artifact@v5
         with:
+          name: github-pages-\${{ github.run_attempt }}
           path: dist
   deploy:
     needs: check
@@ -240,6 +250,8 @@ jobs:
       - uses: actions/configure-pages@v6
       - id: deployment
         uses: actions/deploy-pages@v5
+        with:
+          artifact_name: github-pages-\${{ github.run_attempt }}
 `;
 
 describe('deploy contínuo do Pages', () => {
@@ -266,17 +278,30 @@ describe('deploy contínuo do Pages', () => {
       (workflow: string) =>
         workflow
           .replace(
-            '      - uses: actions/upload-pages-artifact@v5\n        with:\n          path: dist\n',
+            '      - uses: actions/upload-pages-artifact@v5\n        with:\n          name: github-pages-${{ github.run_attempt }}\n          path: dist\n',
             '',
           )
           .replace(
             '      - run: npm run test:e2e:smoke:prod\n',
-            '      - uses: actions/upload-pages-artifact@v5\n        with:\n          path: dist\n      - run: npm run test:e2e:smoke:prod\n',
+            '      - uses: actions/upload-pages-artifact@v5\n        with:\n          name: github-pages-${{ github.run_attempt }}\n          path: dist\n      - run: npm run test:e2e:smoke:prod\n',
           ),
     ],
     [
       'artefato diferente de dist',
       (workflow: string) => workflow.replace('path: dist', 'path: public'),
+    ],
+    [
+      'nome do artefato ausente',
+      (workflow: string) =>
+        workflow.replace('          name: github-pages-${{ github.run_attempt }}\n', ''),
+    ],
+    [
+      'nome divergente no deploy',
+      (workflow: string) =>
+        workflow.replace(
+          'artifact_name: github-pages-${{ github.run_attempt }}',
+          'artifact_name: github-pages-fixo',
+        ),
     ],
     ['needs ausente', (workflow: string) => workflow.replace('    needs: check\n', '')],
     ['permissão ausente', (workflow: string) => workflow.replace('      pages: write\n', '')],
