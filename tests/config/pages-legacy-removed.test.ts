@@ -8,6 +8,9 @@ const here = dirname(fileURLToPath(import.meta.url));
 const packageJson = JSON.parse(
   readFileSync(resolve(here, '../../package.json'), 'utf8'),
 ) as PackageJson;
+const packageLock = JSON.parse(
+  readFileSync(resolve(here, '../../package-lock.json'), 'utf8'),
+) as PackageLock;
 const workflow = readFileSync(resolve(here, '../../.github/workflows/ci.yml'), 'utf8');
 const readRepo = (path: string): string => readFileSync(resolve(here, '../..', path), 'utf8');
 const operationalDocPaths = [
@@ -26,6 +29,10 @@ interface PackageJson {
   devDependencies?: Record<string, string>;
 }
 
+interface PackageLock {
+  packages?: Record<string, { devDependencies?: Record<string, string> }>;
+}
+
 describe('remoção do deploy legado', () => {
   it('não oferece mais o script npm deploy', () => {
     expect(packageJson.scripts).not.toHaveProperty('deploy');
@@ -34,6 +41,8 @@ describe('remoção do deploy legado', () => {
   it('não instala mais o pacote gh-pages', () => {
     expect(packageJson.dependencies).not.toHaveProperty('gh-pages');
     expect(packageJson.devDependencies).not.toHaveProperty('gh-pages');
+    expect(packageLock.packages?.['']?.devDependencies).not.toHaveProperty('gh-pages');
+    expect(packageLock.packages).not.toHaveProperty('node_modules/gh-pages');
   });
 
   it('preserva o deploy Actions e a validação do workflow', () => {
@@ -64,6 +73,7 @@ describe('remoção do deploy legado', () => {
     expect(claude).toContain('literalmente main-only');
     expect(web).toContain('gh run rerun');
     expect(web).toContain('git revert');
+    expect(web).not.toContain('gh-pages');
     expect(web).not.toContain('build_type=legacy');
     expect(web).not.toContain('fallback transitório');
   });
