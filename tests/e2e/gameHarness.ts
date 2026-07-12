@@ -16,6 +16,7 @@ type MatchWindow = Window &
       setNumber: number;
       // 0 = HOME (humano), 1 = AWAY (CPU) — ver TeamSide em src/core/constants.ts
       debugWinMatch(side: number): void;
+      debugAutoSelectionScenario(): void;
     };
     __controlFrame?: {
       screenAxis: { right: number; up: number };
@@ -193,6 +194,14 @@ export async function forceMatchEnd(page: Page, side: 0 | 1): Promise<void> {
     if (!m) throw new Error('window.__match ausente (esperado em DEV)');
     m.debugWinMatch(s);
   }, side);
+}
+
+export async function forceAutoSelectionScenario(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const match = (window as MatchWindow).__match;
+    if (!match) throw new Error('window.__match ausente (esperado em DEV)');
+    match.debugAutoSelectionScenario();
+  });
 }
 
 export async function exerciseServeControls(page: Page): Promise<void> {

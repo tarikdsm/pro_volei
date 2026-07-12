@@ -157,6 +157,30 @@ export class Match {
     }
   }
 
+  /** Cenário DEV determinístico para o E2E observar seleção e lock sem depender do rally aleatório. */
+  debugAutoSelectionScenario(): void {
+    if (!import.meta.env.DEV) return;
+    this.timeline.clearScheduled();
+    this.state = 'idle';
+    this.rally.reset();
+    const far = this.home.athletes[0]!;
+    const close = this.home.athletes[1]!;
+    far.warpTo(-8, 0);
+    close.warpTo(-4, 0);
+    const plan: TouchPlan = {
+      planId: this.rally.allocatePlanId(),
+      side: TeamSide.HOME,
+      athlete: far,
+      contactIn: 0.34,
+      point: new THREE.Vector3(-3.5, CONTACT.pass, 0),
+      kind: 'pass',
+      isHuman: true,
+      done: false,
+    };
+    this.rally.plan = plan;
+    this.human.onAssigned(this.ctx, plan);
+  }
+
   // ---------------------------------------------------------------- SAQUE
   private beginServePrep(): void {
     this.state = 'servePrep';
