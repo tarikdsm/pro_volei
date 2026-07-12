@@ -147,7 +147,7 @@ git status --short
 - [x] Press+release rápido sobrevive a frames lentos e é consumido uma vez.
 - [x] Blur/pausa cancela a ação sem executar saque, passe, salto ou bloqueio.
 - [x] Movimento acompanha os eixos visuais da câmera atual.
-- [ ] Desktop e mobile landscape continuam jogáveis no build publicado.
+- [x] Desktop e mobile landscape continuam jogáveis no build publicado.
 - [x] Branch remota continua sendo somente `main`.
 
 ## Evidência local antes da publicação
@@ -161,3 +161,5 @@ git status --short
 - Playwright: 9/9 cenários completos e smoke Chromium do `dist` aprovado.
 - Playtest real: menu, saque, rally, setas/Espaço e mobile landscape sem erros de console; único
   warning é a depreciação já conhecida de `PCFSoftShadowMap` no Three.js.
+- Publicação: run `29204014194`, SHA `2714264`, deployment `5415090698`; Actions/Pages verdes,
+  HTTPS/workflow preservados e smoke público desktop + multitouch landscape aprovados.

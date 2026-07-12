@@ -22,9 +22,10 @@ remoção de `gh-pages`; depois controles, IA, arte/render, mobile/áudio, Copa 
   `dcba25b` e o deployment `5414657439` ficaram verdes; smoke público passou antes e depois da
   exclusão. O remoto lista somente `main`, enquanto Pages permanece em workflow/HTTPS com policy
   `main`. O SHA histórico `15f9c244f7ab6fb58a4114a926d3c061a087a336` não precisou ser usado.
-- **Fase 2A — concluída localmente:** `InputFrame` timestamped, setas + Espaço, touch direto,
-  direção relativa à câmera e cancelamento sem release passaram por testes unitários, E2E
-  multitouch e playtest desktop/mobile. A publicação final depende do gate remoto deste SHA.
+- **Fase 2A — concluída:** `InputFrame` timestamped, setas + Espaço, touch direto, direção relativa
+  à câmera e cancelamento sem release passaram por testes unitários, E2E multitouch e playtest
+  desktop/mobile. O run `29204014194` publicou o SHA `2714264` no deployment `5415090698`; smoke
+  público desktop e touch landscape passaram sem erros.
 
 ### Controle e game feel 2.0 — próximas subfases
 
