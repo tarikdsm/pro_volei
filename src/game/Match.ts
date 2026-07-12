@@ -137,6 +137,10 @@ export class Match {
     this.human.cancelServeCharge(this.ctx);
   }
 
+  selectionSnapshot() {
+    return this.human.selectionSnapshot();
+  }
+
   /**
    * Costura DE TESTE, só em desenvolvimento (import.meta.env.DEV): força o fim da partida a favor
    * de `side`, encerrando sets até bater os sets necessários do formato. Reaproveita
@@ -240,16 +244,14 @@ export class Match {
       done: false,
     };
 
-    // aproximação: a IA agenda o deslocamento (reactionDelay) e o pulo no ataque; o humano recebe
-    // um nudge inicial (delay 0) e assume pelo ControlFrame — o levantador humano é automático.
+    // Aproximação: a IA agenda o deslocamento e o pulo. No humano, ataque e levantamento mantêm
+    // rotas táticas; recepção fica nas setas + assistência limitada do AutoSelector.
     if (isHuman) {
       if (nextKind === 'spike') {
         const backoff = sideSign(landSide) * 0.85;
         this.after(0, () => athlete.moveTo(cPoint.x + backoff * 0.9, cPoint.z));
       } else if (nextKind === 'set') {
         athlete.moveTo(cPoint.x, cPoint.z);
-      } else {
-        this.after(0, () => athlete.moveTo(cPoint.x, cPoint.z));
       }
     } else {
       this.ai.scheduleApproach(this.ctx, this.rally.plan);

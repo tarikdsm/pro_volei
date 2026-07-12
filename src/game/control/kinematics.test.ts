@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { advancePlanarMotion, estimateArrivalTime } from './kinematics';
+import { advancePlanarMotion, estimateArrivalTime, estimatePlanarArrivalTime } from './kinematics';
 
 describe('advancePlanarMotion', () => {
   it('acelera desde o repouso na direção do alvo e muta os vetores recebidos', () => {
@@ -61,5 +61,14 @@ describe('estimateArrivalTime', () => {
     expect(estimateArrivalTime(0, 0, 6, 30)).toBe(0);
     expect(estimateArrivalTime(1, 0, 0, 30)).toBe(Infinity);
     expect(estimateArrivalTime(1, 0, 6, 0)).toBe(Infinity);
+  });
+});
+
+describe('estimatePlanarArrivalTime', () => {
+  it('cobra o giro de uma velocidade lateral usando o mesmo integrador de movimento', () => {
+    const eta = estimatePlanarArrivalTime(2, 0, 6.2, 6.2, 31, 38, 1.15);
+
+    expect(eta).toBeCloseTo(1 / 3, 6);
+    expect(eta).toBeGreaterThan(0.28);
   });
 });

@@ -24,6 +24,7 @@ const debugWindow = window as unknown as {
   __match?: Match;
   __renderer?: THREE.WebGLRenderer;
   __controlFrame?: { screenAxis: { right: number; up: number }; actionDown: boolean };
+  __selection?: ReturnType<Match['selectionSnapshot']>;
   __simulationClock?: {
     tick: number;
     simulationSeconds: number;
@@ -225,6 +226,7 @@ function frame(now: number): void {
   director.update(visualDt);
 
   if (debugEnabled) {
+    debugWindow.__selection = match.selectionSnapshot();
     debugWindow.__simulationClock = {
       tick: simulationFrame.tick,
       simulationSeconds: simulationFrame.simulationSeconds,

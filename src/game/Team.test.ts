@@ -122,6 +122,19 @@ describe('Team (modelo lógico desacoplado do visual)', () => {
     expect(team.nearestFrontRowTo(-1)).toBe(fr[1]);
     expect(team.nearestFrontRowTo(-1, fr[1])).toBe(fr[0]);
   });
+
+  it('localiza o slot e a base atual da atleta mesmo após rodar', () => {
+    const team = new Team(TeamSide.HOME, stubFactory);
+    const athlete = team.athletes[0]!;
+
+    expect(team.slotIndexOf(athlete)).toBe(0);
+    expect(team.basePositionOf(athlete)).toEqual(team.slotPos(0));
+
+    team.rotate();
+
+    expect(team.slotIndexOf(athlete)).toBe(1);
+    expect(team.basePositionOf(athlete)).toEqual(team.slotPos(1));
+  });
 });
 
 // Dublê que registra a última ação pedida ao visual — permite observar o flag

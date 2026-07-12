@@ -2,7 +2,7 @@
 // o processamento de Input por frame. Reage ao teclado; escreve intenções que as mecânicas leem
 // via ctx (aim/chosenZone). Extraído do Match (1.5b).
 import * as THREE from 'three';
-import { BLOCK, PLAYER, SERVE_TUNING, TeamSide } from '../../core/constants';
+import { PLAYER, SERVE_TUNING, TeamSide } from '../../core/constants';
 import { clamp, lerp, rand, chance, randPick } from '../../core/math3d';
 import { Athlete } from '../Team';
 import { TouchPlan } from '../RallyState';
@@ -10,6 +10,7 @@ import { performServe } from '../mechanics/serve';
 import type { MechanicsCtx } from '../mechanics/context';
 import { receiveTimingQuality, jumpTimingQuality, humanContactQuality } from './timing';
 import type { ControlFrame } from './ControlFrame';
+import { HumanAutoControl } from './HumanAutoControl';
 
 export type CtlMode = 'none' | 'serve' | 'receive' | 'attack' | 'block';
 
@@ -31,6 +32,7 @@ export class HumanController {
   readonly aim = new THREE.Vector3(5.5, 0, 0);
   private timingQ = -1; // qualidade do aperto de ESPAÇO na recepção
   private jumpQ = -1; // qualidade do timing do pulo no ataque
+  private readonly autoControl = new HumanAutoControl();
   chosenZone = 0; // 0 esq, 1 centro, 2 dir
   readonly marker: THREE.Mesh; // anel sob o jogador controlado
 
@@ -67,6 +69,7 @@ export class HumanController {
   release(): void {
     this.ctl = 'none';
     this.controlled = null;
+    this.autoControl.release();
   }
 
   /** Reset por saque: zera timing e sorteia a zona de ataque inicial. */
@@ -96,6 +99,7 @@ export class HumanController {
 
   /** Setup de controle do lado humano após o planejamento do próximo contato. */
   onAssigned(ctx: MechanicsCtx, plan: TouchPlan): void {
+    this.autoControl.release();
     if (plan.kind === 'spike') {
       this.ctl = 'attack';
       this.controlled = plan.athlete;
@@ -109,7 +113,7 @@ export class HumanController {
       ctx.hooks.zoneHint(this.chosenZone);
     } else {
       this.ctl = 'receive';
-      this.controlled = plan.athlete;
+      this.controlled = this.autoControl.beginReceive(ctx, plan);
       this.timingQ = -1;
       ctx.hooks.hint('SETAS movem · ESPAÇO no momento do toque = passe perfeito');
       ctx.hooks.effects.showLanding(plan.point);
@@ -119,7 +123,7 @@ export class HumanController {
   /** Humano pode bloquear a cortada da IA. */
   assignBlock(blocker: Athlete, ctx: MechanicsCtx): void {
     this.ctl = 'block';
-    this.controlled = blocker;
+    this.controlled = this.autoControl.beginBlock(ctx, blocker);
     ctx.hooks.hint('BLOQUEIO: setas deslizam na rede · ESPAÇO pula!');
   }
 
@@ -128,6 +132,7 @@ export class HumanController {
     if (this.ctl !== 'block') {
       this.ctl = 'none';
       this.controlled = null;
+      this.autoControl.release();
     }
     ctx.hooks.effects.showLanding(null);
   }
@@ -184,6 +189,7 @@ export class HumanController {
     }
 
     const axis = frame.courtAxis;
+    this.refreshAutoSelection(ctx);
     const lastCancellation = frame.cancellations.reduce<
       (typeof frame.cancellations)[number] | null
     >(
@@ -229,13 +235,8 @@ export class HumanController {
     }
 
     if (this.ctl === 'receive' && this.controlled && ctx.rally.plan && !ctx.rally.plan.done) {
-      // movimento direto
-      if (axis.x !== 0 || axis.z !== 0) {
-        this.controlled.moveTo(
-          this.controlled.pos.x + axis.x * 1.2,
-          this.controlled.pos.z + axis.z * 1.2,
-        );
-      }
+      const route = this.autoControl.receiveRoute(axis, ctx.rally.plan, this.controlled);
+      this.controlled.moveTo(route.x, route.z);
       // timing do passe
       if (actionPressed && ctx.rally.plan.contactIn < 0.5) {
         this.timingQ = receiveTimingQuality(ctx.rally.plan.contactIn);
@@ -273,14 +274,34 @@ export class HumanController {
     }
 
     if (this.ctl === 'block' && this.controlled) {
-      // desliza na rede
-      if (axis.z !== 0) {
-        this.controlled.moveTo(-BLOCK.netX, clamp(this.controlled.pos.z + axis.z * 1.2, -4.2, 4.2));
+      const plan = ctx.rally.plan;
+      if (plan) {
+        const route = this.autoControl.blockRoute(axis, plan, this.controlled);
+        this.controlled.moveTo(route.x, route.z);
       }
       if (actionPressed && !this.controlled.isAirborne) {
         this.controlled.act('block', 0.8);
         this.controlled.jump(PLAYER.blockJumpVel);
       }
+    }
+  }
+
+  selectionSnapshot() {
+    return this.autoControl.snapshot();
+  }
+
+  private refreshAutoSelection(ctx: MechanicsCtx): void {
+    const plan = ctx.rally.plan;
+    if (!plan || plan.done) return;
+
+    if (this.ctl === 'receive') {
+      if (this.controlled)
+        this.controlled = this.autoControl.refreshReceive(ctx, plan, this.controlled);
+      return;
+    }
+
+    if (this.ctl === 'block' && this.controlled && !this.controlled.isAirborne) {
+      this.controlled = this.autoControl.refreshBlock(ctx, plan, this.controlled);
     }
   }
 

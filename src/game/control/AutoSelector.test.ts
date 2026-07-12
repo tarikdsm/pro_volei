@@ -14,8 +14,10 @@ function candidate(
     value: { name: `P${id}` },
     distance,
     projectedVelocity: 0,
+    lateralVelocity: 0,
     maxSpeed: 6,
     acceleration: 30,
+    deceleration: 40,
     legal: true,
     tacticalCost: 0,
     coverageCost: 0,
@@ -91,6 +93,16 @@ describe('AutoSelector — atribuição inicial', () => {
     expect(result.score).toBeGreaterThan(AUTO_SELECTOR.unreachablePenalty);
   });
 
+  it('não promete interceptação quando a velocidade lateral impede chegar a tempo', () => {
+    const result = new AutoSelector<Player>().begin(
+      request([candidate(1, 2, { lateralVelocity: 6.2, maxSpeed: 6.2, acceleration: 31 })], {
+        contactIn: 0.28,
+      }),
+    );
+
+    expect(result.feasible).toBe(false);
+  });
+
   it('considera custos tático, de cobertura e de aproximação no score', () => {
     const result = new AutoSelector<Player>().begin(
       request([
@@ -120,6 +132,17 @@ describe('AutoSelector — histerese e compromisso', () => {
     );
     expect(switched.selected?.id).toBe(2);
     expect(switched.status).toBe('switched');
+  });
+
+  it('não troca num empate de score zero só porque a nova candidata tem id menor', () => {
+    const selector = new AutoSelector<Player>();
+    selector.begin(request([candidate(2, 0)]));
+
+    const held = selector.update(request([candidate(1, 0), candidate(2, 0)]));
+
+    expect(held.selected?.id).toBe(2);
+    expect(held.switches).toBe(0);
+    expect(held.status).toBe('held');
   });
 
   it('permite no máximo duas trocas no mesmo plano', () => {

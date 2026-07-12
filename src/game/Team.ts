@@ -194,6 +194,15 @@ export class Team {
       : { x: -SETTER_SPOT.x, z: -SETTER_SPOT.z };
   }
 
+  slotIndexOf(athlete: Athlete): number {
+    return this.slots.indexOf(athlete.index);
+  }
+
+  basePositionOf(athlete: Athlete): { x: number; z: number } | null {
+    const slot = this.slotIndexOf(athlete);
+    return slot >= 0 ? this.slotPos(slot) : null;
+  }
+
   /** rodízio no sentido horário (quando o time recupera o saque) */
   rotate(): void {
     this.slots = rotateSlots(this.slots);

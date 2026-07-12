@@ -1,5 +1,5 @@
 import { AUTO_SELECTOR } from '../../core/constants';
-import { estimateArrivalTime } from './kinematics';
+import { estimatePlanarArrivalTime } from './kinematics';
 
 const SCORE_EPSILON = 1e-9;
 
@@ -8,8 +8,10 @@ export interface InterceptCandidate<T> {
   readonly value: T;
   readonly distance: number;
   readonly projectedVelocity: number;
+  readonly lateralVelocity: number;
   readonly maxSpeed: number;
   readonly acceleration: number;
+  readonly deceleration: number;
   readonly legal: boolean;
   /** Custos em segundos equivalentes; valores negativos são neutralizados. */
   readonly tacticalCost: number;
@@ -106,6 +108,11 @@ export class AutoSelector<T> {
       return this.decision();
     }
 
+    const absoluteImprovement = current.score - challenger.score;
+    if (absoluteImprovement <= SCORE_EPSILON) {
+      this.status = 'held';
+      return this.decision();
+    }
     const requiredScore = current.score * (1 - AUTO_SELECTOR.switchAdvantage);
     if (challenger.score > requiredScore + SCORE_EPSILON) {
       this.status = 'held';
@@ -161,6 +168,8 @@ export class AutoSelector<T> {
         candidate.maxSpeed <= 0 ||
         !Number.isFinite(candidate.acceleration) ||
         candidate.acceleration <= 0 ||
+        !Number.isFinite(candidate.deceleration) ||
+        candidate.deceleration <= 0 ||
         !Number.isFinite(candidate.tacticalCost) ||
         !Number.isFinite(candidate.coverageCost) ||
         !Number.isFinite(candidate.approachCost)
@@ -168,15 +177,17 @@ export class AutoSelector<T> {
         continue;
       }
 
-      const travelDistance = Math.max(0, candidate.distance - technicalRadius);
       const projectedVelocity = Number.isFinite(candidate.projectedVelocity)
         ? candidate.projectedVelocity
         : 0;
-      const eta = estimateArrivalTime(
-        travelDistance,
+      const eta = estimatePlanarArrivalTime(
+        candidate.distance,
         projectedVelocity,
+        candidate.lateralVelocity,
         candidate.maxSpeed,
         candidate.acceleration,
+        candidate.deceleration,
+        technicalRadius,
       );
       const feasible = eta <= contactIn + SCORE_EPSILON;
       const penalties =

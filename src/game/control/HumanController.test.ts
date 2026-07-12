@@ -4,7 +4,7 @@ import { HumanController } from './HumanController';
 import { RallyState, type TouchPlan } from '../RallyState';
 import { TeamSide } from '../../core/constants';
 import type { MechanicsCtx } from '../mechanics/context';
-import type { Athlete } from '../Team';
+import type { Athlete, Team } from '../Team';
 import type { ControlFrame } from './ControlFrame';
 
 function makeFrame(
@@ -100,20 +100,38 @@ function makeCtx() {
 }
 
 // Athlete falso: pos + moveTo espiã. O controller lê pos e chama moveTo ao mover na recepção.
-function makeAthlete(x = 0, z = 0) {
+function makeAthlete(x = 0, z = 0, index = 0) {
   const moveToCalls: Array<[number, number]> = [];
+  const target = new THREE.Vector3(x, 0, z);
   const athlete = {
+    side: TeamSide.HOME,
+    index,
     pos: new THREE.Vector3(x, 0, z),
+    target,
+    velocity: new THREE.Vector3(),
+    speedMul: 1,
+    isAirborne: false,
     moveTo: (nx: number, nz: number) => {
       moveToCalls.push([nx, nz]);
+      target.set(nx, 0, nz);
     },
   } as unknown as Athlete;
   return { athlete, moveToCalls };
 }
 
+function makeRoster(athletes: Athlete[], front = athletes.slice(-3)): Team {
+  return {
+    athletes,
+    frontRow: () => front,
+    slotIndexOf: (athlete: Athlete) => athlete.index,
+    basePositionOf: (athlete: Athlete) => ({ x: -6, z: athlete.index }),
+  } as unknown as Team;
+}
+
 // Coloca o controller em modo 'receive' com um plano de passe do lado humano.
-function assignReceive(hc: HumanController, ctx: MechanicsCtx, athlete: Athlete): void {
+function assignReceive(hc: HumanController, ctx: MechanicsCtx, athlete: Athlete): TouchPlan {
   const plan = {
+    planId: 1,
     side: TeamSide.HOME,
     athlete,
     contactIn: 1,
@@ -123,7 +141,9 @@ function assignReceive(hc: HumanController, ctx: MechanicsCtx, athlete: Athlete)
     done: false,
   } as unknown as TouchPlan;
   ctx.rally.plan = plan;
+  ctx.teamOf = () => makeRoster([athlete]);
   hc.onAssigned(ctx, plan);
+  return plan;
 }
 
 const server = {
@@ -198,6 +218,122 @@ describe('HumanController — direção de quadra move na recepção sem trocar 
     expect(hc.chosenZone).toBe(2);
     expect(moveToCalls.length).toBeGreaterThan(0);
     expect(zoneHintCalls).toHaveLength(0);
+  });
+});
+
+describe('HumanController — AutoSelector e assistência', () => {
+  it('atribui a melhor interceptadora e atualiza plan.athlete sem repetir hints', () => {
+    const hc = new HumanController();
+    const { ctx } = makeCtx();
+    const far = makeAthlete(-8, 0, 0).athlete;
+    const close = makeAthlete(-4, 0, 1).athlete;
+    const plan = {
+      planId: 7,
+      side: TeamSide.HOME,
+      athlete: far,
+      contactIn: 1,
+      point: new THREE.Vector3(-3.5, 1, 0),
+      kind: 'pass',
+      isHuman: true,
+      done: false,
+    } satisfies TouchPlan;
+    ctx.rally.plan = plan;
+    ctx.teamOf = () => makeRoster([far, close]);
+
+    hc.onAssigned(ctx, plan);
+
+    expect(plan.athlete).toBe(close);
+    expect(hc.selectionSnapshot().selectedId).toBe(close.index);
+    expect(hc.selectionSnapshot().switches).toBe(0);
+  });
+
+  it('troca durante o plano sem perder timing já registrado', () => {
+    const hc = new HumanController();
+    const { ctx } = makeCtx();
+    const first = makeAthlete(-4, 0, 0).athlete;
+    const challenger = makeAthlete(-9, 0, 1).athlete;
+    const roster = makeRoster([first, challenger]);
+    const plan = {
+      planId: 8,
+      side: TeamSide.HOME,
+      athlete: first,
+      contactIn: 0.45,
+      point: new THREE.Vector3(-3.5, 1, 0),
+      kind: 'pass',
+      isHuman: true,
+      done: false,
+    } satisfies TouchPlan;
+    ctx.rally.plan = plan;
+    ctx.teamOf = () => roster;
+    hc.onAssigned(ctx, plan);
+    (hc as unknown as { timingQ: number }).timingQ = 0.9;
+
+    challenger.pos.set(-3.5, 0, 0);
+    first.pos.set(-8, 0, 0);
+    plan.contactIn = 0.4;
+    hc.update(1 / 60, makeFrame(), ctx);
+
+    expect(plan.athlete).toBe(challenger);
+    expect(hc.selectionSnapshot().switches).toBe(1);
+    expect(hc.reachQuality(false, false, ctx)).toBeGreaterThan(0.45);
+  });
+
+  it('sem direção, corrige o alvo em no máximo 0,65 m e nunca teleporta a atleta', () => {
+    const hc = new HumanController();
+    const { ctx } = makeCtx();
+    const { athlete, moveToCalls } = makeAthlete(-7, 0, 0);
+    const plan = {
+      planId: 9,
+      side: TeamSide.HOME,
+      athlete,
+      contactIn: 1,
+      point: new THREE.Vector3(-3, 1, 0),
+      kind: 'dig',
+      isHuman: true,
+      done: false,
+    } satisfies TouchPlan;
+    ctx.rally.plan = plan;
+    ctx.teamOf = () => makeRoster([athlete]);
+    hc.onAssigned(ctx, plan);
+
+    hc.update(1 / 60, makeFrame(), ctx);
+
+    const [targetX, targetZ] = moveToCalls.at(-1)!;
+    expect(Math.hypot(targetX - athlete.pos.x, targetZ - athlete.pos.z)).toBeLessThanOrEqual(
+      0.65 + 1e-9,
+    );
+    expect(athlete.pos.x).toBe(-7);
+  });
+
+  it('no bloqueio seleciona somente a linha de frente sem alterar a atacante AWAY', () => {
+    const hc = new HumanController();
+    const { ctx } = makeCtx();
+    const back = makeAthlete(-0.72, 0, 0).athlete;
+    const front = makeAthlete(-2, 0, 3).athlete;
+    const attacker = makeAthlete(2, 0, 9).athlete;
+    (attacker as { side: TeamSide }).side = TeamSide.AWAY;
+    const plan = {
+      planId: 10,
+      side: TeamSide.AWAY,
+      athlete: attacker,
+      contactIn: 1,
+      point: new THREE.Vector3(2, 3, 0),
+      kind: 'spike',
+      isHuman: false,
+      done: false,
+    } satisfies TouchPlan;
+    ctx.rally.plan = plan;
+    ctx.teamOf = () => makeRoster([back, front], [front]);
+
+    hc.assignBlock(back, ctx);
+
+    expect(hc.selectionSnapshot().selectedId).toBe(front.index);
+    expect(plan.athlete).toBe(attacker);
+
+    ctx.rally.plan = { ...plan, planId: 11, kind: 'pass' };
+    hc.idle(ctx);
+    hc.update(1 / 60, makeFrame(), ctx);
+    expect(hc.selectionSnapshot().planId).toBe(10);
   });
 });
 

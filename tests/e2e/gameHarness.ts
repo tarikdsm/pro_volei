@@ -28,6 +28,15 @@ type MatchWindow = Window &
       discardedWallSeconds: number;
       discardedSimulationSeconds: number;
     };
+    __selection?: {
+      planId: number | null;
+      selectedId: number | null;
+      score: number;
+      feasible: boolean;
+      switches: number;
+      locked: boolean;
+      status: string;
+    };
   };
 
 // Instantâneo do estado observável da partida — base das asserções de congelamento (pausa).
@@ -74,6 +83,14 @@ export function readActionDown(page: Page): Promise<boolean> {
     const frame = (window as MatchWindow).__controlFrame;
     if (!frame) throw new Error('window.__controlFrame ausente (esperado em DEV)');
     return frame.actionDown;
+  });
+}
+
+export function readSelection(page: Page): Promise<NonNullable<MatchWindow['__selection']>> {
+  return page.evaluate(() => {
+    const selection = (window as MatchWindow).__selection;
+    if (!selection) throw new Error('window.__selection ausente (esperado em DEV)');
+    return { ...selection };
   });
 }
 

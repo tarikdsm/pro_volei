@@ -107,3 +107,42 @@ export function estimateArrivalTime(
   const accelerationTime = (speedLimit - velocity) / acceleration;
   return elapsed + accelerationTime + (remaining - accelerationDistance) / speedLimit;
 }
+
+/** ETA conservador que replica o integrador 2D do fixed step, inclusive custo de mudar direção. */
+export function estimatePlanarArrivalTime(
+  distance: number,
+  projectedVelocity: number,
+  lateralVelocity: number,
+  maxSpeed: number,
+  acceleration: number,
+  deceleration: number,
+  technicalRadius: number,
+  dt = 1 / 60,
+  maxDuration = 10,
+): number {
+  if (
+    !Number.isFinite(distance) ||
+    !Number.isFinite(projectedVelocity) ||
+    !Number.isFinite(lateralVelocity) ||
+    !Number.isFinite(dt) ||
+    dt <= 0 ||
+    !Number.isFinite(maxDuration) ||
+    maxDuration <= 0
+  ) {
+    return Infinity;
+  }
+  const radius = Math.max(0, technicalRadius);
+  if (distance <= radius) return 0;
+  if (maxSpeed <= 0 || acceleration <= 0 || deceleration <= 0) return Infinity;
+
+  const position = { x: 0, z: 0 };
+  const velocity = { x: projectedVelocity, z: lateralVelocity };
+  const target = { x: Math.max(0, distance), z: 0 };
+  const maxSteps = Math.ceil(maxDuration / dt);
+
+  for (let step = 1; step <= maxSteps; step++) {
+    advancePlanarMotion(position, velocity, target, dt, maxSpeed, acceleration, deceleration);
+    if (Math.hypot(target.x - position.x, target.z - position.z) <= radius) return step * dt;
+  }
+  return Infinity;
+}
