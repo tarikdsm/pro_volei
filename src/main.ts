@@ -181,10 +181,9 @@ window.addEventListener('resize', () => {
 
 function discardStalledInput(discard: FixedStepDiscard): void {
   // Step-cap também ocorre em hardware lento: preserva estado contínuo e entrega suas bordas no
-  // próximo tick. Wall-cap representa suspensão/lifecycle e invalida ações antigas por segurança.
+  // próximo tick. Wall-cap invalida somente ações/cargas antigas; direção mantida continua válida.
   if (discard.reason !== 'wall-cap') return;
-  if (touch) touch.cancel('stall', discard.toMs);
-  else input.cancel('stall', discard.toMs);
+  input.cancelAction('stall', discard.toMs);
   input.consumeUntil(discard.toMs);
   match.cancelPendingAction();
 }

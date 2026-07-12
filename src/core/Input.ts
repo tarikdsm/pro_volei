@@ -41,4 +41,9 @@ export class Input implements InputSink {
   cancel(reason: InputCancelReason, atMs = this.now()): void {
     this.keyboard.cancel(reason, atMs);
   }
+
+  /** Cancela carga/ação sem apagar setas ou joystick fisicamente mantidos. */
+  cancelAction(reason: InputCancelReason, atMs = this.now()): void {
+    this.hub.cancelAction(reason, atMs);
+  }
 }

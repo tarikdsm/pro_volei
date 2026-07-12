@@ -15,6 +15,17 @@ test('carrega o jogo e inicia uma partida sem erro de browser', async ({ page },
 
   await page.keyboard.down('ArrowRight');
   await expect.poll(async () => (await readScreenAxis(page)).right).toBeGreaterThan(0.9);
+
+  // Regressão CI: um frame >250 ms cancela cargas antigas, mas a seta fisicamente mantida deve
+  // continuar ativa quando o render volta (hardware lento não pode perder movimento contínuo).
+  await page.evaluate(() => {
+    const until = performance.now() + 350;
+    while (performance.now() < until) {
+      // bloqueio intencional do main thread para forçar wall-cap no próximo rAF
+    }
+  });
+  await expect.poll(async () => (await readScreenAxis(page)).right).toBeGreaterThan(0.9);
+
   await page.keyboard.up('ArrowRight');
   await expect.poll(async () => Math.hypot(...Object.values(await readScreenAxis(page)))).toBe(0);
 

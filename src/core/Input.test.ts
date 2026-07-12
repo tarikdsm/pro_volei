@@ -56,4 +56,19 @@ describe('Input — adaptador DOM', () => {
     expect(frame.actionEdges).toEqual([]);
     expect(frame.cancellations.map(({ reason }) => reason)).toEqual(['blur']);
   });
+
+  it('stall cancela a ação sem esquecer uma seta mantida', () => {
+    const target = new FakeWindow();
+    const input = new Input(target as unknown as Window, () => 1);
+    target.emit('keydown', { code: 'ArrowRight', repeat: false, preventDefault: vi.fn() });
+    target.emit('keydown', { code: 'Space', repeat: false, preventDefault: vi.fn() });
+    input.consumeUntil(1);
+
+    input.cancelAction('stall', 2);
+    const frame = input.consumeUntil(2);
+
+    expect(frame.screenAxis).toEqual({ right: 1, up: 0 });
+    expect(frame.actionDown).toBe(false);
+    expect(frame.actionEdges).toEqual([]);
+  });
 });

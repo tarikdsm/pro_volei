@@ -152,6 +152,35 @@ describe('InputHub — composição de fontes', () => {
 });
 
 describe('InputHub — cancelamento', () => {
+  it('cancela somente a ação em stall e preserva movimento contínuo', () => {
+    const hub = new InputHub();
+    hub.setMove('keyboard', { right: 1, up: 0 }, 1);
+    hub.setAction('keyboard', true, 1);
+    hub.consumeUntil(1);
+
+    hub.cancelAction('stall', 2);
+    const cancelled = hub.consumeUntil(2);
+
+    expect(cancelled.screenAxis).toEqual({ right: 1, up: 0 });
+    expect(cancelled.actionDown).toBe(false);
+    expect(cancelled.actionEdges).toEqual([]);
+    expect(cancelled.cancellations).toEqual([
+      expect.objectContaining({ reason: 'stall', atMs: 2 }),
+    ]);
+  });
+
+  it('preserva uma ação recente posterior ao prefixo descartado', () => {
+    const hub = new InputHub();
+    hub.setAction('keyboard', true, 3);
+    hub.cancelAction('stall', 2);
+
+    const frame = hub.consumeUntil(3);
+
+    expect(frame.cancellations.map((item) => item.reason)).toEqual(['stall']);
+    expect(frame.actionEdges.map((edge) => edge.kind)).toEqual(['press']);
+    expect(frame.actionDown).toBe(true);
+  });
+
   it('limpa todas as fontes sem fabricar release', () => {
     const hub = new InputHub();
     hub.setMove('keyboard', { right: 1, up: 0 }, 1);

@@ -42,7 +42,12 @@ interface CancelEvent extends TimedEventBase {
   readonly reason: InputCancelReason;
 }
 
-type InputEvent = MoveEvent | ActionEvent | CancelEvent;
+interface CancelActionEvent extends TimedEventBase {
+  readonly type: 'cancel-action';
+  readonly reason: InputCancelReason;
+}
+
+type InputEvent = MoveEvent | ActionEvent | CancelEvent | CancelActionEvent;
 
 function normalizeAxis(axis: ScreenAxis): ScreenAxis {
   if (!Number.isFinite(axis.right) || !Number.isFinite(axis.up)) return NEUTRAL_AXIS;
@@ -102,6 +107,16 @@ export class InputHub implements InputSink {
     });
   }
 
+  cancelAction(reason: InputCancelReason, atMs: number): void {
+    this.assertEventTime(atMs);
+    this.pending.push({
+      type: 'cancel-action',
+      reason,
+      atMs,
+      sequence: this.nextSequence++,
+    });
+  }
+
   consumeUntil(atMs: number): InputFrame {
     if (!Number.isFinite(atMs) || atMs < this.lastConsumedAtMs) {
       throw new RangeError('InputHub.consumeUntil exige timestamps monotônicos');
@@ -144,8 +159,12 @@ export class InputHub implements InputSink {
       return;
     }
 
-    if (event.type === 'cancel') {
-      for (const source of SOURCES) this.resetSource(this.stateFor(source));
+    if (event.type === 'cancel' || event.type === 'cancel-action') {
+      for (const source of SOURCES) {
+        const state = this.stateFor(source);
+        if (event.type === 'cancel') this.resetSource(state);
+        else state.actionDown = false;
+      }
       cancellations.push(
         Object.freeze({ reason: event.reason, atMs: event.atMs, sequence: event.sequence }),
       );

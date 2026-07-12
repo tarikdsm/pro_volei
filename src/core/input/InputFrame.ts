@@ -34,5 +34,6 @@ export interface InputFrame {
 export interface InputSink {
   setMove(source: InputSource, axis: ScreenAxis, atMs: number): void;
   setAction(source: InputSource, down: boolean, atMs: number): void;
+  cancelAction(reason: InputCancelReason, atMs: number): void;
   cancel(reason: InputCancelReason, atMs: number): void;
 }
