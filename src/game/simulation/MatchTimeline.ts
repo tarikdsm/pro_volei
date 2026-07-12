@@ -1,5 +1,5 @@
 import { BALL_RADIUS } from '../../core/constants';
-import { Ball } from '../../entities/Ball';
+import type { BallSimulationPort } from './BallSimulationPort';
 import { AiController } from '../ai/AiController';
 import type { MechanicsCtx } from '../mechanics/context';
 import type { RallyState, TouchPlan } from '../RallyState';
@@ -22,7 +22,7 @@ interface MatchTimelineCandidate extends EventTimelineCandidate {
 
 export interface MatchTimelinePort {
   rally: RallyState;
-  ball: Ball;
+  ball: BallSimulationPort;
   ai: AiController;
   mechanics: MechanicsCtx;
   isRally(): boolean;

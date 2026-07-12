@@ -2,10 +2,10 @@ import * as THREE from 'three';
 import { BALL_RADIUS, COURT, TRAIL_MAX_POINTS } from '../core/constants';
 import { positionAt, timeToHeight, integrateBallistic, lerpAngle } from '../core/math3d';
 import { TrailBuffer } from './TrailBuffer';
-import type { BallSimulationPort } from '../game/simulation/BallSimulationPort';
+import type { MatchBallPort } from '../game/simulation/BallSimulationPort';
 
 // Bola com gomos (textura canvas), rastro luminoso e sombra projetada no chão.
-export class Ball implements BallSimulationPort {
+export class Ball implements MatchBallPort {
   group = new THREE.Group();
   mesh: THREE.Mesh;
   private shadow: THREE.Mesh;

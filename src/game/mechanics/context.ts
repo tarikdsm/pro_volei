@@ -3,7 +3,7 @@
 // conheçam o Match inteiro. O Match fornece este objeto (ver Match.makeCtx).
 import * as THREE from 'three';
 import { TeamSide, Difficulty, TouchKind } from '../../core/constants';
-import { Ball } from '../../entities/Ball';
+import type { BallSimulationPort } from '../simulation/BallSimulationPort';
 import { Team } from '../Team';
 import { RallyState } from '../RallyState';
 import type { Hooks, MatchStats } from '../Match';
@@ -18,7 +18,7 @@ export interface GameplayRandomStreams {
 }
 
 export interface MechanicsCtx {
-  ball: Ball;
+  ball: BallSimulationPort;
   rally: RallyState;
   hooks: Hooks;
   diff: Difficulty;

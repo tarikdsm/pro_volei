@@ -14,3 +14,11 @@ export interface BallSimulationPort {
   timeToDescend(height: number): number;
   posAt(time: number, out: THREE.Vector3): THREE.Vector3;
 }
+
+/** Extensão usada pelo Match browser/headless para sincronizar apresentação por fixed step. */
+export interface MatchBallPort extends BallSimulationPort {
+  readonly group: THREE.Object3D;
+  beginFixedStep(): void;
+  endFixedStep(): void;
+  present(alpha: number): THREE.Vector3;
+}

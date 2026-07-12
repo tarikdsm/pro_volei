@@ -1,12 +1,15 @@
 import * as THREE from 'three';
 import { BALL_RADIUS } from '../../core/constants';
 import { integrateBallistic, positionAt, timeToHeight } from '../../core/math3d';
-import type { BallSimulationPort } from './BallSimulationPort';
+import type { MatchBallPort } from './BallSimulationPort';
 
 /** Bola lógica sem meshes, canvas, WebGL ou aleatoriedade visual. */
-export class HeadlessBall implements BallSimulationPort {
+export class HeadlessBall implements MatchBallPort {
+  readonly group = new THREE.Group();
   readonly pos = new THREE.Vector3(0, 1, 0);
   readonly vel = new THREE.Vector3();
+  private readonly previousPos = new THREE.Vector3(0, 1, 0);
+  private readonly presentedPos = new THREE.Vector3(0, 1, 0);
   inFlight = false;
   bouncy = false;
 
@@ -14,6 +17,8 @@ export class HeadlessBall implements BallSimulationPort {
     this.inFlight = false;
     this.pos.copy(position);
     this.vel.set(0, 0, 0);
+    this.previousPos.copy(position);
+    this.presentedPos.copy(position);
   }
 
   launch(position: THREE.Vector3, velocity: THREE.Vector3): void {
@@ -52,5 +57,16 @@ export class HeadlessBall implements BallSimulationPort {
 
   posAt(time: number, out: THREE.Vector3): THREE.Vector3 {
     return positionAt(this.pos, this.vel, time, out);
+  }
+
+  beginFixedStep(): void {
+    this.previousPos.copy(this.pos);
+  }
+
+  endFixedStep(): void {}
+
+  present(alpha: number): THREE.Vector3 {
+    const t = Math.max(0, Math.min(1, alpha));
+    return this.presentedPos.lerpVectors(this.previousPos, this.pos, t);
   }
 }
