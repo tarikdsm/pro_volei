@@ -9,6 +9,15 @@ Estado atual: **v1.1.0** jogável e corrigida. **Design 2.0 aprovado** em
 A execução segue subfases publicáveis: Fase 1A políticas/docs; 1B gates; 1C deploy Actions; 1D
 remoção de `gh-pages`; depois controles, IA, arte/render, mobile/áudio, Copa e release 2.0.0.
 
+### Fundação 2.0 — estado das subfases
+
+- **Fase 1A — concluída:** políticas canônicas, escopo offline e fluxo main-only alinhados.
+- **Fase 1B — concluída:** typecheck amplo, cobertura, build e smoke do `dist` no gate.
+- **Fase 1C — rollback em validação:** deploy automático pelo Actions já publica o mesmo `dist`
+  aprovado. Primeiro deploy verde: run `29201051491`, SHA `c917145`; smoke público desktop e
+  mobile verde. Falta comprovar rerun de um SHA anterior e restauração do atual.
+- **Fase 1D — pendente:** remover script/pacote/branch `gh-pages` somente após a prova da 1C.
+
 ---
 
 ## Fase 0 — Fundação de engenharia ✅ (concluída nesta organização)
@@ -66,7 +75,8 @@ Elevar qualidade percebida e garantir 60fps em mobile.
 
 Mesmo código web, três alvos de loja. Guias em [docs/deployment/](deployment/).
 
-- [ ] **Web:** pipeline de deploy contínuo (Pages/itch.io), `<meta>` de PWA, tela de carregamento
+- [ ] **Web:** deploy contínuo do Pages implementado, ainda com rollback em validação na Fase 1C;
+      itch.io, `<meta>` de PWA e tela de carregamento permanecem pendentes
 - [ ] **Desktop/Steam:** wrapper [Tauri](deployment/desktop-steam.md) (build Win/Mac/Linux,
       ícones, integração Steamworks, página na loja)
 - [ ] **Mobile:** wrapper [Capacitor](deployment/mobile.md) (iOS/Android, ícones/splash,

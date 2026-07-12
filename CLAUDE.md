@@ -35,8 +35,11 @@ npm run typecheck    # tsc --noEmit
 npm run lint         # eslint .   (lint:fix para autofix)
 npm run format       # prettier --write .   (format:check só verifica)
 npm run test         # vitest run   (test:watch para modo watch)
-npm run check        # typecheck + lint + format:check + test  ← rode antes de commitar
-npm run deploy       # build + publica dist/ na branch gh-pages
+npm run test:coverage # testes + cobertura V8 de todo src
+npm run workflow:check # valida sintaxe/schema do GitHub Actions
+npm run test:e2e:smoke:prod # smoke Chromium do dist servido por vite preview
+npm run check        # workflow + typecheck + lint + format:check + cobertura
+npm run deploy       # fallback temporário legacy/gh-pages; não é o deploy atual
 ```
 
 ## Git e entrega
@@ -47,6 +50,12 @@ npm run deploy       # build + publica dist/ na branch gh-pages
 - Antes de cada commit e push, rode os gates do escopo; commits devem ser pequenos e atômicos.
 - Nunca use amend, force-push ou reescrita de histórico. Se o CI remoto falhar, pare trabalho novo
   e faça o próximo commit corrigir ou reverter a causa.
+- Pushes verdes de `main` publicam automaticamente pelo Actions o mesmo `dist/` aprovado por
+  cobertura, build e smoke de produção. O deploy atual usa `checkout@v7`, `setup-node@v6`,
+  `upload-pages-artifact@v5`, `configure-pages@v6` e `deploy-pages@v5`.
+- A Fase 1C está com **rollback em validação**. `npm run deploy`, o pacote e a branch `gh-pages`
+  são fallback transitório e só serão removidos na Fase 1D. Operação, verificação e rollback:
+  [docs/deployment/web.md](docs/deployment/web.md).
 
 ## Arquitetura (resumo)
 

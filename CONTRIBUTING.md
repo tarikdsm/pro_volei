@@ -29,7 +29,14 @@ npm run dev        # http://localhost:5173
 5. Se o CI remoto falhar, interrompa trabalho novo e corrija ou reverta em novo commit.
 
 O CI roda `npm run check`, build e smoke Chromium do `dist/` servido por `vite preview` em cada
-push para `main`.
+push para `main`. Depois do smoke, o mesmo `dist/` é enviado ao Pages e publicado pelo job
+`deploy`; nenhum segundo job reconstrói o jogo. Consulte
+[docs/deployment/web.md](docs/deployment/web.md) para verificar workflow, ambiente, deployment,
+URL pública e rollback.
+
+Durante a Fase 1C, `npm run deploy`, o pacote `gh-pages` e a branch remota homônima permanecem
+somente como fallback transitório. Não use o caminho legado em operação normal; sua remoção está
+reservada à Fase 1D, depois da prova de rollback.
 
 ## Scripts
 
@@ -42,7 +49,9 @@ npm run lint         # eslint .        (lint:fix aplica correções automáticas
 npm run format       # prettier --write .   (format:check só verifica)
 npm run test         # vitest run      (test:watch para watch)
 npm run test:coverage # cobertura V8 de todo src, com threshold inicial de 30%
-npm run check        # tudo acima — o portão de qualidade
+npm run workflow:check # valida sintaxe/schema de .github/workflows/ci.yml
+npm run test:e2e:smoke:prod # smoke Chromium do dist servido por vite preview
+npm run check        # workflow + typecheck + lint + format:check + cobertura
 ```
 
 ## Estilo de código

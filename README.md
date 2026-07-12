@@ -26,7 +26,7 @@ também permite modelos, texturas e sons locais otimizados; a regra de zero asse
 Ferramental profissional configurado. Antes de commitar, rode o portão de qualidade:
 
 ```bash
-npm run check   # typecheck + lint + format + testes
+npm run check   # workflow + typecheck + lint + format + cobertura
 npm run test    # só os testes (Vitest)
 npm run test:coverage # testes + cobertura V8 (mínimo de 30% em todo src)
 npm run lint    # ESLint (lint:fix aplica correções)
@@ -40,9 +40,14 @@ completo de setup, estilo e fluxo em
 
 ## Publicar no GitHub Pages
 
-```bash
-npm run deploy   # builda e publica dist/ na branch gh-pages
-```
+Pushes verdes em `main` publicam automaticamente pelo GitHub Actions o mesmo `dist/` que passou
+por cobertura, build e smoke de produção. O site atual é
+**https://tarikdsm.github.io/pro_volei/**.
+
+O script `npm run deploy`, o pacote e a branch `gh-pages` permanecem apenas como fallback
+transitório até a validação de rollback da Fase 1C e serão removidos na Fase 1D. Verificação do
+Pages, policy, deployment e procedimentos de rollback estão em
+**[docs/deployment/web.md](docs/deployment/web.md)**.
 
 ### Controles no celular (toque)
 

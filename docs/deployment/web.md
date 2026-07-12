@@ -12,28 +12,84 @@ npm run preview   # confere o build localmente
 `vite.config.ts` usa `base: './'` — caminhos relativos, então funciona em subdiretório
 (GitHub Pages em `/pro_volei/`) ou na raiz de um domínio.
 
-## GitHub Pages (atual)
+## GitHub Pages (atual: GitHub Actions)
 
-```bash
-npm run deploy    # check → build → publica dist/ na branch gh-pages (pacote gh-pages)
+Cada push em `main` que passa pelo workflow `.github/workflows/ci.yml` publica automaticamente em
+`https://tarikdsm.github.io/pro_volei/`. O job `check` executa qualidade, cobertura, build e smoke
+Chromium do `dist/` servido por `vite preview`; somente depois envia **esse mesmo diretório** ao
+Pages. O job privilegiado `deploy` depende de `check` e não faz checkout nem executa comandos do
+repositório.
+
+O pipeline usa as actions oficiais atuais:
+
+- `actions/checkout@v7` e `actions/setup-node@v6` no job `check`;
+- `actions/upload-pages-artifact@v5` após o smoke, com o artefato
+  `github-pages-${{ github.run_attempt }}`;
+- `actions/configure-pages@v6` e `actions/deploy-pages@v5` no job `deploy`.
+
+O sufixo `run_attempt` isola o artefato de cada reexecução. Assim, um rerun recompila, testa e
+publica o SHA original sem colidir com o artefato de uma tentativa anterior.
+
+### Primeiro deploy público
+
+O primeiro deploy pelo workflow foi o run `29201051491`, no SHA `c917145`. Os jobs `check` e
+`deploy` ficaram verdes, e o site público passou smoke em navegador limpo nos perfis desktop e
+mobile. A **Fase 1C permanece com rollback em validação**: este registro comprova a publicação,
+mas a reexecução controlada de um run anterior e a restauração do atual ainda pertencem à Tarefa 5.
+
+### Verificação operacional
+
+Use os comandos abaixo a partir de uma sessão autenticada do GitHub CLI:
+
+```powershell
+# Pages deve usar build_type=workflow e HTTPS
+gh api 'repos/tarikdsm/pro_volei/pages' `
+  --jq '{build_type, status, html_url, https_enforced, source}'
+
+# O ambiente github-pages deve autorizar somente a branch main
+gh api 'repos/tarikdsm/pro_volei/environments/github-pages/deployment-branch-policies' `
+  --jq '.branch_policies[] | {id, type, name}'
+
+# Workflow e jobs do run mais recente
+gh run list --repo tarikdsm/pro_volei --workflow ci.yml --branch main --limit 5
+gh run view RUN_ID --repo tarikdsm/pro_volei `
+  --json headSha,attempt,status,conclusion,jobs,url
+
+# Deployment mais recente e seu status
+gh api 'repos/tarikdsm/pro_volei/deployments?environment=github-pages&per_page=1' `
+  --jq '.[0] | {id, sha, ref, environment, created_at}'
+gh api 'repos/tarikdsm/pro_volei/deployments/DEPLOYMENT_ID/statuses' `
+  --jq '.[0] | {state, environment_url, created_at}'
+
+# Resposta pública do Pages
+curl.exe -I 'https://tarikdsm.github.io/pro_volei/'
 ```
 
-Publica em `https://tarikdsm.github.io/pro_volei/`.
+Além dos comandos, abra a URL em contexto limpo, sem `?debug`, e confirme menu, início de partida,
+console sem erros e carregamento dos assets relativos. A policy deve retornar exatamente uma
+branch do tipo `branch`, com nome `main`.
 
-O `deploy` roda `npm run check` (typecheck + lint + format:check + test) **antes** de gerar o
-build e publicar. Como os passos são encadeados com `&&`, uma árvore vermelha aborta o deploy:
-nada quebrado ou desformatado vai para produção. É o gate reprodutível local — o mesmo conjunto
-de checagens que o CI (`.github/workflows/ci.yml`) já roda em push/PR.
+### Rollback
 
-### Follow-up: deploy contínuo por Actions (Fase 4)
+Há dois mecanismos, com propósitos diferentes:
 
-Ainda não implementado. Em vez do deploy manual, um workflow pode publicar no Pages a cada push
-em `main` (após o CI verde), usando `actions/deploy-pages`. A migração exige trocar, nas
-_Settings > Pages_ do repositório, a Source de "Deploy from a branch (gh-pages)" para
-"GitHub Actions", conceder as permissões `pages: write` / `id-token: write` e o
-`environment: github-pages`, e depreciar o script `npm run deploy` (branch `gh-pages`) para não
-manter dois caminhos concorrentes. Como `vite.config.ts` usa `base: './'`, não é preciso
-configurar `base path`. Planejado para a Fase 4 do [roadmap](../ROADMAP.md).
+1. **Fallback transitório da migração:** enquanto a Fase 1C valida o rollback, a branch remota
+   `gh-pages`, o pacote `gh-pages` e o script `npm run deploy` continuam preservados. Em emergência,
+   restaure a policy do ambiente para `gh-pages`, altere Pages para `build_type=legacy` com fonte
+   `gh-pages:/` e só então use o script legado. Depois confirme novamente Pages, policy e URL
+   pública. Esse caminho será removido apenas na Fase 1D.
+2. **Rollback normal de produção:** reexecute integralmente um run verde anterior com
+   `gh run rerun RUN_ID --repo tarikdsm/pro_volei`; o workflow preserva o `GITHUB_SHA` daquele run
+   e publica seu artefato isolado por tentativa. Se a correção precisa permanecer no histórico,
+   use `git revert SHA_PROBLEMATICO`, rode os gates e faça push do novo commit. Nunca use
+   force-push, amend ou reescrita de histórico.
+
+O rerun é uma promoção operacional por SHA; `git revert` é a correção durável do código. Após um
+rollback por rerun, reexecute o run verde mais recente para restaurar a produção atual e repita o
+smoke público.
+
+> **Fallback apenas:** `npm run deploy` não é o caminho atual de publicação. Ele continua no
+> projeto exclusivamente até a prova de rollback da Fase 1C autorizar a remoção na Fase 1D.
 
 ## itch.io
 

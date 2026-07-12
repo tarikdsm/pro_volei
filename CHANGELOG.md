@@ -12,6 +12,9 @@ Todas as mudanças notáveis do Pró Volei. Formato baseado em
   `.gitattributes` (LF), `.nvmrc` (Node 22).
 - Testes com Vitest 4 e primeira suíte cobrindo os solvers balísticos (`math3d`).
 - CI no GitHub Actions: typecheck · lint · format · test · build em push em main.
+- Deploy contínuo do GitHub Pages após cobertura, build e smoke do `dist`, usando
+  `checkout@v7`, `setup-node@v6`, `upload-pages-artifact@v5`, `configure-pages@v6` e
+  `deploy-pages@v5`.
 - Scripts npm: `typecheck`, `lint`, `lint:fix`, `format`, `format:check`, `test`,
   `test:watch`, `check`.
 - Documentação: `CLAUDE.md`, `CONTRIBUTING.md`, `CHANGELOG.md`,
@@ -22,6 +25,11 @@ Todas as mudanças notáveis do Pró Volei. Formato baseado em
 
 - CI ampliado: typecheck de produção/testes/configs, cobertura V8 de todo `src`, build e smoke
   Chromium do artefato servido por `vite preview`.
+- O mesmo `dist/` aprovado pelo job `check` agora é publicado automaticamente pelo job `deploy`.
+  O primeiro deploy público foi o run `29201051491`, SHA `c917145`, com workflow e smoke público
+  desktop/mobile verdes. A Fase 1C permanece com rollback em validação.
+- `npm run deploy`, o pacote e a branch `gh-pages` foram reclassificados como fallback transitório;
+  serão removidos apenas na Fase 1D após a prova de rollback.
 - Design da versão 2.0 aprovado: controles de setas + ação contextual, IA coletiva,
   personagens locais animados, experiência mobile landscape e Copa curta. A implementação ocorre
   em fases; esta entrada não anuncia essas features como disponíveis na v1.1.
