@@ -28,6 +28,9 @@ npm run dev        # http://localhost:5173
 4. Faça commits diretamente em `main`, pequenos e atômicos. O CI valida o SHA enviado.
 5. Se o CI remoto falhar, interrompa trabalho novo e corrija ou reverta em novo commit.
 
+O CI roda `npm run check`, build e smoke Chromium do `dist/` servido por `vite preview` em cada
+push para `main`.
+
 ## Scripts
 
 ```bash

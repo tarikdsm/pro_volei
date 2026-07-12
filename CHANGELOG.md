@@ -20,6 +20,8 @@ Todas as mudanças notáveis do Pró Volei. Formato baseado em
 
 ### Alterado
 
+- CI ampliado: typecheck de produção/testes/configs, cobertura V8 de todo `src`, build e smoke
+  Chromium do artefato servido por `vite preview`.
 - Design da versão 2.0 aprovado: controles de setas + ação contextual, IA coletiva,
   personagens locais animados, experiência mobile landscape e Copa curta. A implementação ocorre
   em fases; esta entrada não anuncia essas features como disponíveis na v1.1.

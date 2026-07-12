@@ -33,8 +33,10 @@ npm run lint    # ESLint (lint:fix aplica correções)
 npm run format  # Prettier
 ```
 
-O CI (GitHub Actions) roda o mesmo `check` + build em cada push em main. Guia completo de
-setup, estilo e fluxo em **[CONTRIBUTING.md](CONTRIBUTING.md)**.
+O CI roda `npm run check`, build e smoke Chromium do `dist/` servido por `vite preview` em cada
+push para `main`. O fluxo do projeto permanece main-only, com commits e push em main. Guia
+completo de setup, estilo e fluxo em
+**[CONTRIBUTING.md](CONTRIBUTING.md)**.
 
 ## Publicar no GitHub Pages
 
