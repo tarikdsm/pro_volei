@@ -13,10 +13,13 @@ remoção de `gh-pages`; depois controles, IA, arte/render, mobile/áudio, Copa 
 
 - **Fase 1A — concluída:** políticas canônicas, escopo offline e fluxo main-only alinhados.
 - **Fase 1B — concluída:** typecheck amplo, cobertura, build e smoke do `dist` no gate.
-- **Fase 1C — rollback em validação:** deploy automático pelo Actions já publica o mesmo `dist`
-  aprovado. Primeiro deploy verde: run `29201051491`, SHA `c917145`; smoke público desktop e
-  mobile verde. Falta comprovar rerun de um SHA anterior e restauração do atual.
-- **Fase 1D — pendente:** remover script/pacote/branch `gh-pages` somente após a prova da 1C.
+- **Fase 1C — concluída:** deploy automático e promoção por SHA comprovados. O primeiro deploy foi
+  o run `29201051491` attempt 1 (`c917145`); o segundo, `29201410995` attempt 1 (`da18cbd`). O
+  rollback promoveu `c917145` no attempt 2 do primeiro run (deployment `5414503098`) e a
+  restauração promoveu `da18cbd` no attempt 2 do segundo (deployment `5414518284`); ambos ficaram
+  verdes e passaram smoke público.
+- **Fase 1D — autorizada e pendente:** a prova da 1C permite remover script, pacote e branch
+  `gh-pages`, que continuam presentes até a execução da 1D.
 
 ---
 
@@ -75,7 +78,7 @@ Elevar qualidade percebida e garantir 60fps em mobile.
 
 Mesmo código web, três alvos de loja. Guias em [docs/deployment/](deployment/).
 
-- [ ] **Web:** deploy contínuo do Pages implementado, ainda com rollback em validação na Fase 1C;
+- [ ] **Web:** deploy contínuo e rollback do Pages concluídos na Fase 1C; remoção do legado na 1D,
       itch.io, `<meta>` de PWA e tela de carregamento permanecem pendentes
 - [ ] **Desktop/Steam:** wrapper [Tauri](deployment/desktop-steam.md) (build Win/Mac/Linux,
       ícones, integração Steamworks, página na loja)

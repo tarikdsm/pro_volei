@@ -44,9 +44,10 @@ Pushes verdes em `main` publicam automaticamente pelo GitHub Actions o mesmo `di
 por cobertura, build e smoke de produção. O site atual é
 **https://tarikdsm.github.io/pro_volei/**.
 
-O script `npm run deploy`, o pacote e a branch `gh-pages` permanecem apenas como fallback
-transitório até a validação de rollback da Fase 1C e serão removidos na Fase 1D. Verificação do
-Pages, policy, deployment e procedimentos de rollback estão em
+O rollback e a restauração por SHA da Fase 1C já foram comprovados. O script `npm run deploy`, o
+pacote e a branch `gh-pages` permanecem apenas como fallback transitório até a execução da Fase
+1D, que está autorizada e pendente. Verificação do Pages, policy, deployments e procedimentos de
+rollback estão em
 **[docs/deployment/web.md](docs/deployment/web.md)**.
 
 ### Controles no celular (toque)

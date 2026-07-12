@@ -30,12 +30,19 @@ O pipeline usa as actions oficiais atuais:
 O sufixo `run_attempt` isola o artefato de cada reexecução. Assim, um rerun recompila, testa e
 publica o SHA original sem colidir com o artefato de uma tentativa anterior.
 
-### Primeiro deploy público
+### Evidência de deploy, rollback e restauração
 
-O primeiro deploy pelo workflow foi o run `29201051491`, no SHA `c917145`. Os jobs `check` e
-`deploy` ficaram verdes, e o site público passou smoke em navegador limpo nos perfis desktop e
-mobile. A **Fase 1C permanece com rollback em validação**: este registro comprova a publicação,
-mas a reexecução controlada de um run anterior e a restauração do atual ainda pertencem à Tarefa 5.
+| Operação | Run/attempt | SHA promovido | Deployment | Resultado |
+|---|---|---|---|---|
+| Primeiro deploy | `29201051491` attempt 1 | `c917145` | — | workflow e smoke público desktop/mobile verdes |
+| Segundo deploy | `29201410995` attempt 1 | `da18cbd` | — | workflow e deployment verdes |
+| Rollback | `29201051491` attempt 2 | `c917145` | `5414503098` | `success` e smoke público verde |
+| Restauração | `29201410995` attempt 2 | `da18cbd` | `5414518284` | `success` e smoke público verde |
+
+A prova promoveu primeiro o SHA anterior e depois restaurou o SHA mais recente. Ela valida o
+controle operacional por SHA; não se baseia nem afirma diferença visual entre os builds, pois o
+segundo SHA altera documentação que não entra no `dist/`. Com rollback e restauração comprovados,
+a **Fase 1C está concluída** e a **Fase 1D está autorizada e pendente**.
 
 ### Verificação operacional
 
@@ -73,8 +80,8 @@ branch do tipo `branch`, com nome `main`.
 
 Há dois mecanismos, com propósitos diferentes:
 
-1. **Fallback transitório da migração:** enquanto a Fase 1C valida o rollback, a branch remota
-   `gh-pages`, o pacote `gh-pages` e o script `npm run deploy` continuam preservados. Em emergência,
+1. **Fallback transitório da migração:** até a Fase 1D remover o legado, a branch remota `gh-pages`,
+   o pacote `gh-pages` e o script `npm run deploy` continuam preservados. Em emergência,
    restaure a policy do ambiente para `gh-pages`, altere Pages para `build_type=legacy` com fonte
    `gh-pages:/` e valide a URL pública. **Não execute `npm run deploy` durante a restauração:** a
    troca de fonte já reativa a branch conhecida, enquanto o script reconstruiria o `HEAD` e poderia
@@ -89,8 +96,9 @@ O rerun é uma promoção operacional por SHA; `git revert` é a correção dur�
 rollback por rerun, reexecute o run verde mais recente para restaurar a produção atual e repita o
 smoke público.
 
-> **Fallback apenas:** `npm run deploy` não é o caminho atual de publicação. Ele continua no
-> projeto exclusivamente até a prova de rollback da Fase 1C autorizar a remoção na Fase 1D.
+> **Fallback apenas:** `npm run deploy` não é o caminho atual de publicação. A prova de rollback
+> da Fase 1C já autorizou sua remoção, mas script, pacote e branch continuam presentes até a
+> execução da Fase 1D.
 
 ## itch.io
 

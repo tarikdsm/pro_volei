@@ -53,8 +53,9 @@ npm run deploy       # fallback temporário legacy/gh-pages; não é o deploy at
 - Pushes verdes de `main` publicam automaticamente pelo Actions o mesmo `dist/` aprovado por
   cobertura, build e smoke de produção. O deploy atual usa `checkout@v7`, `setup-node@v6`,
   `upload-pages-artifact@v5`, `configure-pages@v6` e `deploy-pages@v5`.
-- A Fase 1C está com **rollback em validação**. `npm run deploy`, o pacote e a branch `gh-pages`
-  são fallback transitório e só serão removidos na Fase 1D. Operação, verificação e rollback:
+- A Fase 1C está **concluída**, com rollback e restauração por SHA comprovados. A Fase 1D está
+  autorizada e pendente; até sua execução, `npm run deploy`, o pacote e a branch `gh-pages`
+  continuam como fallback transitório. Evidências e operação:
   [docs/deployment/web.md](docs/deployment/web.md).
 
 ## Arquitetura (resumo)

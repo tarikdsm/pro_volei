@@ -26,10 +26,13 @@ Todas as mudanças notáveis do Pró Volei. Formato baseado em
 - CI ampliado: typecheck de produção/testes/configs, cobertura V8 de todo `src`, build e smoke
   Chromium do artefato servido por `vite preview`.
 - O mesmo `dist/` aprovado pelo job `check` agora é publicado automaticamente pelo job `deploy`.
-  O primeiro deploy público foi o run `29201051491`, SHA `c917145`, com workflow e smoke público
-  desktop/mobile verdes. A Fase 1C permanece com rollback em validação.
+  O primeiro deploy foi o run `29201051491` attempt 1 (`c917145`) e o segundo foi o run
+  `29201410995` attempt 1 (`da18cbd`). O rollback pelo attempt 2 do primeiro run promoveu
+  `c917145` no deployment `5414503098`; o attempt 2 do segundo restaurou `da18cbd` no deployment
+  `5414518284`. Ambos os deployments ficaram verdes e passaram smoke público, concluindo a Fase
+  1C e autorizando a Fase 1D.
 - `npm run deploy`, o pacote e a branch `gh-pages` foram reclassificados como fallback transitório;
-  serão removidos apenas na Fase 1D após a prova de rollback.
+  a prova de rollback foi concluída, mas eles permanecem presentes até a execução da Fase 1D.
 - Design da versão 2.0 aprovado: controles de setas + ação contextual, IA coletiva,
   personagens locais animados, experiência mobile landscape e Copa curta. A implementação ocorre
   em fases; esta entrada não anuncia essas features como disponíveis na v1.1.
