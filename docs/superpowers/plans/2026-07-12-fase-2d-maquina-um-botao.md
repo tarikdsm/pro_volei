@@ -126,5 +126,15 @@ InputFrame + simulationTick + contexto legal
 - [x] Troca de atleta preserva; token novo e lifecycle cancelam sem ação fantasma.
 - [x] Teclado e touch produzem a mesma intenção a 30/60/120 Hz de render.
 - [x] Saque, recepção, levantamento, ataque, bloqueio e bola quebrada são jogáveis.
-- [ ] Testes, E2E, playtest, review, CI, Pages e smoke público estão verdes.
-- [ ] Remoto continua literalmente somente `main`.
+- [x] Testes, E2E, playtest, review, CI, Pages e smoke público estão verdes.
+- [x] Remoto continua literalmente somente `main`.
+
+## Evidência de fechamento
+
+- Gate local: 55 arquivos/494 testes, 11/11 E2E, build (166,78 kB gzip) e smoke do `dist` verdes.
+- Revisões independentes: lifecycle/ordenação corrigidos no núcleo; integração/mecânicas sem novos
+  findings após 61 testes direcionados, typecheck e lint.
+- Publicação: run `29210820681`, SHA `e1a1b10`, deployment `5416656576`, todos verdes.
+- Playtest público real: planos distintos resolveram `quick-set` hold com carga `0.4667`, `tip` tap
+  e `high-set` tap; partida permaneceu em rally e não houve erro de console.
+- Repositório remoto: a API de branches retornou exclusivamente `main`.

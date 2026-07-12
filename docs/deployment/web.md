@@ -63,6 +63,14 @@ playtest real com setas + Espaço iniciou o rally e observou o AutoSelector trav
 atleta 0 com score `0.040951`, viável, zero trocas e status `locked`; a página não emitiu erros de
 console. A API remota de branches retornou exclusivamente `main`.
 
+### Publicação da Fase 2D
+
+O run `29210820681` aprovou 494 testes, qualidade, build e smoke de produção para o SHA `e1a1b10`,
+depois publicou o mesmo artefato no deployment `5416656576` (`success`). No Pages público, uma
+partida real resolveu `quick-set` por hold com carga `0.4667`, `tip` por tap e `high-set` por tap
+em três tokens distintos; o rally continuou e a página não emitiu erros de console. A API remota
+de branches retornou exclusivamente `main`.
+
 ### Conclusão main-only da Fase 1D
 
 A capacidade local legada foi removida no SHA `dcba25b`. O run `29202163302` ficou verde e publicou
