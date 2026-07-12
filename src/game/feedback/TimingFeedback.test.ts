@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { ActionContext, ActionIntent } from '../control/ActionIntent';
-import { evaluateTiming, timingTier, type TimingContext } from './TimingFeedback';
+import {
+  createTimingFeedbackEvent,
+  evaluateTiming,
+  timingTier,
+  type TimingContext,
+} from './TimingFeedback';
 
 function intent(context: TimingContext, pressedTick: number, resolvedTick: number): ActionIntent {
   const techniques: Record<TimingContext, ActionIntent['technique']> = {
@@ -76,5 +81,41 @@ describe('evaluateTiming', () => {
   it('rejeita saque em runtime porque carga não possui sweet spot temporal', () => {
     const serve = { ...intent('receive', 0, 0), context: 'serve' as ActionContext };
     expect(() => evaluateTiming(serve)).toThrowError(/saque/i);
+  });
+});
+
+describe('createTimingFeedbackEvent', () => {
+  it('usa a qualidade final da física, preserva timing e congela posição/evento', () => {
+    const action = intent('receive', 10, 20);
+    const evaluation = evaluateTiming(action, 5);
+    const event = createTimingFeedbackEvent(action, evaluation, 0.84, 30, {
+      x: -3,
+      y: 1,
+      z: 2,
+    });
+
+    expect(event).toMatchObject({
+      kind: 'timing',
+      token: 7,
+      simulationTick: 30,
+      context: 'receive',
+      quality: 0.84,
+      tier: 'good',
+      phase: 'on-time',
+      position: { x: -3, y: 1, z: 2 },
+    });
+    expect(Object.isFrozen(event)).toBe(true);
+    expect(Object.isFrozen(event.position)).toBe(true);
+  });
+
+  it('limita qualidade final inválida em [0,1]', () => {
+    const action = intent('attack', 0, 0);
+    const evaluation = evaluateTiming(action, 16);
+    expect(createTimingFeedbackEvent(action, evaluation, 9, 1, { x: 0, y: 0, z: 0 }).quality).toBe(
+      1,
+    );
+    expect(
+      createTimingFeedbackEvent(action, evaluation, Number.NaN, 1, { x: 0, y: 0, z: 0 }).quality,
+    ).toBe(0);
   });
 });

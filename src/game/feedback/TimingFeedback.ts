@@ -22,6 +22,10 @@ export interface TimingFeedbackEvent extends TimingEvaluation {
   readonly position: Readonly<{ x: number; y: number; z: number }>;
 }
 
+export interface FeedbackPort {
+  emit(event: Readonly<TimingFeedbackEvent>): void;
+}
+
 export function timingTier(quality: number): TimingTier {
   if (!Number.isFinite(quality)) return 'off';
   if (quality >= TIMING_FEEDBACK.perfectMin) return 'perfect';
@@ -57,6 +61,28 @@ export function evaluateTiming(
     quality,
     phase,
     tier: timingTier(quality),
+  });
+}
+
+export function createTimingFeedbackEvent(
+  intent: ActionIntent,
+  evaluation: TimingEvaluation,
+  finalQuality: number,
+  simulationTick: number,
+  position: Readonly<{ x: number; y: number; z: number }>,
+): Readonly<TimingFeedbackEvent> {
+  if (intent.context === 'serve') throw new RangeError('Saque não emite feedback de timing.');
+  const quality = Number.isFinite(finalQuality) ? clamp01(finalQuality) : 0;
+  const frozenPosition = Object.freeze({ x: position.x, y: position.y, z: position.z });
+  return Object.freeze({
+    ...evaluation,
+    quality,
+    tier: timingTier(quality),
+    kind: 'timing',
+    token: intent.token,
+    simulationTick,
+    context: intent.context,
+    position: frozenPosition,
   });
 }
 

@@ -17,7 +17,12 @@ import type { ActionContext, ActionIntent } from './ActionIntent';
 import type { ControlFrame } from './ControlFrame';
 import { HumanAutoControl } from './HumanAutoControl';
 import { humanContactQuality } from './timing';
-import { evaluateTiming, type TimingEvaluation } from '../feedback/TimingFeedback';
+import {
+  createTimingFeedbackEvent,
+  evaluateTiming,
+  type TimingEvaluation,
+  type TimingFeedbackEvent,
+} from '../feedback/TimingFeedback';
 
 export type CtlMode = 'none' | 'serve' | 'receive' | 'set' | 'attack' | 'block' | 'freeball';
 
@@ -36,6 +41,7 @@ export class HumanController {
   private lastRequest: ActionControlRequest | null = null;
   private consumedContactIntent: ActionIntent | null = null;
   private resolvedTiming: TimingEvaluation | null = null;
+  private lastFeedbackKey: string | null = null;
   private jumpedToken: number | null = null;
 
   readonly aim = new THREE.Vector3(5.5, 0, 0);
@@ -264,7 +270,32 @@ export class HumanController {
   takeBlockIntent(planId: number): ActionIntent | null {
     if (this.activeContext !== 'block') return null;
     this.resolveAtAnalyticalContact(planId, 'block');
-    return this.actionControl.take(planId, 'block');
+    const intent = this.actionControl.take(planId, 'block');
+    if (intent) this.consumedContactIntent = intent;
+    return intent;
+  }
+
+  /** Evento one-shot no contato; usa exatamente a qualidade final entregue à física. */
+  takeTimingFeedback(
+    planId: number,
+    finalQuality: number,
+    position: Readonly<{ x: number; y: number; z: number }>,
+  ): Readonly<TimingFeedbackEvent> | null {
+    const intent = this.consumedContactIntent;
+    if (!intent || intent.token !== planId || intent.context === 'serve' || !this.resolvedTiming) {
+      return null;
+    }
+    const simulationTick = this.lastFrame?.simulationTick ?? intent.resolvedTick;
+    const key = `${planId}:${simulationTick}`;
+    if (this.lastFeedbackKey === key) return null;
+    this.lastFeedbackKey = key;
+    return createTimingFeedbackEvent(
+      intent,
+      this.resolvedTiming,
+      finalQuality,
+      simulationTick,
+      position,
+    );
   }
 
   /** Alcance contínuo disponível antes ou logo depois do consumo mecânico. */

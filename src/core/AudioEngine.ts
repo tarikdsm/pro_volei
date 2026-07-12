@@ -1,4 +1,6 @@
 // Áudio 100% procedural via Web Audio API — nenhum asset externo, funciona offline.
+import type { TimingFeedbackEvent } from '../game/feedback/TimingFeedback';
+
 export class AudioEngine {
   private ctx: AudioContext | null = null;
   private master!: GainNode;
@@ -132,6 +134,18 @@ export class AudioEngine {
     // manchete / toque
     this.noiseBurst(0.08, 600, 1.5, 0.28);
     this.tone(160, 0.06, 0.2, 'sine', 90);
+  }
+
+  /** Cue leve de timing; imediato e separado do impacto físico da bola. */
+  timingCue(event: Readonly<TimingFeedbackEvent>): void {
+    if (event.tier === 'perfect') {
+      this.tone(880, 0.08, 0.055, 'sine', 1040);
+      this.tone(1320, 0.09, 0.035, 'sine', 1560);
+    } else if (event.tier === 'good') {
+      this.tone(760, 0.07, 0.05, 'sine', 830);
+    } else {
+      this.tone(220, 0.055, 0.045, 'triangle', 180);
+    }
   }
 
   bounce(): void {

@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
 import { Effects } from './Effects';
+import type { TimingFeedbackEvent } from '../game/feedback/TimingFeedback';
+import { TIMING_FEEDBACK } from '../core/constants';
 
 // Recupera o THREE.Points do pool de partículas (é filho público de effects.group).
 function getPoints(effects: Effects): THREE.Points {
@@ -76,5 +78,48 @@ describe('Effects — upload de buffer sob demanda (B11)', () => {
     expect(pts.geometry.drawRange.count).toBe(4);
     expect(particleCount(effects)).toBe(4);
     rnd.mockRestore();
+  });
+});
+
+function timingCue(tier: TimingFeedbackEvent['tier']): TimingFeedbackEvent {
+  return {
+    kind: 'timing',
+    token: 1,
+    simulationTick: 10,
+    context: 'attack',
+    idealLeadTicks: 16,
+    measuredLeadTicks: 16,
+    errorTicks: 0,
+    quality: tier === 'perfect' ? 1 : tier === 'good' ? 0.7 : 0.2,
+    phase: 'on-time',
+    tier,
+    position: { x: 2, y: 3, z: -1 },
+  };
+}
+
+describe('Effects — glyph procedural de timing', () => {
+  it.each(['perfect', 'good', 'off'] as const)('usa forma e cor próprias para %s', (tier) => {
+    const effects = new Effects();
+    effects.timingCue(timingCue(tier));
+
+    expect(effects.timingGlyph.visible).toBe(true);
+    expect(effects.timingGlyph.position.toArray()).toEqual([2, 3, -1]);
+    expect((effects.timingGlyph.material as THREE.LineBasicMaterial).color.getHex()).toBe(
+      TIMING_FEEDBACK.colors[tier],
+    );
+  });
+
+  it('diferencia tiers por geometria e expira pela duração canônica', () => {
+    const effects = new Effects();
+    const counts: number[] = [];
+    for (const tier of ['perfect', 'good', 'off'] as const) {
+      effects.timingCue(timingCue(tier));
+      counts.push(effects.timingGlyph.geometry.drawRange.count);
+    }
+    expect(new Set(counts).size).toBe(3);
+
+    effects.timingCue(timingCue('perfect'));
+    effects.update(TIMING_FEEDBACK.visualDuration.perfect + 0.01);
+    expect(effects.timingGlyph.visible).toBe(false);
   });
 });

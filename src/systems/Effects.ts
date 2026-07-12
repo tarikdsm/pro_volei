@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { TIMING_FEEDBACK } from '../core/constants';
+import type { TimingFeedbackEvent } from '../game/feedback/TimingFeedback';
 
 // Partículas de impacto, confete, anel de previsão de queda e marcador de mira.
 export class Effects {
@@ -14,6 +16,10 @@ export class Effects {
   // marcador de mira (saque/ataque)
   aimMarker: THREE.Mesh;
   private ringPulse = 0;
+  timingGlyph: THREE.LineSegments;
+  private timingGlyphPos: THREE.BufferAttribute;
+  private timingCueAge = 0;
+  private timingCueDuration = 0;
 
   constructor() {
     const geo = new THREE.BufferGeometry();
@@ -63,6 +69,24 @@ export class Effects {
     this.aimMarker.rotation.z = Math.PI / 4;
     this.aimMarker.visible = false;
     this.group.add(this.aimMarker);
+
+    const timingGeometry = new THREE.BufferGeometry();
+    this.timingGlyphPos = new THREE.BufferAttribute(new Float32Array(128 * 3), 3);
+    timingGeometry.setAttribute('position', this.timingGlyphPos);
+    timingGeometry.setDrawRange(0, 0);
+    this.timingGlyph = new THREE.LineSegments(
+      timingGeometry,
+      new THREE.LineBasicMaterial({
+        color: TIMING_FEEDBACK.colors.perfect,
+        transparent: true,
+        opacity: 1,
+        depthWrite: false,
+        depthTest: false,
+      }),
+    );
+    this.timingGlyph.visible = false;
+    this.timingGlyph.renderOrder = 20;
+    this.group.add(this.timingGlyph);
   }
 
   burst(at: THREE.Vector3, color: number, count = 18, speed = 4): void {
@@ -127,6 +151,18 @@ export class Effects {
     this.aimMarker.position.set(point.x, 0.02, point.z);
   }
 
+  timingCue(event: Readonly<TimingFeedbackEvent>): void {
+    this.writeTimingShape(event.tier);
+    this.timingGlyph.position.set(event.position.x, event.position.y, event.position.z);
+    this.timingGlyph.scale.setScalar(1);
+    const material = this.timingGlyph.material as THREE.LineBasicMaterial;
+    material.color.setHex(TIMING_FEEDBACK.colors[event.tier]);
+    material.opacity = 1;
+    this.timingCueAge = 0;
+    this.timingCueDuration = TIMING_FEEDBACK.visualDuration[event.tier];
+    this.timingGlyph.visible = true;
+  }
+
   update(dt: number): void {
     this.ringPulse += dt * 5;
     if (this.landingRing.visible) {
@@ -135,6 +171,13 @@ export class Effects {
     }
     if (this.aimMarker.visible) {
       this.aimMarker.rotation.z += dt * 1.5;
+    }
+    if (this.timingGlyph.visible) {
+      this.timingCueAge += dt;
+      const progress = Math.min(1, this.timingCueAge / this.timingCueDuration);
+      (this.timingGlyph.material as THREE.LineBasicMaterial).opacity = 1 - progress;
+      this.timingGlyph.scale.setScalar(1 + progress * 0.42);
+      if (progress >= 1) this.timingGlyph.visible = false;
     }
 
     for (let i = this.particles.length - 1; i >= 0; i--) {
@@ -170,6 +213,43 @@ export class Effects {
     }
     // setDrawRange fica fora do guard: zera o range no frame em que as partículas somem
     this.pool.geometry.setDrawRange(0, n);
+  }
+
+  private writeTimingShape(tier: TimingFeedbackEvent['tier']): void {
+    let vertex = 0;
+    const segment = (x1: number, z1: number, x2: number, z2: number): void => {
+      this.timingGlyphPos.setXYZ(vertex++, x1, 0, z1);
+      this.timingGlyphPos.setXYZ(vertex++, x2, 0, z2);
+    };
+    const arc = (radius: number, start: number, length: number, segments: number): void => {
+      for (let index = 0; index < segments; index++) {
+        const a = start + (length * index) / segments;
+        const b = start + (length * (index + 1)) / segments;
+        segment(
+          Math.cos(a) * radius,
+          Math.sin(a) * radius,
+          Math.cos(b) * radius,
+          Math.sin(b) * radius,
+        );
+      }
+    };
+
+    if (tier === 'perfect') {
+      arc(0.32, 0, Math.PI * 2, 24);
+      arc(0.5, 0, Math.PI * 2, 24);
+    } else if (tier === 'good') {
+      const radius = 0.48;
+      segment(0, -radius, radius, 0);
+      segment(radius, 0, 0, radius);
+      segment(0, radius, -radius, 0);
+      segment(-radius, 0, 0, -radius);
+    } else {
+      arc(0.46, Math.PI * 0.12, Math.PI * 0.7, 8);
+      arc(0.46, Math.PI * 1.12, Math.PI * 0.7, 8);
+    }
+
+    this.timingGlyphPos.needsUpdate = true;
+    this.timingGlyph.geometry.setDrawRange(0, vertex);
   }
 }
 

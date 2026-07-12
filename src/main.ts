@@ -18,6 +18,8 @@ import { exporDebugHabilitado } from './core/debug';
 import { mapScreenToCourt } from './core/input/CameraSpaceMapper';
 import { FixedStepRunner, type FixedStepDiscard } from './core/time/FixedStepRunner';
 import { SlowMotionClock } from './core/time/SlowMotionClock';
+import { Haptics } from './systems/Haptics';
+import { PresentationFeedback } from './systems/PresentationFeedback';
 
 const app = document.getElementById('app')!;
 const debugWindow = window as unknown as {
@@ -30,6 +32,7 @@ const debugWindow = window as unknown as {
   };
   __selection?: ReturnType<Match['selectionSnapshot']>;
   __action?: ReturnType<Match['actionSnapshot']>;
+  __feedback?: ReturnType<PresentationFeedback['snapshot']>;
   __simulationClock?: {
     tick: number;
     simulationSeconds: number;
@@ -76,6 +79,8 @@ scene.add(court.group, arena.group, crowd.mesh, referee.group, effects.group);
 const director = new CameraDirector(window.innerWidth / window.innerHeight);
 const input = new Input();
 const audio = new AudioEngine();
+const haptics = new Haptics();
+const feedback = new PresentationFeedback([effects, audio, haptics]);
 const hud = new HUD(app, isTouch);
 const menu = new Menu(app, isTouch);
 const touch = isTouch ? new TouchControls(app, input, togglePause) : null;
@@ -114,6 +119,7 @@ const match = new Match({
     touch?.show(false);
     menu.showVictory(homeWon, stats, scoreline);
   },
+  feedback,
   audio,
   effects,
   camera: director,
@@ -234,6 +240,7 @@ function frame(now: number): void {
   if (debugEnabled) {
     debugWindow.__selection = match.selectionSnapshot();
     debugWindow.__action = match.actionSnapshot();
+    debugWindow.__feedback = feedback.snapshot();
     debugWindow.__simulationClock = {
       tick: simulationFrame.tick,
       simulationSeconds: simulationFrame.simulationSeconds,

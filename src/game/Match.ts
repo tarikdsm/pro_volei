@@ -33,6 +33,7 @@ import { AiController } from './ai/AiController';
 import { resolvePoint, awardPoint, pushScore, endSet, ScoringCtx } from './rules/SetMatch';
 import { outOfAntennaWinner, isMatchOver } from './rules/scoring';
 import { MatchTimeline } from './simulation/MatchTimeline';
+import type { FeedbackPort } from './feedback/TimingFeedback';
 
 export interface MatchStats {
   aces: number;
@@ -49,6 +50,7 @@ export interface Hooks {
   zoneHint(zone: number | null): void;
   slowMo(scale: number, dur: number): void;
   matchEnd(homeWon: boolean, stats: MatchStats, scoreline: string): void;
+  feedback: FeedbackPort;
   audio: AudioEngine;
   effects: Effects;
   camera: CameraDirector;
@@ -378,6 +380,7 @@ export class Match {
       const q = isHuman
         ? this.human.reachQuality(hard, medium, this.ctx)
         : this.ai.reachQuality(this.ctx, hard);
+      if (isHuman && intent) this.emitTimingFeedback(plan, Math.max(0, q));
       if (q >= 0) executeTouch(this.ctx, plan, q, intent ?? undefined);
       else a.act('dive', 0.8); // tentou e não conseguiu
     } else if (d <= CONTACT.lungeReach) {
@@ -386,8 +389,14 @@ export class Match {
       const saveP = hard ? 0.35 : 0.75;
       if (chance(saveP)) {
         this.hooks.crowd.excite(0.6);
-        executeTouch(this.ctx, plan, rand(0.08, 0.35));
+        const q = rand(0.08, 0.35);
+        if (isHuman && intent) this.emitTimingFeedback(plan, q);
+        executeTouch(this.ctx, plan, q, intent ?? undefined);
+      } else if (isHuman && intent) {
+        this.emitTimingFeedback(plan, 0);
       }
+    } else if (isHuman && intent) {
+      this.emitTimingFeedback(plan, 0);
     }
     // fora de alcance: nada acontece — a bola vai cair e o ponto será resolvido
     this.human.clearTiming();
@@ -401,8 +410,10 @@ export class Match {
 
     if (airborne && d <= 1.0) {
       const q = isHuman ? this.human.spikeQuality() : this.ai.spikeQuality();
+      if (isHuman && intent) this.emitTimingFeedback(plan, q);
       executeTouch(this.ctx, plan, q, intent ?? undefined);
     } else if (d <= CONTACT.lungeReach) {
+      if (isHuman && intent) this.emitTimingFeedback(plan, 0);
       // não pulou/perdeu o tempo: bola de graça por cima (com risco de sair)
       a.act('set', 0.5);
       this.hooks.audio.hitSoft();
@@ -421,8 +432,15 @@ export class Match {
       this.rally.rallyTouches++;
       this.hooks.banner('', '');
       this.planNext('pass');
+    } else if (isHuman && intent) {
+      this.emitTimingFeedback(plan, 0);
     }
     this.human.clearJump();
+  }
+
+  private emitTimingFeedback(plan: TouchPlan, finalQuality: number): void {
+    const event = this.human.takeTimingFeedback(plan.planId, finalQuality, plan.point);
+    if (event) this.hooks.feedback.emit(event);
   }
 
   /** Resolve o primeiro contato analítico com o piso no instante exato do tick. */
@@ -504,7 +522,15 @@ export class Match {
       startRally: () => {
         this.state = 'rally';
       },
-      takeHumanBlockIntent: (planId) => this.human.takeBlockIntent(planId),
+      takeHumanBlockIntent: (planId) => {
+        const intent = this.human.takeBlockIntent(planId);
+        if (intent) {
+          const quality = clamp(intent.precision * (0.75 + intent.penetration * 0.25), 0, 1);
+          const event = this.human.takeTimingFeedback(planId, quality, this.ball.pos);
+          if (event) this.hooks.feedback.emit(event);
+        }
+        return intent;
+      },
     };
   }
 

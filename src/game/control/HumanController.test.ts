@@ -285,6 +285,15 @@ describe('HumanController ActionControl 2D', () => {
       charge: 0.5,
     });
     expect(hc.reachQuality(false, false, ctx)).toBeGreaterThan(0.5);
+    const feedback = hc.takeTimingFeedback(plan.planId, 0.84, plan.point);
+    expect(feedback).toMatchObject({
+      token: plan.planId,
+      context: 'receive',
+      quality: 0.84,
+      tier: 'good',
+      position: { x: -3, y: 1, z: 0 },
+    });
+    expect(hc.takeTimingFeedback(plan.planId, 1, plan.point)).toBe(null);
     expect(hc.takeContactIntent(plan.planId)).toBe(null);
   });
 
