@@ -22,11 +22,11 @@ npm run dev        # http://localhost:5173
 
 ## Fluxo de trabalho
 
-1. Crie um branch a partir de `main`: `git checkout -b tipo/descricao-curta`
-   (ex.: `refactor/extrair-scoring`, `feat/tela-opcoes`, `fix/saque-antena`).
-2. Desenvolva com testes (ver abaixo). Rode o app e confira de verdade a mudança.
-3. **Antes de commitar:** `npm run check` (typecheck + lint + format + test) deve passar.
-4. Abra PR para `main`. O CI roda o mesmo `check` + build. Só faça merge com o CI verde.
+1. Trabalhe na checkout de `main` e confirme `git status` antes de editar.
+2. Desenvolva com testes e valide o comportamento real no browser quando aplicável.
+3. Antes de commitar e fazer push, rode `npm run check` e os testes E2E do escopo.
+4. Faça commits diretamente em `main`, pequenos e atômicos. O CI valida o SHA enviado.
+5. Se o CI remoto falhar, interrompa trabalho novo e corrija ou reverta em novo commit.
 
 ## Scripts
 
@@ -67,6 +67,7 @@ npm run check        # tudo acima — o portão de qualidade
 
 ## Commits
 
+- O projeto usa commits diretamente em `main`, sem PR, amend ou force-push.
 - Mensagens no imperativo, em pt-BR, explicando o **porquê** quando não for óbvio.
 - Prefixos úteis: `feat:`, `fix:`, `refactor:`, `test:`, `docs:`, `chore:`, `perf:`.
 - Commits pequenos e coesos. Um commit não deve deixar o `main` quebrado.

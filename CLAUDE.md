@@ -39,6 +39,15 @@ npm run check        # typecheck + lint + format:check + test  ← rode antes de
 npm run deploy       # build + publica dist/ na branch gh-pages
 ```
 
+## Git e entrega
+
+- **Fluxo main-only:** código e documentação recebem commits diretamente em `main`; não crie
+  branch de feature nem PR. A branch `gh-pages` é uma exceção gerada pelo deploy legado e será
+  removida na Fase 1D.
+- Antes de cada commit e push, rode os gates do escopo; commits devem ser pequenos e atômicos.
+- Nunca use amend, force-push ou reescrita de histórico. Se o CI remoto falhar, pare trabalho novo
+  e faça o próximo commit corrigir ou reverter a causa.
+
 ## Arquitetura (resumo)
 
 Detalhes completos em [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).

@@ -18,4 +18,17 @@ describe('políticas canônicas do projeto', () => {
     expect(contributing).toContain('Assets locais');
     expect(contributing).not.toContain('Tudo é gerado em runtime');
   });
+
+  it('define main-only sem branches de feature ou PR', () => {
+    const claude = readRepo('CLAUDE.md');
+    const contributing = readRepo('CONTRIBUTING.md');
+    const ci = readRepo('.github/workflows/ci.yml');
+
+    expect(claude).toContain('Fluxo main-only');
+    expect(contributing).toContain('commits diretamente em `main`');
+    expect(contributing).not.toContain('git checkout -b');
+    expect(contributing).not.toContain('Abra PR');
+    expect(ci).not.toMatch(/^\s*pull_request:/m);
+    expect(ci).not.toContain('branch/PR');
+  });
 });
