@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { BLOCK, HUMAN_TIMING, PLAYER, SERVE_TUNING, SIMULATION_TIMING } from './constants';
+import {
+  ACTION_BUTTON,
+  BLOCK,
+  HUMAN_TIMING,
+  PLAYER,
+  SERVE_TUNING,
+  SIMULATION_TIMING,
+} from './constants';
 import * as C from './constants';
 
 // Invariantes baratas de tuning: guardam contra edições que quebrem os pressupostos das
@@ -71,6 +78,17 @@ describe('SIMULATION_TIMING — invariantes do passo fixo', () => {
       hz: 60,
       maxRealFrame: 0.25,
       maxStepsPerFrame: 5,
+    });
+  });
+});
+
+describe('ACTION_BUTTON — gramática temporal a 60 Hz', () => {
+  it('fixa tap, buffer, carga e direção deliberada aprovados', () => {
+    expect(ACTION_BUTTON).toEqual({
+      tapTicks: 12,
+      bufferTicks: 9,
+      fullChargeTicks: 30,
+      deliberateDirection: 0.35,
     });
   });
 });

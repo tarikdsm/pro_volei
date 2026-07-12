@@ -178,6 +178,14 @@ export const AUTO_SELECTOR = {
   movingAwayCost: 0.12,
 } as const;
 
+/** Gramática do botão de ação em ticks da simulação fixa de 60 Hz. */
+export const ACTION_BUTTON = {
+  tapTicks: 12,
+  bufferTicks: 9,
+  fullChargeTicks: 30,
+  deliberateDirection: 0.35,
+} as const;
+
 export const MATCH_FORMATS = [
   { name: 'Rápida — 1 set de 15', sets: 1, pointsPerSet: 15 },
   { name: 'Clássica — melhor de 3 a 25', sets: 3, pointsPerSet: 25 },
