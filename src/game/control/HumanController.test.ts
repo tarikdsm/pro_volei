@@ -6,6 +6,7 @@ import { TeamSide } from '../../core/constants';
 import type { MechanicsCtx } from '../mechanics/context';
 import type { Athlete, Team } from '../Team';
 import type { ControlFrame } from './ControlFrame';
+import type { InputCancelReason } from '../../core/input/InputFrame';
 
 function makeFrame(
   opts: {
@@ -14,13 +15,16 @@ function makeFrame(
     released?: boolean;
     cancelled?: boolean;
     axis?: { x: number; z: number };
+    tick?: number;
+    cancelReason?: InputCancelReason;
   } = {},
 ): ControlFrame {
   const axis = opts.axis ?? { x: 0, z: 0 };
+  const tick = opts.tick ?? 1;
   let sequence = 0;
   return {
-    simulationTick: 1,
-    sampledAtMs: 100,
+    simulationTick: tick,
+    sampledAtMs: tick * (1_000 / 60),
     screenAxis: { right: 0, up: 0 },
     courtAxis: axis,
     actionDown: opts.actionDown ?? false,
@@ -39,7 +43,9 @@ function makeFrame(
           ]
         : []),
     ],
-    cancellations: opts.cancelled ? [{ reason: 'pause', atMs: 98, sequence }] : [],
+    cancellations: opts.cancelled
+      ? [{ reason: opts.cancelReason ?? 'pause', atMs: 98, sequence }]
+      : [],
   };
 }
 
@@ -104,6 +110,8 @@ function makeCtx() {
 // Athlete falso: pos + moveTo espiã. O controller lê pos e chama moveTo ao mover na recepção.
 function makeAthlete(x = 0, z = 0, index = 0) {
   const moveToCalls: Array<[number, number]> = [];
+  const acts: Array<[string, number]> = [];
+  const jumps: number[] = [];
   const target = new THREE.Vector3(x, 0, z);
   const athlete = {
     side: TeamSide.HOME,
@@ -117,8 +125,10 @@ function makeAthlete(x = 0, z = 0, index = 0) {
       moveToCalls.push([nx, nz]);
       target.set(nx, 0, nz);
     },
+    act: (kind: string, seconds: number) => acts.push([kind, seconds]),
+    jump: (velocity: number) => jumps.push(velocity),
   } as unknown as Athlete;
-  return { athlete, moveToCalls };
+  return { athlete, moveToCalls, acts, jumps };
 }
 
 function makeRoster(athletes: Athlete[], front = athletes.slice(-3)): Team {
@@ -153,13 +163,170 @@ const server = {
   reachPoint: () => new THREE.Vector3(),
 } as unknown as Athlete;
 
+function assignPlan(
+  hc: HumanController,
+  ctx: MechanicsCtx,
+  athlete: Athlete,
+  kind: TouchPlan['kind'],
+  planId: number,
+  contactIn = 0.2,
+): TouchPlan {
+  const plan = {
+    planId,
+    side: TeamSide.HOME,
+    athlete,
+    contactIn,
+    point: new THREE.Vector3(-3, 1, 0),
+    kind,
+    isHuman: true,
+    done: false,
+  } satisfies TouchPlan;
+  ctx.rally.plan = plan;
+  ctx.teamOf = () => makeRoster([athlete]);
+  hc.onAssigned(ctx, plan);
+  return plan;
+}
+
+describe('HumanController ActionControl 2D', () => {
+  it('resolve tap e hold de saque por ActionIntent com token negativo monotônico', () => {
+    const tap = new HumanController();
+    const tapCtx = makeCtx();
+    tap.beginServe(server, tapCtx.ctx);
+    tap.update(1 / 60, makeFrame({ tick: 0, actionDown: true, pressed: true }), tapCtx.ctx);
+    tap.update(1 / 60, makeFrame({ tick: 6, released: true }), tapCtx.ctx);
+    expect(tapCtx.launches).toHaveLength(1);
+    expect(tap.peekActionIntent()).toMatchObject({
+      token: -1,
+      context: 'serve',
+      technique: 'float-serve',
+      charge: 0,
+    });
+
+    tap.beginServe(server, tapCtx.ctx);
+    tap.update(1 / 60, makeFrame({ tick: 7 }), tapCtx.ctx);
+    expect(tap.actionSnapshot().token).toBe(-2);
+
+    const hold = new HumanController();
+    const holdCtx = makeCtx();
+    hold.beginServe(server, holdCtx.ctx);
+    hold.update(1 / 60, makeFrame({ tick: 0, actionDown: true, pressed: true }), holdCtx.ctx);
+    hold.update(1 / 60, makeFrame({ tick: 27, actionDown: true }), holdCtx.ctx);
+    hold.update(1 / 60, makeFrame({ tick: 42, released: true }), holdCtx.ctx);
+    expect(hold.peekActionIntent()).toMatchObject({
+      token: -1,
+      context: 'serve',
+      technique: 'power-serve',
+      charge: 1,
+    });
+    expect(holdCtx.serveMeterCalls).toContainEqual([true, 0.5]);
+  });
+
+  it.each([
+    ['pass', 'receive', 'receive'],
+    ['dig', 'receive', 'receive'],
+    ['set', 'set', 'set'],
+    ['spike', 'attack', 'attack'],
+    ['freeball', 'freeball', 'freeball'],
+  ] as const)('mapeia plano %s para modo %s e contexto %s', (kind, mode, context) => {
+    const hc = new HumanController();
+    const { ctx } = makeCtx();
+    const { athlete } = makeAthlete();
+    const plan = assignPlan(hc, ctx, athlete, kind, 20);
+    expect(hc.mode).toBe(mode);
+    expect(hc.isControlling).toBe(true);
+    hc.update(1 / 60, makeFrame({ tick: 0, actionDown: true, pressed: true }), ctx);
+    hc.update(1 / 60, makeFrame({ tick: 2, released: true }), ctx);
+    expect(hc.peekActionIntent()).toMatchObject({ token: plan.planId, context });
+  });
+
+  it('resolve hold no contato, preserva timing após take e consome uma vez', () => {
+    const hc = new HumanController();
+    const { ctx } = makeCtx();
+    const { athlete } = makeAthlete();
+    const plan = assignPlan(hc, ctx, athlete, 'dig', 21, 0.2);
+    hc.update(1 / 60, makeFrame({ tick: 0, actionDown: true, pressed: true }), ctx);
+    hc.update(1 / 60, makeFrame({ tick: 27, actionDown: true }), ctx);
+
+    expect(hc.peekActionIntent()).toBe(null);
+    const intent = hc.takeContactIntent(plan.planId);
+    expect(intent).toMatchObject({
+      context: 'receive',
+      technique: 'emergency-dive',
+      cause: 'contact',
+      charge: 0.5,
+    });
+    expect(hc.reachQuality(false, false, ctx)).toBeGreaterThan(0.5);
+    expect(hc.takeContactIntent(plan.planId)).toBe(null);
+  });
+
+  it('inicia salto no press legal e entrega bloqueio somente pelo canal block', () => {
+    const hc = new HumanController();
+    const { ctx } = makeCtx();
+    const blocker = makeAthlete(-0.72, 0, 0);
+    const attacker = makeAthlete(2, 0, 9).athlete;
+    (attacker as { side: TeamSide }).side = TeamSide.AWAY;
+    const plan = {
+      planId: 25,
+      side: TeamSide.AWAY,
+      athlete: attacker,
+      contactIn: 0.4,
+      point: new THREE.Vector3(2, 3, 0),
+      kind: 'spike',
+      isHuman: false,
+      done: false,
+    } satisfies TouchPlan;
+    ctx.rally.plan = plan;
+    ctx.teamOf = () => makeRoster([blocker.athlete], [blocker.athlete]);
+    hc.assignBlock(blocker.athlete, ctx);
+    hc.update(1 / 60, makeFrame({ tick: 0, actionDown: true, pressed: true }), ctx);
+    hc.update(1 / 60, makeFrame({ tick: 2, released: true }), ctx);
+
+    expect(blocker.jumps).toHaveLength(1);
+    expect(hc.takeContactIntent(plan.planId)).toBe(null);
+    expect(hc.takeBlockIntent(plan.planId)).toMatchObject({ context: 'block', token: 25 });
+    expect(hc.takeBlockIntent(plan.planId)).toBe(null);
+  });
+
+  it('expõe reach/qualidade sem consumo e snapshot congelado', () => {
+    const hc = new HumanController();
+    const { ctx } = makeCtx();
+    const { athlete } = makeAthlete();
+    assignPlan(hc, ctx, athlete, 'freeball', 28, 0.2);
+    hc.update(1 / 60, makeFrame({ tick: 0, actionDown: true, pressed: true }), ctx);
+    hc.update(1 / 60, makeFrame({ tick: 42, released: true }), ctx);
+
+    expect(hc.contactReach()).toBeGreaterThan(1.15);
+    expect(hc.peekActionIntent()).toMatchObject({ technique: 'reaching-freeball' });
+    expect(Object.isFrozen(hc.actionSnapshot())).toBe(true);
+  });
+
+  it('cancela máquina/pending com motivo e zera medidor sem disparo fantasma', () => {
+    const hc = new HumanController();
+    const { ctx, serveMeterCalls, launches } = makeCtx();
+    hc.beginServe(server, ctx);
+    hc.update(1 / 60, makeFrame({ tick: 0, actionDown: true, pressed: true }), ctx);
+    hc.update(1 / 60, makeFrame({ tick: 27, actionDown: true }), ctx);
+    hc.cancelPendingAction('portrait', ctx);
+
+    expect(launches).toHaveLength(0);
+    expect(serveMeterCalls.at(-1)).toEqual([true, 0]);
+    expect(hc.actionSnapshot()).toMatchObject({
+      token: null,
+      status: 'idle',
+      pendingTechnique: null,
+      lastCancellation: 'portrait',
+    });
+  });
+});
+
 describe('HumanController.cancelServeCharge', () => {
   it('zera o medidor durante o saque (última chamada de serveMeter é (true, 0))', () => {
     const hc = new HumanController();
     const { ctx, serveMeterCalls } = makeCtx();
     hc.beginServe(server, ctx);
     // um frame segurando ESPAÇO: liga o carregamento e acumula potência (sem soltar)
-    hc.update(0.2, makeFrame({ actionDown: true, pressed: true }), ctx);
+    hc.update(1 / 60, makeFrame({ tick: 0, actionDown: true, pressed: true }), ctx);
+    hc.update(1 / 60, makeFrame({ tick: 27, actionDown: true }), ctx);
     // durante o carregamento a potência subiu acima de 0
     expect(serveMeterCalls[serveMeterCalls.length - 1][1]).toBeGreaterThan(0);
 
@@ -172,14 +339,15 @@ describe('HumanController.cancelServeCharge', () => {
     const hc = new HumanController();
     const { ctx, serveMeterCalls, launches } = makeCtx();
     hc.beginServe(server, ctx);
-    hc.update(0.2, makeFrame({ actionDown: true, pressed: true }), ctx);
+    hc.update(1 / 60, makeFrame({ tick: 0, actionDown: true, pressed: true }), ctx);
+    hc.update(1 / 60, makeFrame({ tick: 27, actionDown: true }), ctx);
     hc.cancelServeCharge(ctx);
 
     const callsBeforeResume = serveMeterCalls.length;
     // retomada após a pausa: ESPAÇO segue 'down', mas o edge de soltar foi engolido na pausa.
     // Sem o cancelamento, serveCharging continuaria true e o medidor oscilaria a cada frame.
-    for (let i = 0; i < 5; i++) {
-      hc.update(0.2, makeFrame({ actionDown: true }), ctx);
+    for (let tick = 28; tick < 33; tick++) {
+      hc.update(1 / 60, makeFrame({ tick, actionDown: true }), ctx);
     }
     expect(serveMeterCalls.length).toBe(callsBeforeResume); // medidor não oscila mais
     expect(launches).toHaveLength(0); // nenhum saque disparado sem re-apertar/soltar
@@ -268,16 +436,19 @@ describe('HumanController — AutoSelector e assistência', () => {
     ctx.rally.plan = plan;
     ctx.teamOf = () => roster;
     hc.onAssigned(ctx, plan);
-    (hc as unknown as { timingQ: number }).timingQ = 0.9;
+    hc.update(1 / 60, makeFrame({ tick: 0, actionDown: true, pressed: true }), ctx);
+    hc.update(1 / 60, makeFrame({ tick: 2, released: true }), ctx);
+    const intentBeforeSwitch = hc.peekActionIntent();
 
     challenger.pos.set(-3.5, 0, 0);
     first.pos.set(-8, 0, 0);
     plan.contactIn = 0.4;
-    hc.update(1 / 60, makeFrame(), ctx);
+    hc.update(1 / 60, makeFrame({ tick: 3 }), ctx);
 
     expect(plan.athlete).toBe(challenger);
     expect(hc.selectionSnapshot().switches).toBe(1);
-    expect(hc.reachQuality(false, false, ctx)).toBeGreaterThan(0.45);
+    expect(intentBeforeSwitch).not.toBe(null);
+    expect(hc.peekActionIntent()).toBe(intentBeforeSwitch);
   });
 
   it('sem direção, corrige o alvo em no máximo 0,65 m e nunca teleporta a atleta', () => {
@@ -386,7 +557,7 @@ describe('HumanController — cancelamento sem release', () => {
     hc.update(0.016, makeTimelineFrame(['release', 'press']), ctx);
 
     expect(launches).toHaveLength(1);
-    expect(serveMeterCalls.slice(callsBeforeTimeline)).toEqual([[false, undefined]]);
+    expect(serveMeterCalls.slice(callsBeforeTimeline).at(-1)).toEqual([false, undefined]);
   });
 
   it('aceita nova pressão posterior ao cancelamento no mesmo frame', () => {
@@ -399,7 +570,8 @@ describe('HumanController — cancelamento sem release', () => {
 
     expect(launches).toHaveLength(0);
     expect(serveMeterCalls.at(-2)).toEqual([true, 0]);
-    expect(serveMeterCalls.at(-1)?.[1]).toBeGreaterThan(0);
+    expect(hc.actionSnapshot().status).toBe('pressed');
+    expect(serveMeterCalls.at(-1)).toEqual([true, 0]);
   });
 
   it('ordena cancelamento e pressão por timestamp antes da sequência de inserção', () => {
@@ -420,7 +592,8 @@ describe('HumanController — cancelamento sem release', () => {
     );
 
     expect(serveMeterCalls.at(-2)).toEqual([true, 0]);
-    expect(serveMeterCalls.at(-1)?.[1]).toBeGreaterThan(0);
+    expect(hc.actionSnapshot().status).toBe('pressed');
+    expect(serveMeterCalls.at(-1)).toEqual([true, 0]);
   });
 });
 
@@ -442,12 +615,15 @@ describe('HumanController — transições de modo (T4)', () => {
     expect(hc.isControlling).toBe(false);
   });
 
-  it('onAssigned de levantamento (set) larga o controle e mostra a dica de zona', () => {
+  it('onAssigned de levantamento (set) assume a levantadora e mostra a dica de zona', () => {
     const hc = new HumanController();
     const { ctx, zoneHintCalls } = makeCtx();
-    const plan = { side: TeamSide.HOME, kind: 'set', done: false } as unknown as TouchPlan;
-    hc.onAssigned(ctx, plan);
-    expect(hc.mode).toBe('none'); // no set o humano só escolhe a zona, não controla um atleta
+    const { athlete } = makeAthlete();
+    assignPlan(hc, ctx, athlete, 'set', 31);
+    expect(hc.mode).toBe('set');
+    expect(hc.isControlling).toBe(true);
+    hc.release();
+    expect(hc.mode).toBe('none');
     expect(zoneHintCalls).toEqual([hc.chosenZone]);
   });
 

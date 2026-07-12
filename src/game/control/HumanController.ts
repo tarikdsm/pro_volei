@@ -1,40 +1,45 @@
-// Controle humano: estado de interação (modo, atleta controlado, mira, timing, zona, saque) e
-// o processamento de Input por frame. Reage ao teclado; escreve intenções que as mecânicas leem
-// via ctx (aim/chosenZone). Extraído do Match (1.5b).
+// Controle humano: adapta a gramática única do botão aos contextos da partida e preserva
+// AutoSelector, mira e movimento sem conhecer DOM, teclado concreto ou câmera.
 import * as THREE from 'three';
-import { PLAYER, SERVE_TUNING, TeamSide } from '../../core/constants';
-import { clamp, lerp, rand, chance, randPick } from '../../core/math3d';
-import { Athlete } from '../Team';
-import { TouchPlan } from '../RallyState';
-import { performServe } from '../mechanics/serve';
+import { ACTION_WINDOWS, CONTACT, PLAYER, SERVE_TUNING, TeamSide } from '../../core/constants';
+import type { InputCancelReason } from '../../core/input/InputFrame';
+import { chance, clamp, lerp, rand, randPick } from '../../core/math3d';
+import type { TouchPlan } from '../RallyState';
+import type { Athlete } from '../Team';
 import type { MechanicsCtx } from '../mechanics/context';
-import { receiveTimingQuality, jumpTimingQuality, humanContactQuality } from './timing';
+import { performServe } from '../mechanics/serve';
+import {
+  ActionControl,
+  type ActionControlRequest,
+  type ActionControlSnapshot,
+} from './ActionControl';
+import type { ActionContext, ActionIntent } from './ActionIntent';
 import type { ControlFrame } from './ControlFrame';
 import { HumanAutoControl } from './HumanAutoControl';
+import { humanContactQuality } from './timing';
 
-export type CtlMode = 'none' | 'serve' | 'receive' | 'attack' | 'block';
+export type CtlMode = 'none' | 'serve' | 'receive' | 'set' | 'attack' | 'block' | 'freeball';
 
-interface TimedInputEvent {
-  readonly atMs: number;
-  readonly sequence: number;
-}
-
-function compareInputEvents(left: TimedInputEvent, right: TimedInputEvent): number {
-  return left.atMs - right.atMs || left.sequence - right.sequence;
-}
+const FIXED_HZ = 60;
+const CONTACT_CONTEXTS = new Set<ActionContext>(['receive', 'set', 'attack', 'freeball']);
 
 export class HumanController {
   private ctl: CtlMode = 'none';
   private controlled: Athlete | null = null;
-  private serveCharging = false;
-  private servePower = 0;
-  private serveDir = 1;
-  readonly aim = new THREE.Vector3(5.5, 0, 0);
-  private timingQ = -1; // qualidade do aperto de ESPAÇO na recepção
-  private jumpQ = -1; // qualidade do timing do pulo no ataque
+  private readonly actionControl = new ActionControl();
   private readonly autoControl = new HumanAutoControl();
-  chosenZone = 0; // 0 esq, 1 centro, 2 dir
-  readonly marker: THREE.Mesh; // anel sob o jogador controlado
+  private activeToken: number | null = null;
+  private activeContext: ActionContext | null = null;
+  private nextServeToken = -1;
+  private lastFrame: ControlFrame | null = null;
+  private lastRequest: ActionControlRequest | null = null;
+  private consumedContactIntent: ActionIntent | null = null;
+  private resolvedTimingQuality = 0;
+  private jumpedToken: number | null = null;
+
+  readonly aim = new THREE.Vector3(5.5, 0, 0);
+  chosenZone = 0;
+  readonly marker: THREE.Mesh;
 
   constructor() {
     this.marker = new THREE.Mesh(
@@ -56,232 +61,180 @@ export class HumanController {
   }
 
   get isControlling(): boolean {
-    return (
-      this.controlled !== null &&
-      (this.ctl === 'receive' ||
-        this.ctl === 'attack' ||
-        this.ctl === 'block' ||
-        this.ctl === 'serve')
-    );
+    return this.controlled !== null && this.ctl !== 'none';
   }
 
-  /** Libera o controle (fim de ponto). */
+  /** Libera o controle e revoga qualquer gesto do ponto encerrado. */
   release(): void {
     this.ctl = 'none';
     this.controlled = null;
     this.autoControl.release();
+    this.actionControl.cancel('point-end');
+    this.clearResolvedIntent();
+    this.activeToken = null;
+    this.activeContext = null;
+    this.lastFrame = null;
+    this.lastRequest = null;
   }
 
-  /** Reset por saque: zera timing e sorteia a zona de ataque inicial. */
   resetForServe(): void {
-    this.timingQ = -1;
-    this.jumpQ = -1;
+    this.clearResolvedIntent();
     this.chosenZone = randPick([0, 1, 2]);
   }
 
-  /** Humano vai sacar: assume o sacador e liga o medidor. */
+  /** Cada saque recebe identidade negativa monotônica, separada dos planIds do rally. */
   beginServe(server: Athlete, ctx: MechanicsCtx): void {
+    this.bindAction(this.nextServeToken--, 'serve');
     this.ctl = 'serve';
     this.controlled = server;
-    this.servePower = 0;
-    this.serveCharging = false;
     this.aim.set(rand(4, 6.5), 0, rand(-2, 2));
-    ctx.hooks.hint(
-      'SEGURE ESPAÇO para carregar o saque — solte na zona verde · setas ajustam a mira',
-    );
+    ctx.hooks.hint('Toque para saque flutuante · segure para saque potente · setas miram');
     ctx.hooks.serveMeter(true, 0);
   }
 
-  /** IA saca: humano só espera para receber. */
   awaitOpponentServe(): void {
     this.release();
   }
 
-  /** Setup de controle do lado humano após o planejamento do próximo contato. */
   onAssigned(ctx: MechanicsCtx, plan: TouchPlan): void {
     this.autoControl.release();
-    if (plan.kind === 'spike') {
+    const context = contextForPlan(plan);
+    this.bindAction(plan.planId, context);
+
+    if (context === 'attack') {
       this.ctl = 'attack';
       this.controlled = plan.athlete;
-      this.jumpQ = -1;
       this.aim.set(rand(4.5, 6.5), 0, rand(-2.5, 2.5));
-      ctx.hooks.hint('ESPAÇO pula (timing = força) · setas miram a cortada');
-    } else if (plan.kind === 'set') {
-      this.ctl = 'none';
-      this.controlled = null;
-      ctx.hooks.hint('Escolha o ataque: setas escolhem o ataque');
-      ctx.hooks.zoneHint(this.chosenZone);
-    } else {
-      this.ctl = 'receive';
-      this.controlled = this.autoControl.beginReceive(ctx, plan);
-      this.timingQ = -1;
-      ctx.hooks.hint('SETAS movem · ESPAÇO no momento do toque = passe perfeito');
-      ctx.hooks.effects.showLanding(plan.point);
+      ctx.hooks.hint('Toque para largada · segure para cortada potente · setas miram');
+      return;
     }
+
+    if (context === 'set') {
+      this.ctl = 'set';
+      this.controlled = plan.athlete;
+      ctx.hooks.hint('Toque para bola alta · segure para tempo rápido · setas escolhem');
+      ctx.hooks.zoneHint(this.chosenZone);
+      return;
+    }
+
+    this.ctl = context;
+    this.controlled = this.autoControl.beginReceive(ctx, plan);
+    ctx.hooks.hint(
+      context === 'freeball'
+        ? 'Toque para salvar · segure para alcançar mais longe'
+        : 'Toque para manchete · segure para mergulho de emergência',
+    );
+    ctx.hooks.effects.showLanding(plan.point);
   }
 
-  /** Humano pode bloquear a cortada da IA. */
+  /** O token do bloqueio é sempre o planId da cortada rival. */
   assignBlock(blocker: Athlete, ctx: MechanicsCtx): void {
+    const plan = ctx.rally.plan;
+    if (plan) this.bindAction(plan.planId, 'block');
     this.ctl = 'block';
     this.controlled = this.autoControl.beginBlock(ctx, blocker);
-    ctx.hooks.hint('BLOQUEIO: setas deslizam na rede · ESPAÇO pula!');
+    ctx.hooks.hint('Toque para bloqueio rápido · segure para penetrar');
   }
 
-  /** IA com a bola num contato não-bloqueável: humano fica ocioso. */
   idle(ctx: MechanicsCtx): void {
     if (this.ctl !== 'block') {
       this.ctl = 'none';
       this.controlled = null;
       this.autoControl.release();
+      this.actionControl.cancel('plan-changed');
+      this.activeToken = null;
+      this.activeContext = null;
     }
     ctx.hooks.effects.showLanding(null);
   }
 
-  /** Qualidade do toque humano no alcance (não reseta timingQ — ver clearTiming). -1 = não defende. */
+  /** Compatibilidade: qualidade não consome; Match pode chamar takeContactIntent depois. */
   reachQuality(hard: boolean, medium: boolean, ctx: MechanicsCtx): number {
-    if (this.timingQ >= 0) {
-      // apertou no tempo: defende, qualidade cai um pouco contra bola forte
-      const q = humanContactQuality(this.timingQ, hard);
-      if (this.timingQ > 0.8 && !hard) ctx.hooks.banner('PERFEITO!', '');
-      if (this.timingQ > 0.7 && hard) ctx.hooks.banner('DEFESAÇA!', '');
-      return q;
+    const intent = this.contactQualityIntent();
+    if (intent && intent.context !== 'attack') {
+      const semanticQuality =
+        this.resolvedTimingQuality * intent.precision * (0.85 + intent.power * 0.15);
+      const quality = humanContactQuality(semanticQuality, hard);
+      if (semanticQuality > 0.8 && !hard) ctx.hooks.banner('PERFEITO!', '');
+      if (semanticQuality > 0.7 && hard) ctx.hooks.banner('DEFESAÇA!', '');
+      return quality;
     }
-    // sem apertar: o toque automático falha contra bolas rápidas
-    const missP = hard ? 0.6 : medium ? 0.28 : 0;
-    if (chance(missP)) return chance(0.5) ? rand(0.02, 0.12) : -1; // escorrega ou perde limpo
+
+    const missProbability = hard ? 0.6 : medium ? 0.28 : 0;
+    if (chance(missProbability)) return chance(0.5) ? rand(0.02, 0.12) : -1;
     return hard ? 0.3 : 0.45;
   }
 
-  /** Qualidade da cortada humana (não reseta jumpQ — ver clearJump). */
+  /** Potência e precisão semânticas substituem o antigo jumpQ paralelo. */
   spikeQuality(): number {
-    return this.jumpQ >= 0 ? this.jumpQ : 0.4;
+    const intent = this.contactQualityIntent();
+    if (!intent || intent.context !== 'attack') return 0.4;
+    return clamp(
+      0.2 + intent.power * 0.6 + intent.precision * this.resolvedTimingQuality * 0.2,
+      0,
+      1,
+    );
   }
 
-  /** Reset do timing de recepção após uma tentativa de contato (defendida ou não). */
   clearTiming(): void {
-    this.timingQ = -1;
+    this.consumeCurrentContactIntent();
+    this.clearResolvedIntent();
   }
 
-  /** Reset do timing de pulo após uma tentativa de cortada. */
   clearJump(): void {
-    this.jumpQ = -1;
+    this.consumeCurrentContactIntent();
+    this.clearResolvedIntent();
   }
 
-  /**
-   * Cancela o carregamento do saque ao pausar: zera o medidor (mantém-o visível em 0) e o
-   * jogador recarrega ao retomar. Necessário porque durante a pausa o Match não processa
-   * input, então o edge de soltar ESPAÇO seria engolido e o saque ficaria travado carregando.
-   * Só age se o humano está sacando e carregando; caso contrário é no-op.
-   */
+  /** API legada delegada para a maquina unica. */
   cancelServeCharge(ctx: MechanicsCtx): void {
-    if (this.ctl === 'serve' && this.serveCharging) {
-      this.serveCharging = false;
-      this.servePower = 0;
-      this.serveDir = 1;
-      ctx.hooks.serveMeter(true, 0);
+    if (this.ctl === 'serve' && this.actionControl.snapshot().status !== 'idle') {
+      this.cancelPendingAction('pause', ctx);
     }
   }
 
-  /** Processa o frame semântico; DOM, teclas concretas e câmera ficam fora do gameplay. */
+  cancelPendingAction(reason: InputCancelReason, ctx: MechanicsCtx): void {
+    this.actionControl.cancel(reason);
+    this.clearResolvedIntent();
+    this.lastFrame = null;
+    this.lastRequest = null;
+    if (this.ctl === 'serve') ctx.hooks.serveMeter(true, 0);
+  }
+
   update(dt: number, frame: ControlFrame, ctx: MechanicsCtx): void {
-    if (frame.cancellations.length > 0) {
-      this.cancelServeCharge(ctx);
-    }
+    const latestCancellation = frame.cancellations
+      .slice()
+      .sort((a, b) => a.atMs - b.atMs || a.sequence - b.sequence)
+      .at(-1);
+    if (latestCancellation) this.cancelPendingAction(latestCancellation.reason, ctx);
 
     const axis = frame.courtAxis;
     this.refreshAutoSelection(ctx);
-    const lastCancellation = frame.cancellations.reduce<
-      (typeof frame.cancellations)[number] | null
-    >(
-      (latest, cancellation) =>
-        !latest || compareInputEvents(cancellation, latest) > 0 ? cancellation : latest,
-      null,
-    );
-    const actionEdges = frame.actionEdges
-      .filter((edge) => !lastCancellation || compareInputEvents(edge, lastCancellation) > 0)
-      .slice()
-      .sort(compareInputEvents);
-    const actionPressed = actionEdges.some((edge) => edge.kind === 'press');
+    this.updateMovementAndAim(dt, axis, ctx);
 
-    if (this.ctl === 'serve' && this.controlled) {
-      // mira
-      this.aim.x = clamp(this.aim.x + axis.x * dt * 5, 1.2, 8.6);
-      this.aim.z = clamp(this.aim.z + axis.z * dt * 5, -4.2, 4.2);
-      ctx.hooks.effects.showAim(this.aim);
+    const request = this.currentRequest(ctx);
+    if (!request) return;
 
-      for (const edge of actionEdges) {
-        if (this.ctl !== 'serve' || !this.controlled) break;
-        if (edge.kind === 'press') {
-          this.serveCharging = true;
-          this.servePower = 0;
-          this.serveDir = 1;
-        } else if (this.serveCharging) {
-          this.finishServe(ctx);
-        }
-      }
+    const before = this.actionControl.snapshot();
+    const intent = this.actionControl.step(frame, request);
+    this.lastFrame = frame;
+    this.lastRequest = request;
+    if (intent) this.registerResolvedIntent(intent, request.contactInTicks);
 
-      if (this.ctl === 'serve' && this.serveCharging) {
-        this.servePower += this.serveDir * dt * SERVE_TUNING.chargeRate;
-        if (this.servePower >= 1) {
-          this.servePower = 1;
-          this.serveDir = -1;
-        }
-        if (this.servePower <= 0) {
-          this.servePower = 0;
-          this.serveDir = 1;
-        }
-        ctx.hooks.serveMeter(true, this.servePower);
-      }
+    const after = this.actionControl.snapshot();
+    if (request.context === 'attack' || request.context === 'block') {
+      const actionStarted =
+        intent !== null ||
+        ((after.status === 'pressed' || after.status === 'charging') &&
+          before.status !== 'pressed' &&
+          before.status !== 'charging');
+      if (actionStarted) this.startJump(request.token, request.context);
     }
 
-    if (this.ctl === 'receive' && this.controlled && ctx.rally.plan && !ctx.rally.plan.done) {
-      const route = this.autoControl.receiveRoute(axis, ctx.rally.plan, this.controlled);
-      this.controlled.moveTo(route.x, route.z);
-      // timing do passe
-      if (actionPressed && ctx.rally.plan.contactIn < 0.5) {
-        this.timingQ = receiveTimingQuality(ctx.rally.plan.contactIn);
-      }
-      // A escolha de zona NÃO acontece aqui: a direção só move a atleta na recepção. A troca de
-      // zona tem janela dedicada no levantamento para não mudar o ataque sem querer.
-    }
-
-    if (
-      this.ctl === 'none' &&
-      ctx.rally.plan &&
-      ctx.rally.plan.kind === 'set' &&
-      ctx.rally.plan.side === TeamSide.HOME
-    ) {
-      // A direção transversal da quadra seleciona uma ponta; neutro preserva a recomendação atual.
-      const selectedZone = axis.z < -0.35 ? 0 : axis.z > 0.35 ? 2 : this.chosenZone;
-      if (selectedZone !== this.chosenZone) {
-        this.chosenZone = selectedZone;
-        ctx.hooks.zoneHint(selectedZone);
-      }
-    }
-
-    if (this.ctl === 'attack' && this.controlled && ctx.rally.plan && !ctx.rally.plan.done) {
-      // mira aérea
-      this.aim.x = clamp(this.aim.x + axis.x * dt * 6, 1.0, 8.6);
-      this.aim.z = clamp(this.aim.z + axis.z * dt * 6, -4.2, 4.2);
-      ctx.hooks.effects.showAim(this.aim);
-
-      if (actionPressed && !this.controlled.isAirborne) {
-        // qualidade = quão perto do instante ideal (0.26s antes do contato)
-        this.jumpQ = jumpTimingQuality(ctx.rally.plan.contactIn);
-        this.controlled.act('spikeWindup', 0.4);
-        this.controlled.jump(PLAYER.jumpVel);
-      }
-    }
-
-    if (this.ctl === 'block' && this.controlled) {
-      const plan = ctx.rally.plan;
-      if (plan) {
-        const route = this.autoControl.blockRoute(axis, plan, this.controlled);
-        this.controlled.moveTo(route.x, route.z);
-      }
-      if (actionPressed && !this.controlled.isAirborne) {
-        this.controlled.act('block', 0.8);
-        this.controlled.jump(PLAYER.blockJumpVel);
+    if (request.context === 'serve') {
+      if (intent) this.finishServe(intent, ctx);
+      else if (after.status !== 'idle' && after.status !== 'blocked') {
+        ctx.hooks.serveMeter(true, after.charge);
       }
     }
   }
@@ -290,50 +243,36 @@ export class HumanController {
     return this.autoControl.snapshot();
   }
 
-  private refreshAutoSelection(ctx: MechanicsCtx): void {
-    const plan = ctx.rally.plan;
-    if (!plan || plan.done) return;
-
-    if (this.ctl === 'receive') {
-      if (this.controlled)
-        this.controlled = this.autoControl.refreshReceive(ctx, plan, this.controlled);
-      return;
-    }
-
-    if (this.ctl === 'block' && this.controlled && !this.controlled.isAirborne) {
-      this.controlled = this.autoControl.refreshBlock(ctx, plan, this.controlled);
-    }
+  actionSnapshot(): Readonly<ActionControlSnapshot> {
+    return this.actionControl.snapshot();
   }
 
-  private finishServe(ctx: MechanicsCtx): void {
-    if (!this.controlled) return;
-
-    this.serveCharging = false;
-    this.ctl = 'none';
-    const p = this.servePower;
-    const target = this.aim.clone();
-    let power = p;
-    // folga sobre a rede: força alta = raspando na fita, baixa = flutuante
-    let clearance =
-      lerp(SERVE_TUNING.clearanceHi, SERVE_TUNING.clearanceLo, p) *
-      rand(SERVE_TUNING.clearanceJitter[0], SERVE_TUNING.clearanceJitter[1]);
-    if (p > SERVE_TUNING.perfectHi) {
-      // arriscou demais: pode sair longa
-      if (chance((p - SERVE_TUNING.perfectHi) * 4)) {
-        target.x = rand(9.6, 11.5);
-        clearance = rand(0.25, 0.6);
-      }
-    } else if (p >= SERVE_TUNING.perfectLo) {
-      ctx.hooks.banner('SAQUE PERFEITO!', '');
-      power = SERVE_TUNING.perfectPower;
-      clearance = rand(0.16, 0.28);
-    }
-    // pouca força morre na rede às vezes
-    if (p < 0.25 && chance(0.7)) clearance = -rand(0.2, 0.5);
-    performServe(ctx, this.controlled, Math.max(0.3, power), target, clearance);
+  peekActionIntent(): ActionIntent | null {
+    return this.actionControl.peek();
   }
 
-  /** Atualiza o anel sob o jogador controlado. Chamar após o movimento dos times integrar. */
+  /** Recebe intenção de toque, nunca saque/bloqueio, e resolve hold no contato analítico. */
+  takeContactIntent(planId: number): ActionIntent | null {
+    if (!this.activeContext || !CONTACT_CONTEXTS.has(this.activeContext)) return null;
+    this.resolveAtAnalyticalContact(planId, this.activeContext);
+    const intent = this.actionControl.take(planId, this.activeContext);
+    if (intent) this.consumedContactIntent = intent;
+    return intent;
+  }
+
+  takeBlockIntent(planId: number): ActionIntent | null {
+    if (this.activeContext !== 'block') return null;
+    this.resolveAtAnalyticalContact(planId, 'block');
+    return this.actionControl.take(planId, 'block');
+  }
+
+  /** Alcance contínuo disponível antes ou logo depois do consumo mecânico. */
+  contactReach(): number {
+    const intent = this.contactQualityIntent();
+    if (!intent || !CONTACT_CONTEXTS.has(intent.context)) return CONTACT.reach;
+    return lerp(CONTACT.reach, CONTACT.lungeReach, intent.reach);
+  }
+
   updateMarker(): void {
     if (this.isControlling && this.controlled) {
       this.marker.visible = true;
@@ -343,7 +282,6 @@ export class HumanController {
     }
   }
 
-  /** Faz o marker acompanhar a transform visual interpolada da atleta controlada. */
   presentMarker(): void {
     if (this.isControlling && this.controlled) {
       this.marker.visible = true;
@@ -355,5 +293,228 @@ export class HumanController {
     } else {
       this.marker.visible = false;
     }
+  }
+
+  private bindAction(token: number, context: ActionContext): void {
+    if (token === this.activeToken && context === this.activeContext) return;
+    this.actionControl.cancel('plan-changed');
+    this.clearResolvedIntent();
+    this.activeToken = token;
+    this.activeContext = context;
+    this.lastFrame = null;
+    this.lastRequest = null;
+    this.jumpedToken = null;
+  }
+
+  private currentRequest(ctx: MechanicsCtx): ActionControlRequest | null {
+    if (this.activeToken === null || this.activeContext === null) return null;
+    if (this.activeContext === 'serve') {
+      return {
+        token: this.activeToken,
+        context: 'serve',
+        contactInTicks: Number.POSITIVE_INFINITY,
+        compatibleContact: false,
+        lockedIllegal: false,
+      };
+    }
+
+    const plan = ctx.rally.plan;
+    const samePlan = plan?.planId === this.activeToken && !plan.done;
+    const lockedIllegal =
+      !samePlan ||
+      ((this.activeContext === 'receive' ||
+        this.activeContext === 'freeball' ||
+        this.activeContext === 'block') &&
+        this.autoControl.snapshot().status === 'locked-illegal');
+    return {
+      token: this.activeToken,
+      context: this.activeContext,
+      contactInTicks: samePlan ? secondsToTicks(plan.contactIn) : Number.POSITIVE_INFINITY,
+      compatibleContact: false,
+      lockedIllegal,
+    };
+  }
+
+  private resolveAtAnalyticalContact(token: number, context: ActionContext): void {
+    if (
+      this.actionControl.peek() ||
+      token !== this.activeToken ||
+      context !== this.activeContext ||
+      !this.lastFrame ||
+      !this.lastRequest
+    ) {
+      return;
+    }
+
+    const intent = this.actionControl.step(
+      {
+        ...this.lastFrame,
+        actionEdges: [],
+        cancellations: [],
+      },
+      {
+        ...this.lastRequest,
+        contactInTicks: 0,
+        compatibleContact: true,
+      },
+    );
+    if (intent) this.registerResolvedIntent(intent, 0);
+  }
+
+  private registerResolvedIntent(intent: ActionIntent, contactInTicks: number): void {
+    const ideal = idealLeadTicks(intent.context);
+    const pressLead = contactInTicks + (intent.resolvedTick - intent.pressedTick);
+    const measuredLead =
+      intent.context === 'attack' || intent.context === 'block' ? pressLead : contactInTicks;
+    this.resolvedTimingQuality = clamp(
+      1 - Math.abs(measuredLead - ideal) / Math.max(12, ideal),
+      0,
+      1,
+    );
+  }
+
+  private contactQualityIntent(): ActionIntent | null {
+    return this.consumedContactIntent ?? this.actionControl.peek();
+  }
+
+  private consumeCurrentContactIntent(): void {
+    if (
+      this.activeToken !== null &&
+      this.activeContext !== null &&
+      CONTACT_CONTEXTS.has(this.activeContext)
+    ) {
+      this.actionControl.take(this.activeToken, this.activeContext);
+    }
+  }
+
+  private clearResolvedIntent(): void {
+    this.consumedContactIntent = null;
+    this.resolvedTimingQuality = 0;
+  }
+
+  private startJump(token: number, context: 'attack' | 'block'): void {
+    if (!this.controlled || this.controlled.isAirborne || this.jumpedToken === token) return;
+    this.jumpedToken = token;
+    if (context === 'attack') {
+      this.controlled.act('spikeWindup', 0.4);
+      this.controlled.jump(PLAYER.jumpVel);
+    } else {
+      this.controlled.act('block', 0.8);
+      this.controlled.jump(PLAYER.blockJumpVel);
+    }
+  }
+
+  private updateMovementAndAim(
+    dt: number,
+    axis: ControlFrame['courtAxis'],
+    ctx: MechanicsCtx,
+  ): void {
+    const plan = ctx.rally.plan;
+    if (
+      (this.ctl === 'receive' || this.ctl === 'freeball') &&
+      this.controlled &&
+      plan &&
+      !plan.done
+    ) {
+      const route = this.autoControl.receiveRoute(axis, plan, this.controlled);
+      this.controlled.moveTo(route.x, route.z);
+    }
+
+    if (
+      (this.ctl === 'set' || this.ctl === 'none') &&
+      plan?.kind === 'set' &&
+      plan.side === TeamSide.HOME &&
+      !plan.done
+    ) {
+      const selectedZone = axis.z < -0.35 ? 0 : axis.z > 0.35 ? 2 : this.chosenZone;
+      if (selectedZone !== this.chosenZone) {
+        this.chosenZone = selectedZone;
+        ctx.hooks.zoneHint(selectedZone);
+      }
+    }
+
+    if (this.ctl === 'serve' && this.controlled) {
+      this.aim.x = clamp(this.aim.x + axis.x * dt * 5, 1.2, 8.6);
+      this.aim.z = clamp(this.aim.z + axis.z * dt * 5, -4.2, 4.2);
+      ctx.hooks.effects.showAim(this.aim);
+    } else if (this.ctl === 'attack' && this.controlled && plan && !plan.done) {
+      this.aim.x = clamp(this.aim.x + axis.x * dt * 6, 1, 8.6);
+      this.aim.z = clamp(this.aim.z + axis.z * dt * 6, -4.2, 4.2);
+      ctx.hooks.effects.showAim(this.aim);
+    } else if (this.ctl === 'block' && this.controlled && plan) {
+      const route = this.autoControl.blockRoute(axis, plan, this.controlled);
+      this.controlled.moveTo(route.x, route.z);
+    }
+  }
+
+  private refreshAutoSelection(ctx: MechanicsCtx): void {
+    const plan = ctx.rally.plan;
+    if (!plan || plan.done) return;
+    if ((this.ctl === 'receive' || this.ctl === 'freeball') && this.controlled) {
+      this.controlled = this.autoControl.refreshReceive(ctx, plan, this.controlled);
+    } else if (this.ctl === 'block' && this.controlled && !this.controlled.isAirborne) {
+      this.controlled = this.autoControl.refreshBlock(ctx, plan, this.controlled);
+    }
+  }
+
+  private finishServe(intent: ActionIntent, ctx: MechanicsCtx): void {
+    if (!this.controlled || intent.context !== 'serve') return;
+
+    const target = this.aim.clone();
+    target.x = clamp(target.x + intent.direction.x * 1.2, 1.2, 10.8);
+    target.z = clamp(target.z + intent.direction.z * 1.4, -4.8, 4.8);
+    let clearance =
+      lerp(SERVE_TUNING.clearanceHi, SERVE_TUNING.clearanceLo, intent.power) *
+      rand(SERVE_TUNING.clearanceJitter[0], SERVE_TUNING.clearanceJitter[1]);
+    if (intent.technique === 'power-serve' && chance((1 - intent.precision) * 0.65)) {
+      target.x = rand(9.6, 11.5);
+      clearance = rand(0.18, 0.5);
+    }
+
+    const server = this.controlled;
+    this.ctl = 'none';
+    this.controlled = null;
+    ctx.hooks.serveMeter(false);
+    performServe(ctx, server, Math.max(0.3, intent.power), target, clearance);
+  }
+}
+
+function contextForPlan(plan: TouchPlan): ActionContext {
+  switch (plan.kind) {
+    case 'pass':
+    case 'dig':
+      return 'receive';
+    case 'set':
+      return 'set';
+    case 'spike':
+      return 'attack';
+    case 'freeball':
+      return 'freeball';
+    case 'block':
+      return 'block';
+    case 'serve':
+      return 'serve';
+  }
+}
+
+function secondsToTicks(seconds: number): number {
+  if (!Number.isFinite(seconds)) return Number.POSITIVE_INFINITY;
+  return Math.max(0, Math.ceil(seconds * FIXED_HZ - 1e-9));
+}
+
+function idealLeadTicks(context: ActionContext): number {
+  switch (context) {
+    case 'receive':
+      return ACTION_WINDOWS.receiveIdealTicks;
+    case 'set':
+      return ACTION_WINDOWS.setIdealTicks;
+    case 'attack':
+      return ACTION_WINDOWS.attackIdealTicks;
+    case 'block':
+      return ACTION_WINDOWS.blockIdealTicks;
+    case 'freeball':
+      return ACTION_WINDOWS.freeballIdealTicks;
+    case 'serve':
+      return 0;
   }
 }
