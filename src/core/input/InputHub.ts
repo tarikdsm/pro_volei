@@ -10,6 +10,8 @@ import type {
 
 const SOURCES: readonly InputSource[] = ['keyboard', 'touch'];
 const NEUTRAL_AXIS: ScreenAxis = Object.freeze({ right: 0, up: 0 });
+// DOMHighResTimeStamp e cutoffs calculados podem divergir por ruído sub-nanossegundo.
+const CLOCK_EPSILON_MS = 1e-7;
 
 interface SourceState {
   actionDown: boolean;
@@ -112,7 +114,7 @@ export class InputHub implements InputSink {
     let consumedCount = 0;
 
     for (const event of this.pending) {
-      if (event.atMs > atMs) break;
+      if (event.atMs - atMs > CLOCK_EPSILON_MS) break;
       consumedCount += 1;
       this.applyEvent(event, actionEdges, cancellations);
     }

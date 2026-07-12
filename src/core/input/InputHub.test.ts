@@ -48,6 +48,15 @@ describe('InputHub — fila temporal', () => {
     expect(hub.consumeUntil(11).actionEdges).toEqual([]);
   });
 
+  it('tolera apenas ruído sub-nanossegundo entre evento e cutoff do tick', () => {
+    const hub = new InputHub();
+    hub.setAction('keyboard', true, 10 + 5e-8);
+    hub.setAction('keyboard', false, 10 + 1e-4);
+
+    expect(hub.consumeUntil(10).actionEdges.map((edge) => edge.kind)).toEqual(['press']);
+    expect(hub.consumeUntil(10 + 1e-4).actionEdges.map((edge) => edge.kind)).toEqual(['release']);
+  });
+
   it('ignora auto-repeat representado por estados de ação duplicados', () => {
     const hub = new InputHub();
 
