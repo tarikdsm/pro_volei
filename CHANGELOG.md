@@ -22,6 +22,12 @@ Todas as mudanças notáveis do Pró Volei. Formato baseado em
   histerese de 15%, máximo de duas trocas por plano e lock nos 350 ms finais.
 - Movimento planar com aceleração/frenagem arcade e assistência de alvo limitada a 0,65 m, sem
   teleporte nem corrida humana automática até o contato.
+- Máquina contextual única para Espaço/toque com tap abaixo de 12 ticks, hold/carga progressiva,
+  buffer de 9 ticks, cancelamento por lifecycle e identidade vinculada ao plano.
+- Técnicas semânticas para saque flutuante/potente, manchete/mergulho, set alto/rápido,
+  largada/ataque colocado/cortada, bloqueio rápido/penetrante e terceiro toque para a quadra rival.
+- Feedback compacto da ação no anel da atleta, snapshot DEV readonly e E2E determinístico da
+  mesma gramática no teclado e no multitouch com joystick simultâneo.
 - Ferramental de qualidade: ESLint 10 (flat config) + Prettier 3, `.editorconfig`,
   `.gitattributes` (LF), `.nvmrc` (Node 22).
 - Testes com Vitest 4 e primeira suíte cobrindo os solvers balísticos (`math3d`).

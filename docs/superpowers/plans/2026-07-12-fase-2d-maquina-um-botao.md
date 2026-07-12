@@ -110,7 +110,7 @@ InputFrame + simulationTick + contexto legal
 ## Tarefa 6 — E2E, revisão e publicação
 
 1. Criar cenário DEV determinístico com token conhecido para tap, hold, buffer e cancelamento.
-2. E2E desktop usa tap de 80–100 ms e hold de 400–500 ms; asserts exatos ficam no Vitest.
+2. E2E desktop usa tap atômico e hold de 400–500 ms; asserts exatos ficam no Vitest.
 3. E2E mobile repete por pointer/touch real enquanto o outro dedo move o joystick.
 4. Pausar no meio do hold e trocar token provam cancelamento sem disparo fantasma.
 5. Agentes independentes revisam máquina/resolvedor, integração/mecânicas e UX touch.
@@ -119,12 +119,12 @@ InputFrame + simulationTick + contexto legal
 
 ## Gate final
 
-- [ ] Tap/hold respeitam exatamente 12 ticks e carga plena em mais 30 ticks.
-- [ ] Buffer aceita até 9 ticks e executa somente no primeiro tick legal.
-- [ ] Cada contexto produz técnicas distintas, contínuas e semanticamente testadas.
-- [ ] Contato consome hold compatível uma vez; release posterior não duplica.
-- [ ] Troca de atleta preserva; token novo e lifecycle cancelam sem ação fantasma.
-- [ ] Teclado e touch produzem a mesma intenção a 30/60/120 Hz de render.
-- [ ] Saque, recepção, levantamento, ataque, bloqueio e bola quebrada são jogáveis.
+- [x] Tap/hold respeitam exatamente 12 ticks e carga plena em mais 30 ticks.
+- [x] Buffer aceita até 9 ticks e executa somente no primeiro tick legal.
+- [x] Cada contexto produz técnicas distintas, contínuas e semanticamente testadas.
+- [x] Contato consome hold compatível uma vez; release posterior não duplica.
+- [x] Troca de atleta preserva; token novo e lifecycle cancelam sem ação fantasma.
+- [x] Teclado e touch produzem a mesma intenção a 30/60/120 Hz de render.
+- [x] Saque, recepção, levantamento, ataque, bloqueio e bola quebrada são jogáveis.
 - [ ] Testes, E2E, playtest, review, CI, Pages e smoke público estão verdes.
 - [ ] Remoto continua literalmente somente `main`.

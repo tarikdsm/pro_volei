@@ -115,7 +115,11 @@ src/game/
     ├── AutoSelector.ts      score, histerese, máximo de trocas e lock por plano
     ├── AutoSelectionSession.ts adaptação Team/Athlete → candidatos de recepção/bloqueio
     ├── HumanAutoControl.ts  rebind + alvo manual + assistência limitada
-    ├── HumanController.ts  ControlFrame → intenções (mira, timing, zona) + estado + marker
+    ├── ActionIntent.ts      DTO semântico de gesto/técnica/parâmetros
+    ├── ActionButtonMachine.ts tap/hold/buffer/cancel por token e tick fixo
+    ├── ActionResolver.ts    matriz pura contexto × gesto → técnica
+    ├── ActionControl.ts     adaptador ControlFrame + pending até o contato
+    ├── HumanController.ts  movimento/mira + ActionControl + estado + marker
     └── timing.ts           helpers puros timing → qualidade (recepção/pulo)
 ```
 
@@ -125,6 +129,12 @@ src/game/
 timestamped e cancelamentos explícitos; `main.ts` converte o `InputFrame` de espaço de tela pelo
 snapshot de `CameraDirector.inputBasis()` e entrega somente `ControlFrame` ao jogo. Assim,
 `game/` não conhece DOM, códigos de tecla, eventos sintéticos nem Three.js para interpretar direção.
+
+`ActionButtonMachine` consome esse frame uma vez por tick: menos de 12 ticks é tap, 12 ou mais é
+hold, a carga chega a 1 após mais 30 ticks e um press até 9 ticks cedo vira buffer. O gesto fica
+preso ao `planId`, sobrevive à troca de atleta do mesmo plano e é cancelado por token/lifecycle.
+`ActionResolver` gera `ActionIntent` neutra de engine; `ActionControl` a retém até `Match` entregá-la
+a `touch`/`block`. Teclado e touch nunca possuem gramáticas paralelas.
 
 Recepção/defesa e bloqueio passam por `AutoSelector`. O ETA replica o mesmo integrador planar de
 `Athlete.update`, inclusive velocidade lateral, aceleração e frenagem. A atribuição inicial não

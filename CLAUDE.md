@@ -84,6 +84,10 @@ src/
   cinemático, com vantagem de 15%, máximo de duas trocas e lock nos 350 ms finais.
   `HumanAutoControl` aplica assistência de rota de no máximo 0,65 m; nunca use `warp` para salvar
   contato nem reintroduza aproximação humana automática até a bola.
+- **Ação humana 2.0:** `ActionButtonMachine` mede tap/hold/buffer somente em ticks fixos;
+  `ActionControl` resolve a intenção semântica e a mantém até o contato. `planId` é o token do
+  rally; saque usa token negativo monotônico. Toda técnica passa por `ActionIntent`; não volte a
+  interpretar edges diretamente por modo nem medir carga com `dt`/tempo de DOM.
 - **A Fase 1 (quebrar o `Match.ts`) está concluída:** a lógica do antigo módulo monolítico vive
   em `RallyState`, `rules/` (scoring, rotation, SetMatch), `mechanics/` (serve, touch, block,
   net), `control/HumanController` e `ai/AiController`, cada um sobre um contexto injetado

@@ -38,10 +38,14 @@ remoção de `gh-pages`; depois controles, IA, arte/render, mobile/áudio, Copa 
   independente sem findings. O run `29208396722` publicou o SHA `63aaf23` no deployment
   `5416115597`; o playtest no Pages observou o plano 2 travado na atleta 0, viável, sem troca e sem
   erros de console. O remoto continuou listando somente `main`.
+- **Fase 2D — implementação local concluída:** máquina tap/hold/buffer vinculada ao plano,
+  resolvedor contextual e técnicas distintas para os seis contextos passaram por 494 testes,
+  11 E2E desktop/mobile, build/smoke de produção e duas revisões independentes sem findings após
+  as correções de lifecycle. Teclado e touch compartilham a mesma intenção; o terceiro toque vai
+  automaticamente à quadra rival. Publicação e smoke público serão registrados no fechamento.
 
 ### Controle e game feel 2.0 — próximas subfases
 
-- **Fase 2D:** máquina contextual tap/hold/buffer para todas as ações.
 - **Fase 2E:** feedback de timing, câmera e game feel sobre o novo controle.
 
 ---
