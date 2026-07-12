@@ -69,8 +69,9 @@ Coberto por testes em `src/core/math3d.test.ts`.
 `main.ts::frame(now)` entrega o intervalo real ao `FixedStepRunner`. O runner acumula tempo,
 aplica o `SlowMotionClock` e executa somente ticks de `1/60 s`, no máximo cinco por rAF e com
 janela real limitada a 250 ms. Cada ticket contém o cutoff monotônico usado para consumir o
-`InputHub`; pausas executam zero ticks. Stalls de lifecycle cancelam input pendente, enquanto o
-limite de passos preserva o estado contínuo para hardware lento.
+`InputHub`; pausas executam zero ticks. Em `wall-cap`, somente ação/carga antiga é cancelada e a
+direção fisicamente mantida sobrevive; o limite de passos também preserva estado contínuo para
+hardware lento.
 
 Dentro de cada tick, `MatchTimeline` integra bola, atletas e timers até o próximo evento analítico
 (callback, contato, rede, antena, pulo ou chão), resolve-o e continua pelo tempo restante. No fim,

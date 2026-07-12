@@ -44,6 +44,17 @@ controle operacional por SHA; não se baseia nem afirma diferença visual entre 
 segundo SHA altera documentação que não entra no `dist/`. Com rollback e restauração comprovados,
 a **Fase 1C está concluída**.
 
+### Publicação da Fase 2B
+
+O run `29206272786` aprovou qualidade e build, mas o smoke remoto expôs uma regressão real em
+hardware lento: um `wall-cap` apagava a seta fisicamente mantida. O próximo commit (`959ef37`)
+separou cancelamento de ação e movimento e adicionou ao smoke um stall forçado de 350 ms. O run
+corretivo `29206518556` ficou verde e publicou o deployment `5415649743` do mesmo SHA.
+
+No Pages público, o teste confirmou eixo direito preservado antes/depois do stall, incremento do
+diagnóstico de tempo descartado, soltura da seta e início normal do rally. O remoto continuou
+listando somente `refs/heads/main`.
+
 ### Conclusão main-only da Fase 1D
 
 A capacidade local legada foi removida no SHA `dcba25b`. O run `29202163302` ficou verde e publicou

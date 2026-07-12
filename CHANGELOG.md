@@ -39,6 +39,8 @@ Todas as mudanças notáveis do Pró Volei. Formato baseado em
   cancelamentos de blur/pausa não fabricam release de ação.
 - `Match` delega a segmentação temporal a `MatchTimeline`; regras e física não dependem mais do FPS
   de renderização, e pausa/resume não reapresenta snapshots antigos.
+- Stalls acima de 250 ms cancelam ação/carga sem apagar setas ou joystick mantidos; o smoke de
+  produção força um frame de 350 ms para proteger esse comportamento em hardware lento.
 - CI ampliado: typecheck de produção/testes/configs, cobertura V8 de todo `src`, build e smoke
   Chromium do artefato servido por `vite preview`.
 - O mesmo `dist/` aprovado pelo job `check` agora é publicado automaticamente pelo job `deploy`.

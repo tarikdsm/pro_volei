@@ -26,10 +26,12 @@ remoção de `gh-pages`; depois controles, IA, arte/render, mobile/áudio, Copa 
   à câmera e cancelamento sem release passaram por testes unitários, E2E multitouch e playtest
   desktop/mobile. O run `29204014194` publicou o SHA `2714264` no deployment `5415090698`; smoke
   público desktop e touch landscape passaram sem erros.
-- **Fase 2B — implementação local concluída:** runner fixo a 60 Hz, slow-motion determinística,
-  timeline analítica e apresentação interpolada passaram por 356 testes, suíte E2E desktop/mobile,
-  smoke do build de produção, playtest real e revisão independente sem findings. Publicação em
-  `main` e evidências de Pages serão registradas no fechamento da fase.
+- **Fase 2B — concluída:** runner fixo a 60 Hz, slow-motion determinística, timeline analítica e
+  apresentação interpolada passaram por 359 testes, suíte E2E desktop/mobile, playtest real e
+  revisão independente sem findings. O primeiro run (`29206272786`) revelou no CI lento que
+  `wall-cap` apagava uma seta mantida; o commit corretivo `959ef37` adicionou regressão com stall
+  forçado, passou no run `29206518556` e publicou o deployment `5415649743`. O smoke público
+  confirmou direção contínua, descarte diagnosticado e rally jogável. O remoto mantém só `main`.
 
 ### Controle e game feel 2.0 — próximas subfases
 

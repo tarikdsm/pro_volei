@@ -28,8 +28,8 @@ Match.step ── EventTimeline ── integra até evento ── resolve ──
 
 - Passo interno exato: `1/60 s`; nunca usar `rawDt` em regras, bola ou movimento de atleta.
 - Cada rAF aceita no máximo `250 ms` reais e executa no máximo `5` ticks.
-- Excesso é descartado e contabilizado; `wall-cap` cancela input/cargas, enquanto `step-cap`
-  preserva o estado contínuo e entrega bordas no próximo tick para não punir hardware lento.
+- Excesso é descartado e contabilizado; `wall-cap` cancela somente ação/carga antiga e preserva
+  direção mantida, enquanto `step-cap` entrega estado contínuo e bordas no próximo tick.
 - Input mantém timestamps `performance.now()`; não converter evento DOM para `simTime`.
 - `inputThroughMs` é monotônico e representa o ponto real exato que completou cada tick.
 - A câmera lenta escala tempo acrescentado; não muda o tamanho do passo interno.
@@ -78,9 +78,9 @@ Match.step ── EventTimeline ── integra até evento ── resolve ──
 3. Em cada ticket: `input.consumeUntil(inputThroughMs)`, mapear pela base de câmera renderizada e
    chamar `match.step(FIXED_DT, controlFrame, ticket)`.
 4. Em pausa/título/fim: drenar input até `now`, executar zero ticks e resetar backlog.
-5. Em `wall-cap`: adicionar reason `stall`, cancelar hub/carga, limpar pointers touch e drenar o
-   intervalo descartado antes de qualquer tick que possa enxergá-lo. Em `step-cap`, preservar
-   estado contínuo e bordas pendentes.
+5. Em `wall-cap`: adicionar reason `stall`, cancelar ação/carga sem apagar setas/joystick mantidos
+   e drenar o prefixo descartado antes de qualquer tick que possa enxergá-lo. Em `step-cap`,
+   preservar estado contínuo e bordas pendentes.
 6. Expor diagnóstico DEV somente leitura (`tick`, `simulationSeconds`, `alpha`, descartes) para
    E2E/perf; manter produção sem `?debug` fechada.
 7. Atualizar apresentação uma vez por rAF com relógios explícitos:
@@ -168,12 +168,12 @@ npm run test:e2e:smoke:prod
 git status --short
 ```
 
-- [ ] Simulação executa somente em ticks de 1/60 s.
-- [ ] Input é consumido uma vez no cutoff real correto de cada tick.
-- [ ] Slow motion é determinística, piecewise e congela na pausa.
-- [ ] Stall respeita 250 ms/5 ticks, registra descarte e não deixa ação atrasada.
-- [ ] Contato/rede/antena/chão são resolvidos por instante analítico dentro do tick.
-- [ ] Interpolação não altera estado lógico.
-- [ ] Invariância 30/60/120 Hz está automatizada.
-- [ ] E2E, playtest, review, CI, Pages e smoke público estão verdes.
-- [ ] Remoto continua literalmente somente `main`.
+- [x] Simulação executa somente em ticks de 1/60 s.
+- [x] Input é consumido uma vez no cutoff real correto de cada tick.
+- [x] Slow motion é determinística, piecewise e congela na pausa.
+- [x] Stall respeita 250 ms/5 ticks, registra descarte e não deixa ação atrasada.
+- [x] Contato/rede/antena/chão são resolvidos por instante analítico dentro do tick.
+- [x] Interpolação não altera estado lógico.
+- [x] Invariância 30/60/120 Hz está automatizada.
+- [x] E2E, playtest, review, CI, Pages e smoke público estão verdes.
+- [x] Remoto continua literalmente somente `main`.
