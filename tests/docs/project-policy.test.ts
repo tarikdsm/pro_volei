@@ -31,4 +31,15 @@ describe('políticas canônicas do projeto', () => {
     expect(ci).not.toMatch(/^\s*pull_request:/m);
     expect(ci).not.toContain('branch/PR');
   });
+
+  it('aponta arquitetura e roadmap para o design 2.0 sem contagem obsoleta', () => {
+    const architecture = readRepo('docs/ARCHITECTURE.md');
+    const roadmap = readRepo('docs/ROADMAP.md');
+
+    expect(architecture).not.toContain('~490 linhas');
+    expect(architecture).toContain('Pipeline local de assets 2.0');
+    expect(roadmap).toContain('Design 2.0 aprovado');
+    expect(roadmap).toContain('2026-07-12-pro-volei-2-0-design.md');
+    expect(roadmap).toContain('Fase 1A');
+  });
 });

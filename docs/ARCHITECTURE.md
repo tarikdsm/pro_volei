@@ -44,6 +44,13 @@ injetadas (audio, effects, camera, crowd, referee, arena). O wiring acontece em 
 | `game/` | Regras, estado, IA e controle | `Match.ts` (orquestrador: state machine + event queue), `RallyState.ts`, `Team.ts`, `rules/` (scoring, rotation, SetMatch), `mechanics/` (serve, touch, block, net, context), `ai/AiController`, `control/HumanController` |
 | `ui/` | Apresentação e input do jogador | `HUD.ts`, `Menu.ts`, `TouchControls.ts` |
 
+### Pipeline local de assets 2.0
+
+A v1.1 continua procedural. A 2.0 pode carregar GLB, texturas e áudio versionados em
+`public/assets/`, sempre por caminhos locais e manifesto. Fontes reproduzíveis vivem em
+`assets-src/` ou `tools/`; o runtime nunca busca CDN/API. Render/animação consomem snapshots e
+eventos da simulação, sem alterar regras ou física.
+
 ## Física
 
 Trajetórias são resolvidas de forma **analítica** (não há integrador de física genérico) em
@@ -67,10 +74,11 @@ O slow-motion é acionado pelos hooks (ex.: spike-cam no contato da cortada).
 
 ## Estrutura de `game/` (refatoração concluída)
 
-A Fase 1 — quebrar o antigo `Match.ts` monolítico (~1100 linhas) — está **concluída**. Hoje o
-`Match` é um orquestrador fino (~490 linhas: state machine + event queue + o loop de `update`) e a
-lógica vive em colaboradores focados, cada um sobre um **contexto injetado** (a fatia do `Match`
-que ele precisa) em vez de acessar o `Match` inteiro.
+A Fase 1 — quebrar o antigo `Match.ts` monolítico (~1100 linhas) — está **concluída**.
+`Match` é o orquestrador de state machine/event queue. Ele está acima do tamanho-alvo e não deve
+crescer; novos contratos, seletores, input e IA entram em módulos focados e testáveis. A lógica
+vive em colaboradores focados, cada um sobre um **contexto injetado** (a fatia do `Match` que ele
+precisa) em vez de acessar o `Match` inteiro.
 
 ### Estrutura atual
 

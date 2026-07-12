@@ -20,6 +20,11 @@ Todas as mudanças notáveis do Pró Volei. Formato baseado em
 
 ### Alterado
 
+- Design da versão 2.0 aprovado: controles de setas + ação contextual, IA coletiva,
+  personagens locais animados, experiência mobile landscape e Copa curta. A implementação ocorre
+  em fases; esta entrada não anuncia essas features como disponíveis na v1.1.
+- Política offline permite assets locais originais/licenciados e continua proibindo URLs remotas
+  em runtime.
 - Baseline de formatação do código aplicado com Prettier.
 - `PLAN.md` movido para `docs/history/PROTOTYPE-PLAN.md` (registro histórico do protótipo);
   o planejamento vivo agora é `docs/ROADMAP.md`.

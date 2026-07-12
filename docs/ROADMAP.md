@@ -4,10 +4,10 @@ Do protótipo jogável ao produto profissional. Ordenado por dependência, não 
 Escopo fixado: **single-player vs CPU** (sem multiplayer/online); publicar em **Web, Desktop/Steam
 e Mobile** a partir do mesmo código web.
 
-Estado atual: **v1.1.0** — protótipo completo e jogável (saque, rally, IA em 3 dificuldades,
-câmera broadcast, torcida, HUD, controles de teclado e toque, deploy no GitHub Pages).
-Arquitetura já refatorada (Fase 1 concluída): `Match` é um orquestrador fino sobre
-`rules/`, `mechanics/`, `control/HumanController` e `ai/AiController`.
+Estado atual: **v1.1.0** jogável e corrigida. **Design 2.0 aprovado** em
+[`2026-07-12-pro-volei-2-0-design.md`](superpowers/specs/2026-07-12-pro-volei-2-0-design.md).
+A execução segue subfases publicáveis: Fase 1A políticas/docs; 1B gates; 1C deploy Actions; 1D
+remoção de `gh-pages`; depois controles, IA, arte/render, mobile/áudio, Copa e release 2.0.0.
 
 ---
 
@@ -19,7 +19,7 @@ Base para desenvolver com segurança e ritmo.
 - [x] Vitest com primeiro conjunto de testes (`math3d`)
 - [x] CI no GitHub Actions (typecheck · lint · format · test · build)
 - [x] Documentação (CLAUDE.md, ARCHITECTURE, CONTRIBUTING, CHANGELOG, deployment)
-- [ ] Habilitar branch protection em `main` exigindo o CI verde (fazer no GitHub)
+- [ ] Configurar proteção compatível com main-only: bloquear force-push/deleção sem exigir PR.
 
 ## Fase 1 — Refatoração da arquitetura ✅ (concluída)
 
