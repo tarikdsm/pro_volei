@@ -230,6 +230,7 @@ export class Match {
 
     const isHuman = landSide === TeamSide.HOME;
     this.rally.plan = {
+      planId: this.rally.allocatePlanId(),
       side: landSide,
       athlete,
       contactIn: cT,

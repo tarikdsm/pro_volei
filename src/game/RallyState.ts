@@ -5,6 +5,7 @@ import { TeamSide, TouchKind } from '../core/constants';
 import { Athlete } from './Team';
 
 export interface TouchPlan {
+  planId: number;
   side: TeamSide;
   athlete: Athlete;
   contactIn: number; // segundos até o contato ideal
@@ -16,6 +17,7 @@ export interface TouchPlan {
 }
 
 export class RallyState {
+  private nextPlanId = 1;
   // posse e toques
   possessionTeam: TeamSide | null = null;
   possessionTouches = 0;
@@ -34,6 +36,11 @@ export class RallyState {
   plannedAttacker: Athlete | null = null;
   lastToucher: Athlete | null = null;
   blockers: { athlete: Athlete; jumpIn: number; jumped: boolean }[] = [];
+
+  /** Identidade monotônica do plano; não reinicia entre pontos para impedir rebind obsoleto. */
+  allocatePlanId(): number {
+    return this.nextPlanId++;
+  }
 
   /** Conta um toque para o lado: bola nova em um time abre a posse com 1; mesmo time incrementa. */
   countTouch(side: TeamSide): void {

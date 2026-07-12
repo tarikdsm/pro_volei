@@ -25,6 +25,17 @@ describe('RallyState — valores iniciais', () => {
   });
 });
 
+describe('RallyState.allocatePlanId', () => {
+  it('gera identidade monotônica e não a reutiliza após reset', () => {
+    const rally = new RallyState();
+
+    expect(rally.allocatePlanId()).toBe(1);
+    expect(rally.allocatePlanId()).toBe(2);
+    rally.reset();
+    expect(rally.allocatePlanId()).toBe(3);
+  });
+});
+
 describe('RallyState.countTouch', () => {
   it('primeiro toque de um time abre a posse com 1 toque', () => {
     const r = new RallyState();

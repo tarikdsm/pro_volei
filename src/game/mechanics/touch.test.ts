@@ -62,6 +62,7 @@ function makeCtx(stalePos: THREE.Vector3): { ctx: MechanicsCtx; ball: FakeBall }
 
 function makePlan(kind: TouchPlan['kind'], athlete: Athlete): TouchPlan {
   return {
+    planId: 1,
     side: TeamSide.HOME,
     athlete,
     contactIn: 0,

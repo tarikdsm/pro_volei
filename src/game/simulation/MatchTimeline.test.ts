@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { Ball } from '../../entities/Ball';
 import type { AiController } from '../ai/AiController';
 import type { MechanicsCtx } from '../mechanics/context';
-import { RallyState } from '../RallyState';
+import { RallyState, type TouchPlan } from '../RallyState';
 import { MatchTimeline, type MatchTimelinePort } from './MatchTimeline';
 
 function fixture(overrides: Partial<MatchTimelinePort> = {}) {
@@ -88,7 +88,8 @@ describe('MatchTimeline', () => {
     vi.mocked(ai.advanceScheduledJumpTimers).mockImplementation((seconds) => {
       if (rally.plan?.jumpScheduledIn !== undefined) rally.plan.jumpScheduledIn -= seconds;
     });
-    rally.plan = {
+    const plan: TouchPlan = {
+      planId: 1,
       side: 0,
       athlete: {} as never,
       contactIn: 1,
@@ -98,10 +99,11 @@ describe('MatchTimeline', () => {
       jumpScheduledIn: 0.01 + 1e-10,
       done: false,
     };
+    rally.plan = plan;
 
     timeline.step(0.01);
 
-    expect(rally.plan.jumpScheduledIn).toBe(0);
+    expect(plan.jumpScheduledIn).toBe(0);
     expect(ai.resolveScheduledJumps).toHaveBeenCalledOnce();
   });
 
@@ -122,6 +124,7 @@ describe('MatchTimeline', () => {
     });
     typedBall.timeToDescend.mockImplementation(() => floorIn);
     rally.plan = {
+      planId: 1,
       side: 0,
       athlete: {} as never,
       contactIn: 0.01,
