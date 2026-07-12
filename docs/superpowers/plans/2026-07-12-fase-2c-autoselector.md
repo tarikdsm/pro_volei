@@ -136,5 +136,15 @@ o tuning deve continuar arcade e responsivo.
 - [x] Assistência corrige no máximo 0,65 m, sem warp ou drift acumulado.
 - [x] Ataque/saque/levantamento preservam comportamento.
 - [x] Recepção e bloqueio transferem controle/marker sem flicker.
-- [ ] Testes, E2E, playtest, review, CI, Pages e smoke público estão verdes.
-- [ ] Remoto continua literalmente somente `main`.
+- [x] Testes, E2E, playtest, review, CI, Pages e smoke público estão verdes.
+- [x] Remoto continua literalmente somente `main`.
+
+## Evidência de fechamento
+
+- Gate local: 51 arquivos/398 testes unitários, 10/10 E2E, build e smoke do `dist` verdes.
+- Revisão independente: ETA lateral passou a usar o integrador 2D real e empate em score zero não
+  provoca troca; nova validação sem findings.
+- Publicação: run `29208396722`, SHA `63aaf23`, deployment `5416115597`, todos verdes.
+- Playtest público: setas + Espaço iniciaram o rally e `__selection` observou plano 2, atleta 0,
+  score `0.040951`, viável, zero trocas e status `locked`, sem erros de console da página.
+- Repositório remoto: a API de branches retornou exclusivamente `main`.

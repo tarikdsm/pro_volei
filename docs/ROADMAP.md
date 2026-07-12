@@ -32,10 +32,12 @@ remoção de `gh-pages`; depois controles, IA, arte/render, mobile/áudio, Copa 
   `wall-cap` apagava uma seta mantida; o commit corretivo `959ef37` adicionou regressão com stall
   forçado, passou no run `29206518556` e publicou o deployment `5415649743`. O smoke público
   confirmou direção contínua, descarte diagnosticado e rally jogável. O remoto mantém só `main`.
-- **Fase 2C — implementação local concluída:** movimento planar com aceleração/frenagem,
+- **Fase 2C — concluída:** movimento planar com aceleração/frenagem,
   AutoSelector por ETA 2D, custos táticos, histerese 15%/duas trocas/lock 350 ms e assistência de
   0,65 m passaram por 398 testes, E2E desktop/mobile, smoke do build, playtest real e revisão
-  independente sem findings. Publicação e evidências de Pages serão registradas no fechamento.
+  independente sem findings. O run `29208396722` publicou o SHA `63aaf23` no deployment
+  `5416115597`; o playtest no Pages observou o plano 2 travado na atleta 0, viável, sem troca e sem
+  erros de console. O remoto continuou listando somente `main`.
 
 ### Controle e game feel 2.0 — próximas subfases
 

@@ -55,6 +55,14 @@ No Pages público, o teste confirmou eixo direito preservado antes/depois do sta
 diagnóstico de tempo descartado, soltura da seta e início normal do rally. O remoto continuou
 listando somente `refs/heads/main`.
 
+### Publicação da Fase 2C
+
+O run `29208396722` aprovou qualidade, cobertura, build e smoke de produção para o SHA `63aaf23`,
+depois publicou o mesmo artefato no deployment `5416115597` (`success`). No Pages público, um
+playtest real com setas + Espaço iniciou o rally e observou o AutoSelector travar o plano 2 na
+atleta 0 com score `0.040951`, viável, zero trocas e status `locked`; a página não emitiu erros de
+console. A API remota de branches retornou exclusivamente `main`.
+
 ### Conclusão main-only da Fase 1D
 
 A capacidade local legada foi removida no SHA `dcba25b`. O run `29202163302` ficou verde e publicou
