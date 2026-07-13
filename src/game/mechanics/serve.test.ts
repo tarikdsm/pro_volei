@@ -14,6 +14,7 @@ function makeCtx(aiValues: readonly number[], contactValues: readonly number[]) 
   const hub = new RandomHub(1);
   const scheduled: Array<() => void> = [];
   const launches: Array<{ p0: THREE.Vector3; v0: THREE.Vector3 }> = [];
+  const telemetryOrder: string[] = [];
   const server = {
     act: () => undefined,
     reachPoint: () => new THREE.Vector3(-8.5, 1.1, 0),
@@ -44,11 +45,12 @@ function makeCtx(aiValues: readonly number[], contactValues: readonly number[]) 
       camera: { setMode: noop },
     },
     after: (_seconds: number, callback: () => void) => scheduled.push(callback),
-    startRally: noop,
+    startRally: () => telemetryOrder.push('rally-start'),
     planNext: noop,
+    emitTelemetry: (event: { type: string }) => telemetryOrder.push(event.type),
   } as unknown as MechanicsCtx;
 
-  return { ctx, ai, contact, launches, scheduled };
+  return { ctx, ai, contact, launches, scheduled, telemetryOrder };
 }
 
 describe('aiServe — ownership e consumo do RNG', () => {
@@ -79,5 +81,14 @@ describe('aiServe — ownership e consumo do RNG', () => {
 
     expect(ai.draws).toBe(1);
     expect(contact.draws).toBe(5);
+  });
+
+  it('transiciona o rally antes de publicar o evento de saque', () => {
+    const { ctx, scheduled, telemetryOrder } = makeCtx([0.5, 0.25, 0.75], [0.9, 0.5]);
+
+    aiServe(ctx);
+    scheduled[1]();
+
+    expect(telemetryOrder).toEqual(['rally-start', 'serve']);
   });
 });

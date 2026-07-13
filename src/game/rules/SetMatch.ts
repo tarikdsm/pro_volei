@@ -6,6 +6,8 @@ import type { BallSimulationPort } from '../simulation/BallSimulationPort';
 import { Team } from '../Team';
 import { RallyState } from '../RallyState';
 import type { MatchHooks as Hooks, MatchStats } from '../ports/MatchHooks';
+import type { SimulationTelemetryEmitter } from '../simulation/SimulationTelemetry';
+import type { PointCause } from '../simulation/SimulationTelemetry';
 import {
   isSetOver,
   setWinner,
@@ -23,6 +25,7 @@ export interface ScoringCtx {
   ball: BallSimulationPort;
   rally: RallyState;
   hooks: Hooks;
+  emitTelemetry: SimulationTelemetryEmitter;
   readonly score: [number, number]; // mutado in-place
   readonly sets: [number, number]; // mutado in-place
   readonly stats: MatchStats; // mutado in-place
@@ -53,11 +56,16 @@ export function resolvePoint(ctx: ScoringCtx): void {
       ? 'Bola no seu chão'
       : 'Bola no chão deles!'
     : 'Bola fora';
-  awardPoint(ctx, winner, reason);
+  awardPoint(ctx, winner, reason, inCourt ? 'floor-in' : 'floor-out');
 }
 
 /** Concede o ponto: placar, celebração, troca de saque/rodízio e agenda o próximo passo. */
-export function awardPoint(ctx: ScoringCtx, winner: TeamSide, reason: string): void {
+export function awardPoint(
+  ctx: ScoringCtx,
+  winner: TeamSide,
+  reason: string,
+  pointCause: PointCause = 'other',
+): void {
   if (!ctx.isRally()) return;
   ctx.enterPoint();
   ctx.rally.plan = null;
@@ -69,9 +77,20 @@ export function awardPoint(ctx: ScoringCtx, winner: TeamSide, reason: string): v
   ctx.hooks.zoneHint(null);
 
   const ace = isAce(ctx.rally.lastKind, winner, ctx.servingTeam, ctx.rally.rallyTouches);
+  const cause: PointCause = ace ? 'ace' : pointCause;
   ctx.score[winner]++;
   ctx.stats.points[winner]++;
   ctx.stats.longestRally = Math.max(ctx.stats.longestRally, ctx.rally.rallyTouches);
+  ctx.emitTelemetry({
+    type: 'point',
+    winner,
+    cause,
+    ace,
+    score: [ctx.score[0], ctx.score[1]],
+    lastTouchSide: ctx.rally.lastTouchTeam,
+    lastKind: ctx.rally.lastKind,
+  });
+  ctx.emitTelemetry({ type: 'rally-end', winner, cause, touches: ctx.rally.rallyTouches });
 
   // banners com personalidade
   let text = winner === TeamSide.HOME ? 'PONTO SEU!' : 'PONTO DO CPU';

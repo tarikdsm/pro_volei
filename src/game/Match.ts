@@ -34,6 +34,11 @@ import type { CameraFrame, CameraPhase } from '../systems/camera/CameraFrame';
 import type { MatchHooks as Hooks, MatchStats } from './ports/MatchHooks';
 import type { CharFactory } from '../entities/PlayerCharacter';
 import type { MatchBallPort } from './simulation/BallSimulationPort';
+import type {
+  SimulationEventDraft,
+  SimulationTelemetryEvent,
+  SimulationTelemetryPort,
+} from './simulation/SimulationTelemetry';
 
 export type { MatchHooks as Hooks, MatchStats } from './ports/MatchHooks';
 
@@ -60,6 +65,7 @@ export interface MatchOptions {
   readonly ball?: MatchBallPort;
   readonly charFactory?: CharFactory;
   readonly teamFactory?: TeamFactory;
+  readonly telemetry?: SimulationTelemetryPort;
 }
 
 export class Match {
@@ -91,6 +97,10 @@ export class Match {
   private readonly randomHub: RandomHub;
   private readonly random: GameplayRandomStreams;
   private readonly humanSide: TeamSide.HOME | null;
+  private readonly telemetry: SimulationTelemetryPort | null;
+  private readonly telemetryOutbox: Readonly<SimulationTelemetryEvent>[] = [];
+  private telemetryEnabled = true;
+  private simulationTick = 0;
 
   private stats: MatchStats = { aces: 0, blocks: 0, longestRally: 0, points: [0, 0] };
   private readonly cameraBall: MutableCameraPoint = { x: 0, y: 0, z: 0 };
@@ -113,6 +123,7 @@ export class Match {
   ) {
     const makeTeam = options.teamFactory ?? ((side, makeChar) => new Team(side, makeChar));
     this.humanSide = options.humanSide === undefined ? TeamSide.HOME : options.humanSide;
+    this.telemetry = options.telemetry ?? null;
     this.human = new HumanController(this.humanSide !== null);
     this.ball = options.ball ?? new Ball();
     this.home = makeTeam(TeamSide.HOME, options.charFactory);
@@ -148,6 +159,7 @@ export class Match {
   }
 
   startMatch(diffIdx: number, fmtIdx: number): void {
+    this.simulationTick = 0;
     this.diff = DIFFICULTIES[clamp(diffIdx, 0, DIFFICULTIES.length - 1)];
     this.format = MATCH_FORMATS[clamp(fmtIdx, 0, MATCH_FORMATS.length - 1)];
     this.score = [0, 0];
@@ -395,12 +407,14 @@ export class Match {
 
   // ---------------------------------------------------------------- UPDATE
   update(dt: number, frame: ControlFrame): void {
+    this.simulationTick = frame.simulationTick;
     this.ball.beginFixedStep();
     this.home.beginFixedStep();
     this.away.beginFixedStep();
     this.human.update(dt, frame, this.ctx);
     this.timeline.step(dt);
     this.ball.endFixedStep();
+    this.flushTelemetry();
   }
 
   /** Apresentação interpolada; não altera posições ou timers lógicos da simulação. */
@@ -503,6 +517,17 @@ export class Match {
       this.rally.lastKind = 'freeball';
       this.rally.lastToucher = a;
       this.rally.rallyTouches++;
+      this.emitTelemetry({
+        type: 'contact',
+        side: plan.side,
+        kind: 'freeball',
+        athlete: a.index,
+        possessionTouch: this.rally.possessionTouches,
+        rallyTouch: this.rally.rallyTouches,
+        quality: 0,
+        point: { x: plan.point.x, y: plan.point.y, z: plan.point.z },
+        target: { x: target.x, y: target.y, z: target.z },
+      });
       this.hooks.banner('', '');
       this.planNext('pass');
     } else if (isHuman && intent) {
@@ -543,7 +568,7 @@ export class Match {
       // saque na rede = ponto do recebedor
       this.after(0.5, () => {
         if (this.state === 'rally') {
-          awardPoint(this.scoringCtx, otherSide(this.servingTeam), 'Saque na rede');
+          awardPoint(this.scoringCtx, otherSide(this.servingTeam), 'Saque na rede', 'serve-net');
         }
       });
       return;
@@ -562,7 +587,7 @@ export class Match {
     this.hooks.camera.addShake(0.2);
     const winner = outOfAntennaWinner(this.rally.lastTouchTeam, this.servingTeam);
     // awardPoint já apita (whistleLong), monta o banner e faz o guard isRally interno.
-    awardPoint(this.scoringCtx, winner, 'Fora da antena');
+    awardPoint(this.scoringCtx, winner, 'Fora da antena', 'antenna');
   }
 
   /** Monta o contexto passado às funções de mecânica; getters mantêm vivos os valores mutáveis. */
@@ -578,6 +603,7 @@ export class Match {
       hooks: this.hooks,
       aim: this.human.aim,
       random: this.random,
+      emitTelemetry: (event) => this.emitTelemetry(event),
       isHumanSide: (side) => this.isHumanSide(side),
       get diff() {
         return diff();
@@ -596,6 +622,7 @@ export class Match {
       planNext: (kind) => this.planNext(kind),
       startRally: () => {
         this.state = 'rally';
+        this.emitTelemetry({ type: 'rally-start', serving: this.servingTeam });
       },
       takeHumanBlockIntent: (planId) => {
         const intent = this.human.takeBlockIntent(planId);
@@ -632,6 +659,7 @@ export class Match {
       ball: this.ball,
       rally: this.rally,
       hooks: this.hooks,
+      emitTelemetry: (event) => this.emitTelemetry(event),
       get score() {
         return score();
       },
@@ -689,6 +717,28 @@ export class Match {
 
   private isHumanSide(side: TeamSide): boolean {
     return this.humanSide !== null && side === this.humanSide;
+  }
+
+  private emitTelemetry(event: Readonly<SimulationEventDraft>): void {
+    if (!this.telemetry || !this.telemetryEnabled) return;
+    const draws = Object.freeze({
+      rules: this.random.rules.draws,
+      ai: this.random.ai.draws,
+      contact: this.random.contact.draws,
+      control: this.random.control.draws,
+    });
+    this.telemetryOutbox.push(Object.freeze({ ...event, tick: this.simulationTick, draws }));
+  }
+
+  private flushTelemetry(): void {
+    if (!this.telemetry || !this.telemetryEnabled || this.telemetryOutbox.length === 0) return;
+    const pending = this.telemetryOutbox.splice(0);
+    try {
+      for (const event of pending) this.telemetry.emit(event);
+    } catch {
+      this.telemetryEnabled = false;
+      this.telemetryOutbox.length = 0;
+    }
   }
 
   private after(t: number, fn: () => void): void {

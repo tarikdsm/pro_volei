@@ -80,4 +80,26 @@ describe('Match headless AI × AI', () => {
     expect(match.ball).toBe(ball);
     expect(match.group.children).toContain(ball.group);
   });
+
+  it('isola falhas do observador de telemetria do resultado da simulação', () => {
+    const match = new Match(createHeadlessHooks(), {
+      ball: new HeadlessBall(),
+      charFactory: createHeadlessCharacter,
+      humanSide: null,
+      random: new RandomHub(77),
+      telemetry: {
+        emit: () => {
+          throw new Error('observador indisponível');
+        },
+      },
+    });
+
+    match.startMatch(1, 0);
+    expect(() => {
+      for (let tick = 1; tick <= 7_200 && match.score[0] + match.score[1] === 0; tick++) {
+        match.update(1 / 60, neutralFrame(tick));
+      }
+    }).not.toThrow();
+    expect(match.score[0] + match.score[1]).toBe(1);
+  });
 });

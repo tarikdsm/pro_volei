@@ -185,6 +185,7 @@ describe('resolveBlock — snap ao ponto analítico de cruzamento (x = 0)', () =
       },
       planNext: noop,
       takeHumanBlockIntent: () => blockIntent,
+      emitTelemetry: noop,
       random,
       isHumanSide: (side: TeamSide) => side === TeamSide.HOME,
     } as unknown as MechanicsCtx;
@@ -305,6 +306,7 @@ describe('resolveBlock — posse após bloqueio', () => {
       planNext: (k: string) => {
         planNextCalls.push(k);
       },
+      emitTelemetry: noop,
       random,
       isHumanSide: (side: TeamSide) => side === TeamSide.HOME,
     } as unknown as MechanicsCtx;

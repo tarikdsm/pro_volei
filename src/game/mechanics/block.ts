@@ -165,6 +165,12 @@ export function resolveBlock(ctx: MechanicsCtx, attackSide: TeamSide): void {
         ctx.hooks.banner(defSide === TeamSide.HOME ? 'MONSTER BLOCK!' : 'BLOQUEADO!');
         ctx.hooks.crowd.excite(1);
         ctx.hooks.audio.cheer(true);
+        ctx.emitTelemetry({
+          type: 'block',
+          side: defSide,
+          outcome: 'stuff',
+          point: { x: bp.x, y: bp.y, z: bp.z },
+        });
         ctx.planNext('dig');
       } else if (r < prox * BLOCK.softThreshold) {
         // pingo: bola sobe devagar e continua no lado defensor — jogável
@@ -173,6 +179,12 @@ export function resolveBlock(ctx: MechanicsCtx, attackSide: TeamSide): void {
         v.z *= 0.4;
         v.y = Math.abs(v.y) * 0.3 + 3.2;
         ctx.ball.launch(bp, v);
+        ctx.emitTelemetry({
+          type: 'block',
+          side: defSide,
+          outcome: 'soft',
+          point: { x: bp.x, y: bp.y, z: bp.z },
+        });
         ctx.planNext('pass');
       } else {
         // explode no bloqueio pra fora (ponto do atacante)
@@ -181,6 +193,12 @@ export function resolveBlock(ctx: MechanicsCtx, attackSide: TeamSide): void {
         v.y = 2;
         v.z = ctx.random.contact.range(-6, 6);
         ctx.ball.launch(bp, v);
+        ctx.emitTelemetry({
+          type: 'block',
+          side: defSide,
+          outcome: 'out',
+          point: { x: bp.x, y: bp.y, z: bp.z },
+        });
         ctx.planNext('pass');
       }
     });

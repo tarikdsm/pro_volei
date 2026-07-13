@@ -95,6 +95,7 @@ function doPass(ctx: MechanicsCtx, plan: TouchPlan, q: number, intent?: ActionIn
 
   // se o time já gastou os 3 toques, esta bola precisa ter ido para o outro lado — senão cai
   if (ctx.rally.possessionTouches >= 3) {
+    emitContact(ctx, plan, plan.kind, q, target);
     ctx.planNext('pass');
     return;
   }
@@ -105,9 +106,11 @@ function doPass(ctx: MechanicsCtx, plan: TouchPlan, q: number, intent?: ActionIn
 
   // passe horrível vira bola de graça pro outro lado às vezes
   if (q < 0.18 && ctx.random.contact.chance(0.5)) {
+    emitContact(ctx, plan, plan.kind, q, target);
     ctx.planNext('pass'); // deixa o motor decidir pelo lado em que vai cair
     return;
   }
+  emitContact(ctx, plan, plan.kind, q, target);
   ctx.planNext('set');
 }
 
@@ -138,6 +141,7 @@ function doSet(ctx: MechanicsCtx, plan: TouchPlan, q: number, intent?: ActionInt
         : baseApex;
   const { v0 } = ballisticArc(plan.point.clone(), contact, apex + (1 - q) * 0.8);
   ctx.ball.launch(plan.point.clone(), v0);
+  emitContact(ctx, plan, 'set', q, contact);
   ctx.hooks.zoneHint(null);
   ctx.planNext('spike');
 }
@@ -197,6 +201,7 @@ function doSpike(ctx: MechanicsCtx, plan: TouchPlan, q: number, intent?: ActionI
     v0 = ballisticDrive(plan.point.clone(), target, time).v0;
   }
   ctx.ball.launch(plan.point.clone(), v0);
+  emitContact(ctx, plan, 'spike', q, target);
   ctx.hooks.effects.showAim(null);
 
   resolveBlock(ctx, side);
@@ -220,6 +225,27 @@ function doFreeball(ctx: MechanicsCtx, plan: TouchPlan, q: number, intent?: Acti
   const apex = lerp(2, 1.1, power) + (1 - q) * 0.8;
   const { v0 } = ballisticArc(plan.point.clone(), target, apex);
   ctx.ball.launch(plan.point.clone(), v0);
+  emitContact(ctx, plan, 'freeball', q, target);
   ctx.hooks.effects.showAim(null);
   ctx.planNext('pass');
+}
+
+function emitContact(
+  ctx: MechanicsCtx,
+  plan: TouchPlan,
+  kind: TouchPlan['kind'],
+  quality: number,
+  target: THREE.Vector3,
+): void {
+  ctx.emitTelemetry({
+    type: 'contact',
+    side: plan.side,
+    kind,
+    athlete: plan.athlete.index,
+    possessionTouch: ctx.rally.possessionTouches,
+    rallyTouch: ctx.rally.rallyTouches,
+    quality,
+    point: { x: plan.point.x, y: plan.point.y, z: plan.point.z },
+    target: { x: target.x, y: target.y, z: target.z },
+  });
 }

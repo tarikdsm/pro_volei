@@ -24,8 +24,16 @@ export function performServe(
     // trajetória resolvida pela folga sobre a rede: força alta = raspando, baixa = flutuante
     const { v0 } = serveDrive(p0, target, COURT.netHeight + clearance);
     ctx.ball.launch(p0, v0);
-    ctx.hooks.audio.hitHard();
     ctx.startRally();
+    ctx.emitTelemetry({
+      type: 'serve',
+      side: ctx.servingTeam,
+      athlete: server.index,
+      power,
+      target: { x: target.x, y: target.y, z: target.z },
+      clearance,
+    });
+    ctx.hooks.audio.hitHard();
     ctx.rally.lastTouchTeam = ctx.servingTeam;
     ctx.rally.lastKind = 'serve';
     ctx.rally.possessionTeam = ctx.servingTeam;

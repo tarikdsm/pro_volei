@@ -1,0 +1,195 @@
+import { describe, expect, it, vi } from 'vitest';
+import { RandomHub } from '../../core/random';
+import { createHeadlessHooks } from './HeadlessHooks';
+import { HeadlessRallyRunner, runHeadlessBatch, runHeadlessRally } from './HeadlessRallyRunner';
+
+describe('HeadlessRallyRunner', () => {
+  it('produz o mesmo journal byte a byte para a mesma seed', () => {
+    const first = runHeadlessRally({ seed: 1 });
+    const replay = runHeadlessRally({ seed: 1 });
+
+    expect(first.serializedJournal).toBe(replay.serializedJournal);
+    expect(first.journalHash).toBe(replay.journalHash);
+    expect(first).toMatchObject({
+      winner: replay.winner,
+      durationTicks: replay.durationTicks,
+      contacts: replay.contacts,
+      cause: replay.cause,
+    });
+    expect(first.journal[0].type).toBe('rally-start');
+    expect(first.journal[1].type).toBe('serve');
+    expect(first.journal.at(-1)?.type).toBe('rally-end');
+  });
+
+  it('seeds diferentes divergem em conteúdo estocástico', () => {
+    const first = runHeadlessRally({ seed: 1 });
+    const other = runHeadlessRally({ seed: 2 });
+
+    expect(first.journal).not.toEqual(other.journal);
+    expect(first.journalHash).not.toBe(other.journalHash);
+  });
+
+  it.each([30, 60, 120] as const)('mantém o resultado a %i Hz externo', (externalHz) => {
+    const baseline = runHeadlessRally({ seed: 0x1234_abcd, externalHz: 60 });
+    const sampled = runHeadlessRally({ seed: 0x1234_abcd, externalHz });
+
+    expect(sampled.serializedJournal).toBe(baseline.serializedJournal);
+    expect(sampled.journalHash).toBe(baseline.journalHash);
+  });
+
+  it.each([30, 120] as const)(
+    'mantém um batch contínuo invariável a %i Hz externo',
+    (externalHz) => {
+      const baseline = runHeadlessBatch({ seed: 0x1234_abcd, externalHz: 60, rallies: 20 });
+      const sampled = runHeadlessBatch({ seed: 0x1234_abcd, externalHz, rallies: 20 });
+
+      expect(sampled.serializedJournal).toBe(baseline.serializedJournal);
+      expect(sampled.rallies).toEqual(baseline.rallies);
+    },
+  );
+
+  it.each([30, 120] as const)(
+    'mantém a fronteira entre chamadas repetidas invariável a %i Hz externo',
+    (externalHz) => {
+      const baseline = new HeadlessRallyRunner({ seed: 2, externalHz: 60 });
+      const sampled = new HeadlessRallyRunner({ seed: 2, externalHz });
+      baseline.run(1);
+      sampled.run(1);
+
+      const expectedNext = baseline.run(1);
+      const sampledNext = sampled.run(1);
+      expect(sampledNext.serializedJournal).toBe(expectedNext.serializedJournal);
+      expect(sampledNext.rallies).toEqual(expectedNext.rallies);
+    },
+  );
+
+  it('executa batch contínuo de 100 rallies com agregados simétricos', () => {
+    const started = performance.now();
+    const batch = runHeadlessBatch({ seed: 0x2026_0712, rallies: 100 });
+    const elapsedMs = performance.now() - started;
+
+    expect(batch.rallies).toHaveLength(100);
+    expect(batch.points[0] + batch.points[1]).toBe(100);
+    expect(batch.aces[0] + batch.aces[1]).toBe(batch.rallies.filter((rally) => rally.ace).length);
+    expect(batch.blocks[0] + batch.blocks[1]).toBe(
+      batch.rallies.reduce((sum, rally) => sum + rally.blocks[0] + rally.blocks[1], 0),
+    );
+    expect(batch.blockTouches[0] + batch.blockTouches[1]).toBe(
+      batch.rallies.reduce((sum, rally) => sum + rally.blockTouches[0] + rally.blockTouches[1], 0),
+    );
+    expect(batch.blockTouches[0] + batch.blockTouches[1]).toBeGreaterThanOrEqual(
+      batch.blocks[0] + batch.blocks[1],
+    );
+    const journalStuff = batch.journal.filter(
+      (entry) => entry.type === 'block' && entry.data[1] === 'stuff',
+    ).length;
+    expect(batch.blocks[0] + batch.blocks[1]).toBe(journalStuff);
+    expect(batch.attacks[0] + batch.attacks[1]).toBe(
+      batch.rallies.reduce((sum, rally) => sum + rally.attacks[0] + rally.attacks[1], 0),
+    );
+    expect(batch.errors[0] + batch.errors[1]).toBe(
+      batch.rallies.reduce((sum, rally) => sum + rally.errors[0] + rally.errors[1], 0),
+    );
+    expect(
+      batch.rallies.some(
+        (rally) => rally.cause === 'floor-in' && rally.errors[0] + rally.errors[1] === 1,
+      ),
+    ).toBe(true);
+    expect(batch.journal.filter((entry) => entry.type === 'rally-end')).toHaveLength(100);
+    expect(batch.totalTicks).toBeGreaterThan(0);
+    console.info(
+      `HEADLESS_BATCH rallies=100 elapsedMs=${elapsedMs.toFixed(1)} ticks=${batch.totalTicks}`,
+    );
+  }, 30_000);
+
+  it('falha com diagnóstico quando o watchdog de ticks é excedido', () => {
+    const runner = new HeadlessRallyRunner({ seed: 1, maxTicksPerPoint: 1 });
+
+    expect(() => runner.run(1)).toThrowError(/limite de ticks/);
+  });
+
+  it('falha com diagnóstico quando o orçamento de eventos é excedido', () => {
+    const runner = new HeadlessRallyRunner({ seed: 1, maxEventsPerRally: 1 });
+
+    expect(() => runner.run(1)).toThrowError(/limite de eventos/);
+  });
+
+  it('não usa timers de parede', () => {
+    const timeout = vi.spyOn(globalThis, 'setTimeout').mockImplementation(() => {
+      throw new Error('setTimeout proibido');
+    });
+    const interval = vi.spyOn(globalThis, 'setInterval').mockImplementation(() => {
+      throw new Error('setInterval proibido');
+    });
+    try {
+      expect(() => runHeadlessRally({ seed: 3 })).not.toThrow();
+    } finally {
+      timeout.mockRestore();
+      interval.mockRestore();
+    }
+  });
+
+  it('variações cosméticas dos hooks não alteram o journal', () => {
+    const noisy = createHeadlessHooks();
+    let cosmeticCalls = 0;
+    Object.assign(noisy.audio, {
+      hitSoft: () => {
+        cosmeticCalls += 1;
+      },
+      hitHard: () => {
+        cosmeticCalls += 1;
+      },
+    });
+    Object.assign(noisy.crowd, {
+      excite: () => {
+        cosmeticCalls += 1;
+      },
+    });
+
+    const baseline = runHeadlessRally({ seed: 88 });
+    const cosmetic = runHeadlessRally({ seed: 88, hooks: noisy });
+
+    expect(cosmetic.serializedJournal).toBe(baseline.serializedJournal);
+    expect(cosmeticCalls).toBeGreaterThan(0);
+  });
+
+  it('só permite checkpoint de RNG na fronteira de ponto', () => {
+    const runner = new HeadlessRallyRunner({ seed: 5 });
+
+    expect(() => runner.checkpointRandom()).toThrow(/fronteira de ponto/);
+    runner.run(1);
+    const checkpoint = runner.checkpointRandom();
+    expect(() => runner.restoreRandom(checkpoint)).not.toThrow();
+  });
+
+  it('restaura o RNG na fronteira e reproduz byte a byte o rally seguinte', () => {
+    const control = new HeadlessRallyRunner({ seed: 5 });
+    const restored = new HeadlessRallyRunner({ seed: 5 });
+    control.run(1);
+    restored.run(1);
+    const checkpoint = restored.checkpointRandom();
+
+    const perturbation = new RandomHub(5);
+    for (const name of ['rules', 'ai', 'contact', 'control']) {
+      perturbation.stream(name).nextUint32();
+    }
+    restored.restoreRandom(perturbation.snapshot());
+    restored.restoreRandom(checkpoint);
+
+    const expected = control.run(1);
+    const replay = restored.run(1);
+    expect(replay.serializedJournal).toBe(expected.serializedJournal);
+    expect(replay.journalHash).toBe(expected.journalHash);
+  });
+
+  it('mantém journal, serialização e hash na mesma fatia em runs repetidos', () => {
+    const runner = new HeadlessRallyRunner({ seed: 9 });
+    runner.run(1);
+
+    const second = runner.run(1);
+    const envelope = JSON.parse(second.serializedJournal) as { events: unknown[] };
+
+    expect(envelope.events).toHaveLength(second.journal.length);
+    expect(second.journal.every((entry) => entry.rally === 1)).toBe(true);
+  });
+});

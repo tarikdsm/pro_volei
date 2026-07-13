@@ -85,6 +85,7 @@ function makeCtx(stalePos: THREE.Vector3): {
     teamOf: () => team,
     after: noop,
     planNext: (kind: string) => planned.push(kind),
+    emitTelemetry: noop,
     random: makeRandomStreams(),
     isHumanSide: (side: TeamSide) => side === TeamSide.HOME,
   } as unknown as MechanicsCtx;
@@ -270,5 +271,20 @@ describe('executeTouch — ownership e orçamento de RNG', () => {
 
     expect(contact.draws).toBe(1);
     expect(ai.draws).toBe(9);
+  });
+
+  it('emite o contato somente após consumir todas as decisões do ramo', () => {
+    const sample = makeCtx(new THREE.Vector3());
+    const contact = SequenceRandom.fromFloats([0.25, 0.75, 0.1]);
+    const ai = SequenceRandom.fromFloats([0.5]);
+    const drawsAtEmission: number[] = [];
+    Object.assign(sample.ctx.random, { contact, ai });
+    sample.ctx.emitTelemetry = () => drawsAtEmission.push(contact.draws);
+    const plan = makePlan('pass', sample.ctx.teamOf(TeamSide.HOME).nearestTo(0, 0));
+
+    executeTouch(sample.ctx, plan, 0.1);
+
+    expect(contact.draws).toBe(3);
+    expect(drawsAtEmission).toEqual([3]);
   });
 });

@@ -9,6 +9,7 @@ import { RallyState } from '../RallyState';
 import type { MatchHooks as Hooks, MatchStats } from '../ports/MatchHooks';
 import type { ActionIntent } from '../control/ActionIntent';
 import type { RandomSource } from '../../core/random';
+import type { SimulationTelemetryEmitter } from '../simulation/SimulationTelemetry';
 
 export interface GameplayRandomStreams {
   readonly rules: RandomSource;
@@ -27,6 +28,7 @@ export interface MechanicsCtx {
   chosenZone: number; // leitura (levantamento humano)
   stats: MatchStats; // escrita (stats.blocks no bloqueio)
   random: GameplayRandomStreams;
+  emitTelemetry: SimulationTelemetryEmitter;
   isHumanSide(side: TeamSide): boolean;
   teamOf(side: TeamSide): Team;
   after(t: number, fn: () => void): void;
