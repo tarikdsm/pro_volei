@@ -17,6 +17,14 @@ export interface TouchPlan {
   done: boolean;
 }
 
+export interface CommittedBlockPlan {
+  readonly planId: number;
+  readonly tacticalRevision: number;
+  readonly side: TeamSide;
+  readonly primaryAthleteId: number;
+  readonly assistAthleteId: number | null;
+}
+
 export class RallyState {
   private nextPlanId = 1;
   // posse e toques
@@ -37,6 +45,7 @@ export class RallyState {
   plannedAttacker: Athlete | null = null;
   lastToucher: Athlete | null = null;
   blockers: { athlete: Athlete; jumpIn: number; jumped: boolean }[] = [];
+  blockPlan: CommittedBlockPlan | null = null;
 
   /** Identidade monotônica do plano; não reinicia entre pontos para impedir rebind obsoleto. */
   allocatePlanId(): number {
@@ -82,6 +91,7 @@ export class RallyState {
     // planejamento: limpa bloqueadores agendados e ponteiros do próximo toque
     // para nenhum agendamento vazar entre pontos (pulo fantasma / lixo latente).
     this.blockers = [];
+    this.blockPlan = null;
     this.setterHold = null;
     this.plannedAttacker = null;
     this.lastToucher = null;

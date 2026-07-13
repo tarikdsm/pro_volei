@@ -13,6 +13,7 @@ import {
 import { ballisticDrive, clamp } from '../../core/math3d';
 import { computeNetCrossing } from './net';
 import type { MechanicsCtx } from './context';
+import type { BlockPlan } from '../team/TeamTactics';
 
 interface Vec3 {
   x: number;
@@ -82,19 +83,34 @@ export function prepareBlock(
   side: TeamSide,
   z: number,
   contactIn: number,
+  plan?: BlockPlan | null,
 ): void {
   ctx.rally.blockers = [];
   const team = ctx.teamOf(side);
   const isAI = !ctx.isHumanSide(side);
-  const blocker = team.nearestFrontRowTo(z);
-  const bx = sideSign(side) * BLOCK.netX;
-  blocker.moveTo(bx, clamp(z, -COURT.halfWidth + 0.4, COURT.halfWidth - 0.4));
+  const primary = plan
+    ? team.athletes.find((athlete) => athlete.index === plan.primaryAthleteId)
+    : team.nearestFrontRowTo(z);
+  if (!primary) throw new Error(`Bloqueadora primária ${String(plan?.primaryAthleteId)} ausente`);
+  const assist =
+    plan?.assistAthleteId === null || plan?.assistAthleteId === undefined
+      ? null
+      : (team.athletes.find((athlete) => athlete.index === plan.assistAthleteId) ?? null);
+  if (plan?.assistAthleteId !== null && plan?.assistAthleteId !== undefined && !assist) {
+    throw new Error(`Assistente de bloqueio ${plan.assistAthleteId} ausente`);
+  }
+  if (!plan) {
+    const bx = sideSign(side) * BLOCK.netX;
+    primary.moveTo(bx, clamp(z, -COURT.halfWidth + 0.4, COURT.halfWidth - 0.4));
+  }
   if (isAI && ctx.random.ai.chance(ctx.diff.blockChance)) {
-    ctx.rally.blockers.push({
-      athlete: blocker,
-      jumpIn: contactIn + ctx.random.ai.range(BLOCK.jumpDelayRange[0], BLOCK.jumpDelayRange[1]),
-      jumped: false,
-    });
+    for (const blocker of [primary, assist].filter((athlete) => athlete !== null)) {
+      ctx.rally.blockers.push({
+        athlete: blocker,
+        jumpIn: contactIn + ctx.random.ai.range(BLOCK.jumpDelayRange[0], BLOCK.jumpDelayRange[1]),
+        jumped: false,
+      });
+    }
   }
 }
 
@@ -114,13 +130,28 @@ export function resolveBlock(ctx: MechanicsCtx, attackSide: TeamSide): void {
     : null;
   const zReachBonus = (humanIntent?.reach ?? 0) * 0.35;
   const heightBonus = (humanIntent?.penetration ?? 0) * 0.22;
+  const committed = ctx.rally.blockPlan;
+  const committedHumanIds =
+    isHumanDef &&
+    committed &&
+    committed.side === defSide &&
+    committed.planId === ctx.rally.plan?.planId
+      ? new Set(
+          [committed.primaryAthleteId, committed.assistAthleteId].filter(
+            (athleteId): athleteId is number => athleteId !== null,
+          ),
+        )
+      : null;
+  if (isHumanDef && !committedHumanIds) return;
+  const candidates: { blocker: ReturnType<typeof team.frontRow>[number]; proximity: number }[] = [];
   for (const blocker of team.frontRow()) {
     // elegibilidade no cruzamento: humano usa o pulo real; a IA usa a pertinência à lista
     // de agendados, agora estável durante todo o ataque (não depende mais do frame exato
     // do pulo, pois o pulo marca `jumped` sem remover a entrada — ver AiController).
+    const scheduled = ctx.rally.blockers.find((entry) => entry.athlete === blocker);
     const isScheduledBlocker = isHumanDef
-      ? blocker.isAirborne && blocker.jumpY > 0.18
-      : ctx.rally.blockers.some((b) => b.athlete === blocker);
+      ? committedHumanIds!.has(blocker.index) && blocker.isAirborne && blocker.jumpY > 0.18
+      : scheduled !== undefined && (scheduled.jumped || scheduled.jumpIn <= cross.t);
     if (!isScheduledBlocker) continue;
     // jumpY é real p/ o humano (já no ar); p/ a IA vale ≈0 no lançamento (pulo diferido),
     // então o alcance dela fica congelado em CONTACT.blockReach de propósito, sem prever o ápice.
@@ -129,79 +160,87 @@ export function resolveBlock(ctx: MechanicsCtx, attackSide: TeamSide): void {
     )
       continue;
 
-    // BLOQUEIO! resolve no instante do cruzamento (prox congelada no agendamento)
     const baseProximity = blockProximity(blocker.pos.z, cross.z, BLOCK.zReach + zReachBonus);
-    const prox = clamp(
+    const proximity = clamp(
       baseProximity + (1 - baseProximity) * (humanIntent?.penetration ?? 0) * 0.35,
       0,
       1,
     );
-    ctx.after(cross.t, () => {
-      const r = ctx.random.contact.nextFloat();
-      // origem no ponto analítico de cruzamento da rede (x=0), não na pos stale da bola
-      const bp = new THREE.Vector3(0, cross.y, cross.z);
-      ctx.hooks.audio.block();
-      ctx.hooks.effects.burst(bp, 0x9fd8ff, 20, 6);
-      ctx.hooks.camera.addShake(0.6);
-      blocker.act('block', 0.5);
-      ctx.rally.lastToucher = blocker;
-      ctx.rally.lastTouchTeam = defSide;
-      ctx.rally.lastKind = 'block';
-      ctx.rally.rallyTouches++;
-      // toque de bloqueio não conta p/ nenhum lado: quem tocar a seguir recomeça os 3 toques
-      ctx.rally.possessionTeam = null;
-      ctx.rally.possessionTouches = 0;
-
-      if (r < prox * BLOCK.stuffThreshold) {
-        // STUFF: devolve no chão do atacante
-        const tgt = new THREE.Vector3(
-          sideSign(attackSide) * ctx.random.contact.range(1, 3.5),
-          0,
-          bp.z + ctx.random.contact.range(-1.5, 1.5),
-        );
-        const { v0 } = ballisticDrive(bp, tgt, 0.32);
-        ctx.ball.launch(bp, v0);
-        if (defSide === TeamSide.HOME) ctx.stats.blocks++;
-        ctx.hooks.banner(defSide === TeamSide.HOME ? 'MONSTER BLOCK!' : 'BLOQUEADO!');
-        ctx.hooks.crowd.excite(1);
-        ctx.hooks.audio.cheer(true);
-        ctx.emitTelemetry({
-          type: 'block',
-          side: defSide,
-          outcome: 'stuff',
-          point: { x: bp.x, y: bp.y, z: bp.z },
-        });
-        ctx.planNext('dig');
-      } else if (r < prox * BLOCK.softThreshold) {
-        // pingo: bola sobe devagar e continua no lado defensor — jogável
-        const v = ctx.ball.vel.clone();
-        v.x *= 0.25;
-        v.z *= 0.4;
-        v.y = Math.abs(v.y) * 0.3 + 3.2;
-        ctx.ball.launch(bp, v);
-        ctx.emitTelemetry({
-          type: 'block',
-          side: defSide,
-          outcome: 'soft',
-          point: { x: bp.x, y: bp.y, z: bp.z },
-        });
-        ctx.planNext('pass');
-      } else {
-        // explode no bloqueio pra fora (ponto do atacante)
-        const v = ctx.ball.vel.clone();
-        v.x *= -0.3;
-        v.y = 2;
-        v.z = ctx.random.contact.range(-6, 6);
-        ctx.ball.launch(bp, v);
-        ctx.emitTelemetry({
-          type: 'block',
-          side: defSide,
-          outcome: 'out',
-          point: { x: bp.x, y: bp.y, z: bp.z },
-        });
-        ctx.planNext('pass');
-      }
-    });
-    return; // um bloqueador resolve
+    candidates.push({ blocker, proximity });
   }
+  if (candidates.length === 0) return;
+  candidates.sort((a, b) => a.blocker.index - b.blocker.index);
+  const prox = 1 - candidates.reduce((miss, candidate) => miss * (1 - candidate.proximity), 1);
+  const blocker = candidates
+    .slice()
+    .sort((a, b) => b.proximity - a.proximity || a.blocker.index - b.blocker.index)[0].blocker;
+
+  // A dupla amplia a janela lateral, mas produz exatamente um contato, evento e sorteio.
+  ctx.after(cross.t, () => {
+    const r = ctx.random.contact.nextFloat();
+    ctx.rally.blockers = [];
+    // origem no ponto analítico de cruzamento da rede (x=0), não na pos stale da bola
+    const bp = new THREE.Vector3(0, cross.y, cross.z);
+    ctx.hooks.audio.block();
+    ctx.hooks.effects.burst(bp, 0x9fd8ff, 20, 6);
+    ctx.hooks.camera.addShake(0.6);
+    blocker.act('block', 0.5);
+    ctx.rally.lastToucher = blocker;
+    ctx.rally.lastTouchTeam = defSide;
+    ctx.rally.lastKind = 'block';
+    ctx.rally.rallyTouches++;
+    // toque de bloqueio não conta p/ nenhum lado: quem tocar a seguir recomeça os 3 toques
+    ctx.rally.possessionTeam = null;
+    ctx.rally.possessionTouches = 0;
+
+    if (r < prox * BLOCK.stuffThreshold) {
+      // STUFF: devolve no chão do atacante
+      const tgt = new THREE.Vector3(
+        sideSign(attackSide) * ctx.random.contact.range(1, 3.5),
+        0,
+        bp.z + ctx.random.contact.range(-1.5, 1.5),
+      );
+      const { v0 } = ballisticDrive(bp, tgt, 0.32);
+      ctx.ball.launch(bp, v0);
+      if (defSide === TeamSide.HOME) ctx.stats.blocks++;
+      ctx.hooks.banner(defSide === TeamSide.HOME ? 'MONSTER BLOCK!' : 'BLOQUEADO!');
+      ctx.hooks.crowd.excite(1);
+      ctx.hooks.audio.cheer(true);
+      ctx.emitTelemetry({
+        type: 'block',
+        side: defSide,
+        outcome: 'stuff',
+        point: { x: bp.x, y: bp.y, z: bp.z },
+      });
+      ctx.planNext('dig');
+    } else if (r < prox * BLOCK.softThreshold) {
+      // pingo: bola sobe devagar e continua no lado defensor — jogável
+      const v = ctx.ball.vel.clone();
+      v.x *= 0.25;
+      v.z *= 0.4;
+      v.y = Math.abs(v.y) * 0.3 + 3.2;
+      ctx.ball.launch(bp, v);
+      ctx.emitTelemetry({
+        type: 'block',
+        side: defSide,
+        outcome: 'soft',
+        point: { x: bp.x, y: bp.y, z: bp.z },
+      });
+      ctx.planNext('pass');
+    } else {
+      // explode no bloqueio pra fora (ponto do atacante)
+      const v = ctx.ball.vel.clone();
+      v.x *= -0.3;
+      v.y = 2;
+      v.z = ctx.random.contact.range(-6, 6);
+      ctx.ball.launch(bp, v);
+      ctx.emitTelemetry({
+        type: 'block',
+        side: defSide,
+        outcome: 'out',
+        point: { x: bp.x, y: bp.y, z: bp.z },
+      });
+      ctx.planNext('pass');
+    }
+  });
 }

@@ -333,6 +333,8 @@ describe('HumanController ActionControl 2D', () => {
     hc.update(1 / 60, makeFrame({ tick: 2, released: true }), ctx);
 
     expect(blocker.jumps).toHaveLength(1);
+    expect(hc.takeBlockCommit()).toEqual({ planId: 25, athleteId: 0, jumpTick: 0 });
+    expect(hc.takeBlockCommit()).toBeNull();
     expect(hc.takeContactIntent(plan.planId)).toBe(null);
     expect(hc.takeBlockIntent(plan.planId)).toMatchObject({ context: 'block', token: 25 });
     expect(hc.takeBlockIntent(plan.planId)).toBe(null);

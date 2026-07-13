@@ -53,6 +53,7 @@ describe('Match + TeamTacticsSystem', () => {
     let sawReception = false;
     let sawTransition = false;
     let sawAttackCoverage = false;
+    let sawBlockDefense = false;
     let tick = 1;
 
     for (; tick <= 7_200 && match.state !== 'point'; tick++) {
@@ -63,6 +64,7 @@ describe('Match + TeamTacticsSystem', () => {
       sawTransition ||=
         home?.phase === 'offense-transition' || away?.phase === 'offense-transition';
       sawAttackCoverage ||= home?.phase === 'attack-coverage' || away?.phase === 'attack-coverage';
+      sawBlockDefense ||= home?.phase === 'block-defense' || away?.phase === 'block-defense';
     }
 
     expect(sawReception).toBe(true);
@@ -92,12 +94,40 @@ describe('Match + TeamTacticsSystem', () => {
     expect(serverAssignment?.target.x).toBeCloseTo(server.pos.x, 8);
     expect(serverAssignment?.target.z).toBeCloseTo(server.pos.z, 8);
 
-    for (; tick <= 60_000 && !sawAttackCoverage; tick++) {
+    for (; tick <= 60_000 && (!sawAttackCoverage || !sawBlockDefense); tick++) {
       match.update(1 / 60, neutralFrame(tick));
-      sawAttackCoverage =
+      sawAttackCoverage ||=
         match.teamTacticsSnapshot(TeamSide.HOME)?.phase === 'attack-coverage' ||
         match.teamTacticsSnapshot(TeamSide.AWAY)?.phase === 'attack-coverage';
+      sawBlockDefense ||=
+        match.teamTacticsSnapshot(TeamSide.HOME)?.phase === 'block-defense' ||
+        match.teamTacticsSnapshot(TeamSide.AWAY)?.phase === 'block-defense';
     }
     expect(sawAttackCoverage).toBe(true);
+    expect(sawBlockDefense).toBe(true);
+  });
+
+  it('faz a assistente saltar somente após o compromisso real da primária humana', () => {
+    const match = headlessMatch(TeamSide.HOME);
+    match.debugBlockTacticsScenario();
+    const block = match.teamTacticsSnapshot(TeamSide.HOME)?.block;
+    expect(block?.assistAthleteId).not.toBeNull();
+    const assist = match.home.athletes.find((athlete) => athlete.index === block?.assistAthleteId)!;
+    expect(assist.isAirborne).toBe(false);
+
+    const first = neutralFrame(1);
+    const press: ControlFrame = {
+      ...first,
+      actionDown: true,
+      actionEdges: [{ kind: 'press', source: 'keyboard', atMs: first.sampledAtMs, sequence: 0 }],
+    };
+    match.update(1 / 60, press);
+    const second = neutralFrame(2);
+    match.update(1 / 60, {
+      ...second,
+      actionEdges: [{ kind: 'release', source: 'keyboard', atMs: second.sampledAtMs, sequence: 0 }],
+    });
+
+    expect(assist.isAirborne).toBe(true);
   });
 });

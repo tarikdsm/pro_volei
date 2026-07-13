@@ -15,6 +15,7 @@ import {
   MATCH_FORMATS,
   TouchKind,
   CAMERA_FEEL,
+  BLOCK,
 } from '../core/constants';
 import { ballisticArc, clamp } from '../core/math3d';
 import { RandomHub } from '../core/random';
@@ -283,6 +284,30 @@ export class Match {
     this.beginServePrep();
   }
 
+  /** Cenário DEV determinístico para validar autoridade humana e assistente no bloqueio duplo. */
+  debugBlockTacticsScenario(): void {
+    if (!import.meta.env.DEV) return;
+    this.timeline.clearScheduled();
+    this.state = 'rally';
+    this.rally.reset();
+    const attacker = this.away.frontRow()[1];
+    const plan: TouchPlan = {
+      planId: this.rally.allocatePlanId(),
+      side: TeamSide.AWAY,
+      athlete: attacker,
+      contactIn: 0.6,
+      point: new THREE.Vector3(0.9, CONTACT.spike, 0),
+      kind: 'spike',
+      isHuman: false,
+      tacticalRevision: 0,
+      done: false,
+    };
+    this.rally.plan = plan;
+    this.human.assignBlock(this.home.nearestFrontRowTo(0), this.ctx);
+    const primaryId = this.human.controlSnapshot().athleteId;
+    this.coordinateBlockDefense(plan, TeamSide.HOME, 0, plan.contactIn, primaryId);
+  }
+
   // ---------------------------------------------------------------- SAQUE
   private beginServePrep(): void {
     this.state = 'servePrep';
@@ -422,16 +447,31 @@ export class Match {
     this.hooks.camera.setMode(camModeForTouch(nextKind));
 
     // spike: preparação do bloqueio adversário (mecânica; independe do atacante)
+    let humanBlockAssigned = false;
     if (nextKind === 'spike') {
-      prepareBlock(this.ctx, otherSide(landSide), cPoint.z, cT);
+      const defenseSide = otherSide(landSide);
+      let humanPrimaryId: number | null = null;
+      if (this.isHumanSide(defenseSide)) {
+        const humanTeam = this.teamOf(defenseSide);
+        this.human.assignBlock(humanTeam.nearestFrontRowTo(cPoint.z), this.ctx);
+        humanPrimaryId = this.human.controlSnapshot().athleteId;
+        humanBlockAssigned = true;
+      }
+      const defense = this.coordinateBlockDefense(
+        this.rally.plan,
+        defenseSide,
+        cPoint.z,
+        cT,
+        humanPrimaryId,
+      );
+      prepareBlock(this.ctx, defenseSide, cPoint.z, cT, defense.block);
     }
 
     // controle: humano assume seu lado; contra a cortada da IA, pode bloquear
     if (isHuman) {
       if (!humanReceptionAssigned) this.human.onAssigned(this.ctx, this.rally.plan);
     } else if (nextKind === 'spike' && this.isHumanSide(otherSide(landSide))) {
-      const humanTeam = this.teamOf(otherSide(landSide));
-      this.human.assignBlock(humanTeam.nearestFrontRowTo(cPoint.z), this.ctx);
+      if (!humanBlockAssigned) throw new Error('Bloqueio humano sem autoridade definida');
     } else {
       this.human.idle(this.ctx);
     }
@@ -459,6 +499,7 @@ export class Match {
     this.away.beginFixedStep();
     this.human.update(dt, frame, this.ctx);
     this.syncHumanSelectionTactics();
+    this.applyHumanBlockCommit();
     this.timeline.step(dt);
     this.ball.endFixedStep();
     this.flushTelemetry();
@@ -815,7 +856,68 @@ export class Match {
     if (control.selectionRevision === this.lastHumanSelectionRevision) return;
     this.lastHumanSelectionRevision = control.selectionRevision;
     const plan = this.rally.plan;
-    if (plan?.isHuman && isReceptionTouch(plan.kind)) this.coordinateTeamPlan(plan);
+    if (plan?.isHuman && isReceptionTouch(plan.kind)) {
+      this.coordinateTeamPlan(plan);
+    } else if (
+      plan?.kind === 'spike' &&
+      control.mode === 'block' &&
+      control.athleteId !== null &&
+      this.isHumanSide(otherSide(plan.side))
+    ) {
+      this.coordinateBlockDefense(
+        plan,
+        otherSide(plan.side),
+        plan.point.z,
+        plan.contactIn,
+        control.athleteId,
+      );
+    }
+  }
+
+  private coordinateBlockDefense(
+    attackPlan: TouchPlan,
+    defenseSide: TeamSide,
+    crossZ: number,
+    contactIn: number,
+    humanPrimaryId: number | null,
+  ): TeamPlan {
+    const tactical = this.teamTactics.coordinate({
+      team: this.teamOf(defenseSide),
+      phase: 'block-defense',
+      planId: attackPlan.planId,
+      activeAthleteId: humanPrimaryId,
+      contactPoint: { x: sideSign(defenseSide) * BLOCK.netX, z: crossZ },
+      contactIn,
+    });
+    if (tactical.block) {
+      this.rally.blockPlan = Object.freeze({
+        planId: attackPlan.planId,
+        tacticalRevision: tactical.revision,
+        side: defenseSide,
+        primaryAthleteId: tactical.block.primaryAthleteId,
+        assistAthleteId: tactical.block.assistAthleteId,
+      });
+    }
+    return tactical;
+  }
+
+  private applyHumanBlockCommit(): void {
+    const commit = this.human.takeBlockCommit();
+    if (!commit) return;
+    const plan = this.rally.plan;
+    if (!plan || plan.kind !== 'spike' || plan.planId !== commit.planId) return;
+    const defenseSide = otherSide(plan.side);
+    if (!this.isHumanSide(defenseSide)) return;
+    const block = this.teamTactics.snapshot(defenseSide)?.block;
+    if (!block || block.primaryAthleteId !== commit.athleteId || block.assistAthleteId === null) {
+      return;
+    }
+    const assist = this.teamOf(defenseSide).athletes.find(
+      (athlete) => athlete.index === block.assistAthleteId,
+    );
+    if (!assist || assist.isAirborne) return;
+    assist.act('block', 0.8);
+    assist.jump(PLAYER.blockJumpVel);
   }
 
   private emitTelemetry(event: Readonly<SimulationEventDraft>): void {

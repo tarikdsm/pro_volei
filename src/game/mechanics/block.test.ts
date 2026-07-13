@@ -5,16 +5,18 @@ import {
   blockerReaches,
   blockProximity,
   isBlockable,
+  prepareBlock,
   resolveBlock,
   BlockCrossing,
 } from './block';
-import { RallyState } from '../RallyState';
+import { RallyState, type TouchPlan } from '../RallyState';
 import { TeamSide, COURT, BLOCK } from '../../core/constants';
 import type { MechanicsCtx } from './context';
 import type { Athlete } from '../Team';
 import type { ActionIntent } from '../control/ActionIntent';
 import { RandomHub } from '../../core/random';
 import { SequenceRandom } from '../../core/random/testing/SequenceRandom';
+import type { BlockPlan } from '../team/TeamTactics';
 
 function makeRandomStreams(contactFloats: readonly number[] = [0.5, 0.5, 0.5]) {
   const hub = new RandomHub(1);
@@ -98,6 +100,160 @@ describe('blockProximity', () => {
   });
 });
 
+describe('prepareBlock — plano coletivo', () => {
+  it('agenda primária e assistente da CPU com uma decisão de tentativa', () => {
+    const primary = { index: 3, moveTo() {} } as unknown as Athlete;
+    const assist = { index: 4, moveTo() {} } as unknown as Athlete;
+    const rally = new RallyState();
+    const ai = SequenceRandom.fromFloats([0, 0.25, 0.75]);
+    const ctx = {
+      rally,
+      diff: { blockChance: 1 },
+      random: { ...makeRandomStreams(), ai },
+      teamOf: () => ({
+        athletes: [primary, assist],
+        nearestFrontRowTo: () => primary,
+      }),
+      isHumanSide: () => false,
+    } as unknown as MechanicsCtx;
+    const plan: BlockPlan = {
+      primaryAthleteId: 3,
+      assistAthleteId: 4,
+      crossZ: 0.4,
+      contactIn: 0.8,
+    };
+
+    prepareBlock(ctx, TeamSide.HOME, 0.4, 0.8, plan);
+
+    expect(rally.blockers.map((entry) => entry.athlete.index)).toEqual([3, 4]);
+    expect(rally.blockers.every((entry) => entry.jumpIn >= 0.8)).toBe(true);
+    expect(ai.draws).toBe(3);
+  });
+});
+
+describe('resolveBlock — união da dupla', () => {
+  function doubleCtx(reverse: boolean) {
+    const scheduled: Array<() => void> = [];
+    const planNextCalls: string[] = [];
+    const telemetry: unknown[] = [];
+    const makeBlocker = (index: number, z: number) =>
+      ({
+        index,
+        isAirborne: true,
+        jumpY: 0.5,
+        pos: new THREE.Vector3(-BLOCK.netX, 0, z),
+        act() {},
+      }) as unknown as Athlete;
+    const first = makeBlocker(3, 0.1);
+    const second = makeBlocker(4, 0.9);
+    const blockers = reverse ? [second, first] : [first, second];
+    const contact = SequenceRandom.fromFloats([0.35, 0.5, 0.5]);
+    const rally = new RallyState();
+    rally.plan = { planId: 7 } as TouchPlan;
+    rally.blockPlan = {
+      planId: 7,
+      tacticalRevision: 1,
+      side: TeamSide.HOME,
+      primaryAthleteId: 3,
+      assistAthleteId: 4,
+    };
+    const ctx = {
+      ball: {
+        pos: new THREE.Vector3(-2, 3, 0.5),
+        vel: new THREE.Vector3(10, 1, 0),
+        launch() {},
+      },
+      rally,
+      hooks: {
+        audio: { block() {}, cheer() {} },
+        effects: { burst() {} },
+        camera: { addShake() {} },
+        crowd: { excite() {} },
+        banner() {},
+      },
+      stats: { aces: 0, blocks: 0, longestRally: 0, points: [0, 0] as [number, number] },
+      teamOf: () => ({ frontRow: () => blockers }),
+      after: (_t: number, fn: () => void) => scheduled.push(fn),
+      planNext: (kind: string) => planNextCalls.push(kind),
+      takeHumanBlockIntent: () => null,
+      emitTelemetry: (event: unknown) => telemetry.push(event),
+      random: { ...makeRandomStreams(), contact },
+      isHumanSide: () => true,
+    } as unknown as MechanicsCtx;
+    return { ctx, scheduled, planNextCalls, telemetry, contact };
+  }
+
+  it('resolve exatamente um contato e é invariável à ordem das candidatas', () => {
+    const direct = doubleCtx(false);
+    const reversed = doubleCtx(true);
+
+    resolveBlock(direct.ctx, TeamSide.AWAY);
+    resolveBlock(reversed.ctx, TeamSide.AWAY);
+    expect(direct.scheduled).toHaveLength(1);
+    expect(reversed.scheduled).toHaveLength(1);
+    direct.scheduled[0]();
+    reversed.scheduled[0]();
+
+    expect(direct.planNextCalls).toEqual(['dig']);
+    expect(reversed.planNextCalls).toEqual(['dig']);
+    expect(direct.telemetry).toHaveLength(1);
+    expect(reversed.telemetry).toHaveLength(1);
+    expect(direct.contact.draws).toBe(3);
+    expect(reversed.contact.draws).toBe(3);
+  });
+
+  it('não inclui a assistente da CPU cujo salto começa depois do cruzamento', () => {
+    const scheduled: Array<() => void> = [];
+    const planNextCalls: string[] = [];
+    const primary = {
+      index: 3,
+      jumpY: 0,
+      pos: new THREE.Vector3(BLOCK.netX, 0, 0.1),
+      act() {},
+    } as unknown as Athlete;
+    const lateAssist = {
+      index: 4,
+      jumpY: 0,
+      pos: new THREE.Vector3(BLOCK.netX, 0, 0.9),
+      act() {},
+    } as unknown as Athlete;
+    const rally = new RallyState();
+    rally.blockers = [
+      { athlete: primary, jumpIn: 0, jumped: false },
+      { athlete: lateAssist, jumpIn: 0.1, jumped: false },
+    ];
+    const ctx = {
+      ball: {
+        pos: new THREE.Vector3(-0.5, 3, 0.5),
+        vel: new THREE.Vector3(10, 1, 0),
+        launch() {},
+      },
+      rally,
+      hooks: {
+        audio: { block() {}, cheer() {} },
+        effects: { burst() {} },
+        camera: { addShake() {} },
+        crowd: { excite() {} },
+        banner() {},
+      },
+      stats: { aces: 0, blocks: 0, longestRally: 0, points: [0, 0] as [number, number] },
+      teamOf: () => ({ frontRow: () => [primary, lateAssist] }),
+      after: (_t: number, fn: () => void) => scheduled.push(fn),
+      planNext: (kind: string) => planNextCalls.push(kind),
+      emitTelemetry() {},
+      random: { ...makeRandomStreams(), contact: SequenceRandom.fromFloats([0.35]) },
+      isHumanSide: () => false,
+    } as unknown as MechanicsCtx;
+
+    resolveBlock(ctx, TeamSide.HOME);
+    expect(scheduled).toHaveLength(1);
+    scheduled[0]();
+
+    expect(planNextCalls).toEqual(['pass']);
+    expect(rally.blockers).toEqual([]);
+  });
+});
+
 describe('isBlockable', () => {
   it('cortada que vai na rede não é bloqueável (deve virar falta de rede)', () => {
     // contato da IA na rede (x≈0.9, y=3.0) mirando baixo: cruza x=0 a ~2,25 m,
@@ -156,17 +312,27 @@ describe('resolveBlock — snap ao ponto analítico de cruzamento (x = 0)', () =
       },
     };
     const blocker = {
+      index: 0,
       isAirborne: true,
       jumpY: 0.5,
       pos: new THREE.Vector3(-BLOCK.netX, 0, blockerZ),
       act: noop,
     } as unknown as Athlete;
     const team = { frontRow: () => [blocker] };
+    const rally = new RallyState();
+    rally.plan = { planId: 7 } as TouchPlan;
+    rally.blockPlan = {
+      planId: 7,
+      tacticalRevision: 1,
+      side: TeamSide.HOME,
+      primaryAthleteId: 0,
+      assistAthleteId: null,
+    };
 
     const random = makeRandomStreams(contactFloats);
     const ctx = {
       ball,
-      rally: new RallyState(),
+      rally,
       hooks: {
         audio: { block: noop, cheer: noop },
         effects: {
@@ -279,6 +445,7 @@ describe('resolveBlock — posse após bloqueio', () => {
     };
     // HOME defende no ar contra ataque AWAY; z alinhado ao cruzamento → prox = 1
     const blocker = {
+      index: 0,
       isAirborne: true,
       jumpY: 0.5,
       pos: new THREE.Vector3(-BLOCK.netX, 0, 0.5),
@@ -286,6 +453,14 @@ describe('resolveBlock — posse após bloqueio', () => {
     } as unknown as Athlete;
     const team = { frontRow: () => [blocker] };
     const rally = new RallyState();
+    rally.plan = { planId: 7 } as TouchPlan;
+    rally.blockPlan = {
+      planId: 7,
+      tacticalRevision: 1,
+      side: TeamSide.HOME,
+      primaryAthleteId: 0,
+      assistAthleteId: null,
+    };
 
     const random = makeRandomStreams(contactFloats);
     const ctx = {

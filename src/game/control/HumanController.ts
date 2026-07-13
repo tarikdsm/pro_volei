@@ -30,6 +30,11 @@ export interface HumanControlSnapshot {
   readonly athleteId: number | null;
   readonly selectionRevision: number;
 }
+export interface HumanBlockCommitted {
+  readonly planId: number;
+  readonly athleteId: number;
+  readonly jumpTick: number;
+}
 type ControlMarker = THREE.Object3D & { material?: THREE.Material | THREE.Material[] };
 
 const FIXED_HZ = 60;
@@ -55,6 +60,7 @@ export class HumanController {
   private resolvedTiming: TimingEvaluation | null = null;
   private lastFeedbackKey: string | null = null;
   private jumpedToken: number | null = null;
+  private pendingBlockCommit: Readonly<HumanBlockCommitted> | null = null;
 
   readonly aim = new THREE.Vector3(5.5, 0, 0);
   chosenZone = 0;
@@ -114,6 +120,7 @@ export class HumanController {
     this.activeContext = null;
     this.lastFrame = null;
     this.lastRequest = null;
+    this.pendingBlockCommit = null;
   }
 
   resetForServe(ctx: MechanicsCtx): void {
@@ -173,6 +180,7 @@ export class HumanController {
     const plan = ctx.rally.plan;
     if (plan) this.bindAction(plan.planId, 'block');
     this.ctl = 'block';
+    this.pendingBlockCommit = null;
     this.setControlled(this.autoControl.beginBlock(ctx, blocker));
     ctx.hooks.hint('Toque para bloqueio rápido · segure para penetrar');
   }
@@ -318,6 +326,12 @@ export class HumanController {
     const intent = this.actionControl.take(planId, 'block');
     if (intent) this.consumedContactIntent = intent;
     return intent;
+  }
+
+  takeBlockCommit(): Readonly<HumanBlockCommitted> | null {
+    const commit = this.pendingBlockCommit;
+    this.pendingBlockCommit = null;
+    return commit;
   }
 
   /** Evento one-shot no contato; usa exatamente a qualidade final entregue à física. */
@@ -472,6 +486,11 @@ export class HumanController {
     } else {
       this.controlled.act('block', 0.8);
       this.controlled.jump(PLAYER.blockJumpVel);
+      this.pendingBlockCommit = Object.freeze({
+        planId: token,
+        athleteId: this.controlled.index,
+        jumpTick: this.lastFrame?.simulationTick ?? 0,
+      });
     }
   }
 
