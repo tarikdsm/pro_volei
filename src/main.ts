@@ -24,6 +24,8 @@ import { detectMotionProfile } from './systems/camera/MotionProfile';
 import { createSafeFrame } from './ui/SafeFrameLayout';
 import type { SafeFrame, ScreenRect } from './systems/camera/CameraFrame';
 import { parseSeed, RandomHub } from './core/random';
+import { RallyJournal, type RallyJournalEntry } from './game/simulation/RallyJournal';
+import type { SimulationTelemetryPort } from './game/simulation/SimulationTelemetry';
 
 const app = document.getElementById('app')!;
 const debugWindow = window as unknown as {
@@ -40,6 +42,14 @@ const debugWindow = window as unknown as {
   __cameraFrame?: ReturnType<CameraDirector['presentationSnapshot']>;
   __seed?: number;
   __random?: ReturnType<RandomHub['snapshot']>;
+  __journal?: readonly Readonly<RallyJournalEntry>[];
+  __journalHash?: string;
+  __journalSerialized?: string;
+  __readJournal?: () => {
+    entries: readonly Readonly<RallyJournalEntry>[];
+    hash: string | null;
+    serialized: string | null;
+  };
   __simulationClock?: {
     tick: number;
     simulationSeconds: number;
@@ -67,6 +77,12 @@ function freshSeed(): number {
 
 const matchSeed = parseSeed(new URLSearchParams(location.search).get('seed')) ?? freshSeed();
 const randomHub = new RandomHub(matchSeed);
+const debugEnabled = exporDebugHabilitado({ dev: import.meta.env.DEV, search: location.search });
+const autoplay = debugEnabled && new URLSearchParams(location.search).has('autoplay');
+let debugJournal: RallyJournal | null = null;
+const debugTelemetry: SimulationTelemetryPort | undefined = debugEnabled
+  ? { emit: (event) => debugJournal?.emit(event) }
+  : undefined;
 
 // ---------- renderer ----------
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -217,13 +233,12 @@ const match = new Match(
     referee,
     arena,
   },
-  { random: randomHub },
+  { random: randomHub, telemetry: debugTelemetry, humanSide: autoplay ? null : undefined },
 );
 scene.add(match.group);
 
 // ganchos de depuração globais: em dev sempre; no build de produção só com ?debug na URL
 // (mesmo opt-in do ?touch=1), para não vazar a superfície de depuração no bundle publicado.
-const debugEnabled = exporDebugHabilitado({ dev: import.meta.env.DEV, search: location.search });
 if (debugEnabled) {
   // acesso de depuração no console do browser
   debugWindow.__match = match;
@@ -231,6 +246,11 @@ if (debugEnabled) {
   // (draw calls / triângulos por frame). Só leitura; não altera o jogo.
   debugWindow.__renderer = renderer;
   debugWindow.__seed = matchSeed;
+  debugWindow.__readJournal = () => ({
+    entries: debugJournal?.entries ?? [],
+    hash: debugJournal?.hash() ?? null,
+    serialized: debugJournal?.serialize() ?? null,
+  });
 }
 
 menu.onStart = () => {
@@ -239,6 +259,14 @@ menu.onStart = () => {
   appState = nextAppState(appState, 'start');
   hud.show(true);
   touch?.show(true);
+  if (debugEnabled) {
+    debugJournal = new RallyJournal({
+      seed: matchSeed,
+      difficulty: menu.difficulty,
+      format: menu.format,
+      simulationHz: SIMULATION_TIMING.hz,
+    });
+  }
   match.startMatch(menu.difficulty, menu.format);
   markCameraLayoutDirty();
 };
@@ -345,6 +373,9 @@ function frame(now: number): void {
     debugWindow.__feedback = feedback.snapshot();
     debugWindow.__cameraFrame = director.presentationSnapshot();
     debugWindow.__random = randomHub.snapshot();
+    debugWindow.__journal = debugJournal?.entries;
+    debugWindow.__journalHash = debugJournal?.hash();
+    debugWindow.__journalSerialized = debugJournal?.serialize();
     debugWindow.__simulationClock = {
       tick: simulationFrame.tick,
       simulationSeconds: simulationFrame.simulationSeconds,
