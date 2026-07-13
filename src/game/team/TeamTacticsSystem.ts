@@ -25,6 +25,7 @@ export interface TeamCoordinationRequest {
   readonly activeAthleteId?: number | null;
   readonly contactPoint?: TacticalPoint | null;
   readonly setterAthleteId?: number | null;
+  readonly contactIn?: number | null;
   readonly serverAthleteId?: number | null;
   readonly serverPoint?: TacticalPoint | null;
   readonly reservedAthleteIds?: readonly number[];
@@ -68,6 +69,7 @@ export class TeamTacticsSystem {
       activeAthleteId: request.activeAthleteId ?? null,
       contactPoint: request.contactPoint ?? null,
       setterAthleteId: request.setterAthleteId ?? null,
+      contactIn: request.contactIn ?? null,
       serverAthleteId: request.serverAthleteId ?? null,
       serverPoint: request.serverPoint ?? null,
     };
@@ -145,6 +147,7 @@ export class TeamTacticsSystem {
       request.planId ?? null,
       request.activeAthleteId ?? null,
       request.setterAthleteId ?? null,
+      request.contactIn ?? null,
       request.serverAthleteId ?? null,
       request.serverPoint?.x ?? null,
       request.serverPoint?.z ?? null,

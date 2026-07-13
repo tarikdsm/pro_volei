@@ -186,6 +186,17 @@ export const TEAM_TACTICS = {
     deepDepth: -6.2,
     oppositeAttackZ: 3.1,
   },
+  blockDefense: {
+    blockGap: 0.72,
+    arrivalRadius: 0.08,
+    lanes: [
+      { role: 'defend-line', target: { x: -5.7, z: 2.8 } },
+      { role: 'defend-cross', target: { x: -5.7, z: -2.8 } },
+      { role: 'defend-seam', target: { x: -6.6, z: 0 } },
+      { role: 'cover-short-left', target: { x: -3.5, z: -2.5 } },
+      { role: 'cover-short-right', target: { x: -3.5, z: 2.5 } },
+    ],
+  },
 } as const;
 
 // Zonas de ataque na rede (z), do lado que ataca

@@ -1,8 +1,10 @@
-import { COURT, TEAM_TACTICS, TeamSide } from '../../core/constants';
+import { BLOCK, COURT, PLAYER, TEAM_TACTICS, TeamSide } from '../../core/constants';
 import { clampOwnHalf, fromLocalCourt, toLocalCourt } from './CourtFrame';
+import { estimatePlanarArrivalTime } from '../control/kinematics';
 import type {
   AthleteTacticalSnapshot,
   TacticalAssignment,
+  BlockPlan,
   TacticalPoint,
   TacticalRole,
   TeamBrainFrame,
@@ -57,6 +59,7 @@ export class TeamBrain {
       .sort((a, b) => a.athleteId - b.athleteId);
 
     let assignments: LocalAssignment[];
+    let block: BlockPlan | null = null;
     switch (frame.phase) {
       case 'base':
       case 'recompose':
@@ -102,6 +105,12 @@ export class TeamBrain {
       case 'attack-coverage':
         assignments = this.planAttackCoverage(frame, athletes);
         break;
+      case 'block-defense': {
+        const defense = this.planBlockDefense(frame, athletes);
+        assignments = defense.assignments;
+        block = defense.block;
+        break;
+      }
       default:
         throw new Error(`Fase tática ainda não implementada: ${frame.phase}`);
     }
@@ -122,7 +131,7 @@ export class TeamBrain {
       planId: frame.planId,
       phase: frame.phase,
       assignments: Object.freeze(worldAssignments),
-      block: null,
+      block: block ? Object.freeze({ ...block }) : null,
     });
   }
 
@@ -260,6 +269,122 @@ export class TeamBrain {
       { athleteId: setter.athleteId, role: 'setter', target: setterTarget },
       ...this.assignFormation(remaining, specs, [activeTarget, setterTarget]),
     ];
+  }
+
+  private planBlockDefense(
+    frame: TeamBrainFrame,
+    athletes: readonly LocalAthlete[],
+  ): { assignments: LocalAssignment[]; block: BlockPlan } {
+    if (frame.contactPoint === null || frame.contactIn === null || frame.contactIn === undefined) {
+      throw new Error('Defesa de bloqueio exige ponto e tempo de contato');
+    }
+    if (!Number.isFinite(frame.contactIn) || frame.contactIn < 0) {
+      throw new Error('Tempo de bloqueio inválido');
+    }
+    const localContact = toLocalCourt(frame.contactPoint, frame.side);
+    const crossZ = clampOwnHalf(
+      { x: -BLOCK.netX, z: localContact.z },
+      TEAM_TACTICS.courtMargin,
+      TEAM_TACTICS.netMargin,
+    ).z;
+    const front = athletes.filter((athlete) => athlete.row === 'front');
+    const requestedPrimary = front.find((athlete) => athlete.athleteId === frame.activeAthleteId);
+    const primaryTarget = { x: -BLOCK.netX, z: crossZ };
+    const primary =
+      requestedPrimary ??
+      front
+        .map((athlete) => ({
+          athlete,
+          eta: this.arrivalTime(athlete, primaryTarget),
+          distanceSq: distanceSq(athlete.position, primaryTarget),
+        }))
+        .sort(
+          (a, b) =>
+            a.eta - b.eta ||
+            a.distanceSq - b.distanceSq ||
+            a.athlete.athleteId - b.athlete.athleteId,
+        )[0]?.athlete;
+    if (!primary) throw new Error('Defesa de bloqueio exige uma atleta de rede');
+
+    const assistCandidates = front
+      .filter(
+        (athlete) =>
+          athlete.athleteId !== primary.athleteId && Math.abs(athlete.slot - primary.slot) === 1,
+      )
+      .flatMap((athlete) =>
+        [-1, 1].flatMap((direction) => {
+          const target = clampOwnHalf(
+            {
+              x: -BLOCK.netX,
+              z: crossZ + direction * TEAM_TACTICS.blockDefense.blockGap,
+            },
+            TEAM_TACTICS.courtMargin,
+            TEAM_TACTICS.netMargin,
+          );
+          if (distanceSq(target, primaryTarget) < TEAM_TACTICS.targetSeparation ** 2 - 1e-9) {
+            return [];
+          }
+          return [{ athlete, target, eta: this.arrivalTime(athlete, target) }];
+        }),
+      )
+      .sort((a, b) => a.eta - b.eta || a.athlete.athleteId - b.athlete.athleteId);
+    const bestAssist = assistCandidates[0];
+    const assist = bestAssist && bestAssist.eta <= frame.contactIn + 1e-9 ? bestAssist : null;
+
+    const occupied = [primaryTarget];
+    const assignments: LocalAssignment[] = [
+      { athleteId: primary.athleteId, role: 'block-primary', target: primaryTarget },
+    ];
+    if (assist) {
+      occupied.push(assist.target);
+      assignments.push({
+        athleteId: assist.athlete.athleteId,
+        role: 'block-assist',
+        target: assist.target,
+      });
+    }
+    const remaining = athletes.filter(
+      (athlete) =>
+        athlete.athleteId !== primary.athleteId && athlete.athleteId !== assist?.athlete.athleteId,
+    );
+    assignments.push(
+      ...this.assignFormation(
+        remaining,
+        TEAM_TACTICS.blockDefense.lanes.slice(0, remaining.length),
+        occupied,
+      ),
+    );
+    const worldCross = fromLocalCourt({ x: 0, z: crossZ }, frame.side);
+    return {
+      assignments,
+      block: {
+        primaryAthleteId: primary.athleteId,
+        assistAthleteId: assist?.athlete.athleteId ?? null,
+        crossZ: worldCross.z,
+        contactIn: frame.contactIn,
+      },
+    };
+  }
+
+  private arrivalTime(athlete: LocalAthlete, target: TacticalPoint): number {
+    const deltaX = target.x - athlete.position.x;
+    const deltaZ = target.z - athlete.position.z;
+    const distance = Math.hypot(deltaX, deltaZ);
+    if (distance <= TEAM_TACTICS.blockDefense.arrivalRadius) return 0;
+    if (athlete.airborne || distance <= 1e-9) return Infinity;
+    const directionX = deltaX / distance;
+    const directionZ = deltaZ / distance;
+    const projectedVelocity = athlete.velocity.x * directionX + athlete.velocity.z * directionZ;
+    const lateralVelocity = athlete.velocity.x * -directionZ + athlete.velocity.z * directionX;
+    return estimatePlanarArrivalTime(
+      distance,
+      projectedVelocity,
+      lateralVelocity,
+      PLAYER.aiSpeed,
+      PLAYER.acceleration,
+      PLAYER.deceleration,
+      TEAM_TACTICS.blockDefense.arrivalRadius,
+    );
   }
 
   private activeContact(

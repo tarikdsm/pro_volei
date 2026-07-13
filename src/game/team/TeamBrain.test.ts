@@ -183,6 +183,128 @@ describe('TeamBrain', () => {
     );
   });
 
+  it('forma defesa por corredores com bloqueio duplo apenas quando a assistente chega', () => {
+    const brain = new TeamBrain();
+    const double = brain.plan(
+      frame(TeamSide.HOME, [0, 1, 2, 3, 4, 5], {
+        phase: 'block-defense',
+        planId: 40,
+        contactPoint: { x: -0.72, z: 0.4 },
+        contactIn: 1,
+      }),
+    );
+    const single = brain.plan(
+      frame(TeamSide.HOME, [0, 1, 2, 3, 4, 5], {
+        phase: 'block-defense',
+        planId: 41,
+        contactPoint: { x: -0.72, z: 0.4 },
+        contactIn: 0,
+      }),
+    );
+
+    expectValid(double, TeamSide.HOME);
+    expect(double.block).toMatchObject({ primaryAthleteId: 4, assistAthleteId: 5 });
+    expect(
+      double.assignments.filter((assignment) => assignment.role === 'block-primary'),
+    ).toHaveLength(1);
+    expect(
+      double.assignments.filter((assignment) => assignment.role === 'block-assist'),
+    ).toHaveLength(1);
+    expect(
+      double.assignments.filter((assignment) => assignment.role === 'defend-line'),
+    ).toHaveLength(1);
+    expect(
+      double.assignments.filter((assignment) => assignment.role === 'defend-cross'),
+    ).toHaveLength(1);
+    expect(
+      double.assignments.filter((assignment) => assignment.role === 'defend-seam'),
+    ).toHaveLength(1);
+    expect(single.block).toMatchObject({ primaryAthleteId: 4, assistAthleteId: null });
+  });
+
+  it('usa ETA cinemático para a primária e exige adjacência da assistente', () => {
+    const base = frame(TeamSide.HOME, [0, 1, 2, 3, 4, 5], {
+      phase: 'block-defense',
+      planId: 43,
+      activeAthleteId: null,
+      contactPoint: { x: -0.72, z: 0 },
+      contactIn: 0.2,
+    });
+    const athletes = base.athletes.map((athlete) => {
+      if (athlete.athleteId === 3) return { ...athlete, position: { x: -8, z: 0 } };
+      if (athlete.athleteId === 4) return { ...athlete, position: { x: -0.72, z: 0.9 } };
+      if (athlete.athleteId === 5) return { ...athlete, position: { x: -8, z: 3 } };
+      return athlete;
+    });
+    const etaPlan = new TeamBrain().plan({ ...base, athletes });
+    expect(etaPlan.block?.primaryAthleteId).toBe(4);
+
+    const humanPrimary = new TeamBrain().plan({
+      ...base,
+      activeAthleteId: 3,
+      athletes: athletes.map((athlete) => {
+        if (athlete.athleteId === 4) return { ...athlete, position: { x: -8, z: 0 } };
+        if (athlete.athleteId === 5) return { ...athlete, position: { x: -0.72, z: 0.72 } };
+        return athlete;
+      }),
+    });
+    expect(humanPrimary.block).toMatchObject({ primaryAthleteId: 3, assistAthleteId: null });
+  });
+
+  it('mantém gap real da dupla no corredor lateral e rejeita assistente airborne', () => {
+    const edge = frame(TeamSide.HOME, [0, 1, 2, 3, 4, 5], {
+      phase: 'block-defense',
+      planId: 44,
+      activeAthleteId: 5,
+      contactPoint: { x: -0.72, z: 4.1 },
+      contactIn: 1.5,
+    });
+    const plan = new TeamBrain().plan(edge);
+    const primary = plan.assignments.find((assignment) => assignment.role === 'block-primary')!;
+    const assist = plan.assignments.find((assignment) => assignment.role === 'block-assist')!;
+    expect(
+      Math.hypot(primary.target.x - assist.target.x, primary.target.z - assist.target.z),
+    ).toBeGreaterThanOrEqual(TEAM_TACTICS.targetSeparation);
+
+    const airborne = new TeamBrain().plan({
+      ...edge,
+      athletes: edge.athletes.map((athlete) =>
+        athlete.athleteId === plan.block?.assistAthleteId
+          ? { ...athlete, airborne: true }
+          : athlete,
+      ),
+    });
+    expect(airborne.block?.assistAthleteId).not.toBe(plan.block?.assistAthleteId);
+  });
+
+  it('aceita a primária humana e espelha o plano de bloqueio', () => {
+    const homeFrame = frame(TeamSide.HOME, [0, 1, 2, 3, 4, 5], {
+      phase: 'block-defense',
+      planId: 42,
+      activeAthleteId: 5,
+      contactPoint: { x: -0.72, z: 2.2 },
+      contactIn: 0.8,
+    });
+    const awayFrame = frame(TeamSide.AWAY, [0, 1, 2, 3, 4, 5], {
+      phase: 'block-defense',
+      planId: 42,
+      activeAthleteId: 5,
+      contactPoint: { x: 0.72, z: -2.2 },
+      contactIn: 0.8,
+    });
+    const home = new TeamBrain().plan(homeFrame);
+    const away = new TeamBrain().plan(awayFrame);
+
+    expect(home.block?.primaryAthleteId).toBe(5);
+    expect(away.block).toEqual({ ...home.block, crossZ: -home.block!.crossZ });
+    expect(away.assignments).toEqual(
+      home.assignments.map((assignment) => ({
+        ...assignment,
+        target: { x: -assignment.target.x, z: -assignment.target.z },
+      })),
+    );
+  });
+
   it('mantém recepção simétrica, separada e determinística em empate', () => {
     const slots = [0, 1, 2, 3, 4, 5];
     const homeFrame = frame(TeamSide.HOME, slots, {
