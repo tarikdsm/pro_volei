@@ -1,4 +1,5 @@
 import type { TeamSide } from '../../core/constants';
+import type { OwnContactRead } from './OwnContactRead';
 
 export interface StrategyPoint2 {
   readonly x: number;
@@ -100,9 +101,11 @@ export interface StrategyDecisionContext {
   readonly observation: StrategyObservation;
   readonly memory: StrategyMemorySnapshot;
   readonly ticket: StrategyDrawTicket;
+  /** Bola e elenco próprios logo após o contato; obrigatório em set/attack, nunca contém rival. */
+  readonly ownContactRead?: OwnContactRead;
   /** ID da levantadora no roster do próprio lado; obrigatório em runtime quando kind === 'set'. */
   readonly setterAthleteId?: number;
-  /** Origem mundial visível do ataque; obrigatória em runtime quando kind === 'attack'. */
+  /** Origem mundial causal do ataque; derivada pelo domínio quando kind === 'attack'. */
   readonly attackOriginZ?: number;
 }
 

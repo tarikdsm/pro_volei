@@ -7,6 +7,7 @@ import {
   strategyToWorld,
   type CanonicalStrategyOption,
 } from './CourtZones';
+import { isCanonicalOwnContactRead } from './OwnContactRead';
 import type {
   AthleteStrategySnapshot,
   ScoredStrategyCandidate,
@@ -163,7 +164,13 @@ function freezeComponents(values: Record<string, number>): StrategyScoreComponen
 }
 
 function localAthletes(context: StrategyDecisionContext): readonly LocalAthlete[] {
-  return context.observation.athletes
+  const athletes = context.ownContactRead
+    ? [
+        ...context.ownContactRead.ownAthletes,
+        ...context.observation.athletes.filter((athlete) => athlete.side !== context.side),
+      ]
+    : context.observation.athletes;
+  return athletes
     .map((athlete) => ({
       ...athlete,
       position: strategyToLocal(athlete.position, context.side),
@@ -173,7 +180,7 @@ function localAthletes(context: StrategyDecisionContext): readonly LocalAthlete[
 }
 
 export function readVisibleBall(context: StrategyDecisionContext): StrategyVisibleBallRead {
-  const ball = context.observation.ball;
+  const ball = context.ownContactRead?.ballAfter ?? context.observation.ball;
   const unreachable = (lateralMiss = Number.POSITIVE_INFINITY): StrategyVisibleBallRead => ({
     reachable: false,
     eta: Number.POSITIVE_INFINITY,
@@ -475,6 +482,23 @@ function validateContext(context: StrategyDecisionContext): void {
   ) {
     throw new RangeError('Ataque exige attackOriginZ mundial válido');
   }
+  const ownContact = context.ownContactRead;
+  if (context.kind === 'serve') {
+    if (ownContact !== undefined) throw new Error('Saque não aceita leitura própria de contato');
+  } else {
+    if (
+      !isCanonicalOwnContactRead(ownContact) ||
+      ownContact.side !== context.side ||
+      ownContact.tick !== context.decisionTick ||
+      (context.kind === 'set' && ownContact.kind !== 'pass' && ownContact.kind !== 'dig') ||
+      (context.kind === 'attack' &&
+        ownContact.kind !== 'pass' &&
+        ownContact.kind !== 'dig' &&
+        ownContact.kind !== 'set')
+    ) {
+      throw new Error('Set/ataque exige leitura própria canônica e causal');
+    }
+  }
   if (context.observation.athletes.length !== 12) throw new Error('Observação exige 12 atletas');
   const identities = new Set<string>();
   const sideCounts = [0, 0];
@@ -503,7 +527,7 @@ function validateContext(context: StrategyDecisionContext): void {
     context.kind === 'set' &&
     (!Number.isSafeInteger(context.setterAthleteId) ||
       context.setterAthleteId! < 0 ||
-      !identities.has(`${context.side}:${context.setterAthleteId}`))
+      !ownContact!.ownAthletes.some((athlete) => athlete.id === context.setterAthleteId))
   ) {
     throw new Error('Set exige setterAthleteId de uma levantadora do próprio roster');
   }

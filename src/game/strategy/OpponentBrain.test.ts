@@ -15,6 +15,7 @@ import type {
   StrategyMemorySnapshot,
   StrategyObservation,
 } from './StrategyTypes';
+import { buildOwnContactRead } from './OwnContactRead';
 
 const EMPTY_MEMORY: StrategyMemorySnapshot = Object.freeze({
   revision: 0,
@@ -54,17 +55,55 @@ function observation(): StrategyObservation {
 }
 
 function context(kind: StrategyDecisionKind): StrategyDecisionContext {
+  const observed = observation();
   return {
     side: TeamSide.HOME,
     kind,
     decisionTick: 135,
     difficulty: 1,
-    observation: observation(),
+    observation: observed,
     memory: EMPTY_MEMORY,
     ticket: { selection: 0x1234_5678, variation: 0x8765_4321 },
     attackOriginZ: kind === 'attack' ? -2.8 : undefined,
     setterAthleteId: kind === 'set' ? 3 : undefined,
+    ownContactRead:
+      kind === 'serve'
+        ? undefined
+        : buildOwnContactRead({
+            tick: 135,
+            side: TeamSide.HOME,
+            kind: kind === 'set' ? 'pass' : 'set',
+            athleteId: kind === 'set' ? 0 : 3,
+            ballAfter: {
+              position: observed.ball.position,
+              velocity: observed.ball.velocity,
+              inFlight: observed.ball.inFlight,
+            },
+            ownAthletes: observed.athletes.filter((athlete) => athlete.side === TeamSide.HOME),
+          }),
   } as StrategyDecisionContext & { readonly setterAthleteId?: number };
+}
+
+function withOwnContact(
+  base: StrategyDecisionContext,
+  changes: Readonly<{
+    ballAfter?: NonNullable<StrategyDecisionContext['ownContactRead']>['ballAfter'];
+    ownAthletes?: NonNullable<StrategyDecisionContext['ownContactRead']>['ownAthletes'];
+  }>,
+): StrategyDecisionContext {
+  const own = base.ownContactRead;
+  if (!own) throw new Error('contexto sem contato próprio');
+  return {
+    ...base,
+    ownContactRead: buildOwnContactRead({
+      tick: own.tick,
+      side: own.side,
+      kind: own.kind,
+      athleteId: own.athleteId,
+      ballAfter: changes.ballAfter ?? own.ballAfter,
+      ownAthletes: changes.ownAthletes ?? own.ownAthletes,
+    }),
+  };
 }
 
 function mirrored(input: StrategyDecisionContext): StrategyDecisionContext {
@@ -73,6 +112,34 @@ function mirrored(input: StrategyDecisionContext): StrategyDecisionContext {
     ...input,
     side: swap(input.side),
     attackOriginZ: input.attackOriginZ === undefined ? undefined : -input.attackOriginZ,
+    ownContactRead:
+      input.ownContactRead === undefined
+        ? undefined
+        : buildOwnContactRead({
+            tick: input.ownContactRead.tick,
+            side: swap(input.ownContactRead.side),
+            kind: input.ownContactRead.kind,
+            athleteId: input.ownContactRead.athleteId,
+            ballAfter: {
+              position: {
+                x: -input.ownContactRead.ballAfter.position.x,
+                y: input.ownContactRead.ballAfter.position.y,
+                z: -input.ownContactRead.ballAfter.position.z,
+              },
+              velocity: {
+                x: -input.ownContactRead.ballAfter.velocity.x,
+                y: input.ownContactRead.ballAfter.velocity.y,
+                z: -input.ownContactRead.ballAfter.velocity.z,
+              },
+              inFlight: input.ownContactRead.ballAfter.inFlight,
+            },
+            ownAthletes: input.ownContactRead.ownAthletes.map((athlete) => ({
+              ...athlete,
+              side: swap(athlete.side),
+              position: { x: -athlete.position.x, z: -athlete.position.z },
+              velocity: { x: -athlete.velocity.x, z: -athlete.velocity.z },
+            })),
+          }),
     observation: {
       ...input.observation,
       score: [input.observation.score[1], input.observation.score[0]],
@@ -103,6 +170,29 @@ function mirrored(input: StrategyDecisionContext): StrategyDecisionContext {
 }
 
 describe('OpponentBrain', () => {
+  it('usa bola e elenco próprios frescos sem substituir o rival atrasado no set', () => {
+    const brain = new OpponentBrain();
+    const fresh = context('set');
+    const poisonedOwnSide = {
+      ...fresh,
+      observation: {
+        ...fresh.observation,
+        ball: { ...fresh.observation.ball, inFlight: false },
+        athletes: fresh.observation.athletes.map((athlete) =>
+          athlete.side === fresh.side
+            ? {
+                ...athlete,
+                position: { x: athlete.position.x - 20, z: athlete.position.z + 20 },
+                velocity: { x: -20, z: 20 },
+              }
+            : athlete,
+        ),
+      },
+    };
+
+    expect(brain.decide(poisonedOwnSide)).toEqual(brain.decide(fresh));
+  });
+
   it.each([
     ['serve', 9],
     ['set', 5],
@@ -299,31 +389,20 @@ describe('OpponentBrain', () => {
 
   it('projeta a bola vetorialmente e rejeita afastamento, desvio lateral e velocidade quase zero', () => {
     const onCourse = context('set');
-    const movingAway = {
-      ...onCourse,
-      observation: {
-        ...onCourse.observation,
-        ball: { ...onCourse.observation.ball, velocity: { x: -4, y: 5.5, z: 0 } },
+    const ownBall = onCourse.ownContactRead!.ballAfter;
+    const movingAway = withOwnContact(onCourse, {
+      ballAfter: { ...ownBall, velocity: { x: -4, y: 5.5, z: 0 } },
+    });
+    const lateral = withOwnContact(onCourse, {
+      ballAfter: {
+        ...ownBall,
+        position: { x: -5, y: 2.2, z: 3.5 },
+        velocity: { x: 4, y: 5.5, z: 0 },
       },
-    };
-    const lateral = {
-      ...onCourse,
-      observation: {
-        ...onCourse.observation,
-        ball: {
-          ...onCourse.observation.ball,
-          position: { x: -5, y: 2.2, z: 3.5 },
-          velocity: { x: 4, y: 5.5, z: 0 },
-        },
-      },
-    };
-    const stopped = {
-      ...onCourse,
-      observation: {
-        ...onCourse.observation,
-        ball: { ...onCourse.observation.ball, velocity: { x: 1e-5, y: 0, z: 0 } },
-      },
-    };
+    });
+    const stopped = withOwnContact(onCourse, {
+      ballAfter: { ...ownBall, velocity: { x: 1e-5, y: 0, z: 0 } },
+    });
 
     expect(readVisibleBall(onCourse).reachable).toBe(true);
     expect(readVisibleBall(movingAway).reachable).toBe(false);
@@ -360,12 +439,10 @@ describe('OpponentBrain', () => {
   it('set viabilityEta usa a melhor ETA de atacante legal, não distância estática', () => {
     const base = context('set');
     const viabilityAt = (velocityX: number) => {
-      const proposal = new OpponentBrain().decide({
-        ...base,
-        observation: {
-          ...base.observation,
-          athletes: base.observation.athletes.map((athlete) =>
-            athlete.side === TeamSide.HOME && athlete.row === 'front'
+      const proposal = new OpponentBrain().decide(
+        withOwnContact(base, {
+          ownAthletes: base.ownContactRead!.ownAthletes.map((athlete) =>
+            athlete.row === 'front'
               ? {
                   ...athlete,
                   position: { x: -5.5, z: -3.15 },
@@ -373,8 +450,8 @@ describe('OpponentBrain', () => {
                 }
               : athlete,
           ),
-        },
-      });
+        }),
+      );
       return proposal.candidates.find((candidate) => candidate.optionId === 'set.high-left')!
         .components.viabilityEta;
     };
@@ -414,22 +491,19 @@ describe('OpponentBrain', () => {
         .decide(input)
         .candidates.some((candidate) => candidate.optionId === 'set.quick-center');
     const base = context('set');
-    const withCentral = (x: number, velocityX: number, ballX = -5) => ({
-      ...base,
-      observation: {
-        ...base.observation,
-        ball: {
-          ...base.observation.ball,
+    const withCentral = (x: number, velocityX: number, ballX = -5) =>
+      withOwnContact(base, {
+        ballAfter: {
+          ...base.ownContactRead!.ballAfter,
           position: { x: ballX, y: 2.2, z: 1 },
           velocity: { x: 4, y: 5.8, z: 0 },
         },
-        athletes: base.observation.athletes.map((athlete) =>
-          athlete.side === TeamSide.HOME && athlete.id === 4
+        ownAthletes: base.ownContactRead!.ownAthletes.map((athlete) =>
+          athlete.id === 4
             ? { ...athlete, position: { x, z: 0 }, velocity: { x: velocityX, z: 0 } }
             : athlete,
         ),
-      },
-    });
+      });
 
     expect(quickExists(withCentral(-6.5, 5.6))).toBe(true);
     expect(quickExists(withCentral(-6.5, -5.6))).toBe(false);
@@ -438,29 +512,29 @@ describe('OpponentBrain', () => {
 
   it('não trata a levantadora central como atacante disponível para quick', () => {
     const base = context('set') as StrategyDecisionContext & { readonly setterAthleteId: number };
-    const proposal = new OpponentBrain().decide({
-      ...base,
-      setterAthleteId: 4,
-      observation: {
-        ...base.observation,
-        ball: {
-          ...base.observation.ball,
-          position: { x: -5, y: 2.2, z: 1 },
-          velocity: { x: 4, y: 5.8, z: 0 },
+    const proposal = new OpponentBrain().decide(
+      withOwnContact(
+        { ...base, setterAthleteId: 4 },
+        {
+          ballAfter: {
+            ...base.ownContactRead!.ballAfter,
+            position: { x: -5, y: 2.2, z: 1 },
+            velocity: { x: 4, y: 5.8, z: 0 },
+          },
+          ownAthletes: base.ownContactRead!.ownAthletes.map((athlete) =>
+            athlete.row !== 'front'
+              ? athlete
+              : athlete.id === 4
+                ? { ...athlete, position: { x: -0.82, z: 0 }, velocity: { x: 0, z: 0 } }
+                : {
+                    ...athlete,
+                    position: { x: -8.5, z: athlete.position.z },
+                    velocity: { x: -5.6, z: 0 },
+                  },
+          ),
         },
-        athletes: base.observation.athletes.map((athlete) =>
-          athlete.side !== TeamSide.HOME || athlete.row !== 'front'
-            ? athlete
-            : athlete.id === 4
-              ? { ...athlete, position: { x: -0.82, z: 0 }, velocity: { x: 0, z: 0 } }
-              : {
-                  ...athlete,
-                  position: { x: -8.5, z: athlete.position.z },
-                  velocity: { x: -5.6, z: 0 },
-                },
-        ),
-      },
-    });
+      ),
+    );
 
     expect(proposal.candidates.some((candidate) => candidate.optionId === 'set.quick-center')).toBe(
       false,

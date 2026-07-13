@@ -23,6 +23,12 @@ import {
   materializePackedStrategyObservation,
   type PackedStrategyObservation,
 } from './StrategyObservationAdapter';
+import {
+  buildOwnContactRead,
+  deriveAttackOriginFromExecutedSet,
+  type OwnContactRead,
+  type OwnContactReadSource,
+} from './OwnContactRead';
 
 export const PERCEPTION_RING_CAPACITY = 48;
 export const TERMINAL_HISTORY_CAPACITY_PER_SIDE = 48;
@@ -43,8 +49,13 @@ export interface StrategyDecisionRequest {
   readonly decisionTick: number;
   readonly ownership: string;
   readonly setterAthleteId?: number;
-  readonly attackOriginZ?: number;
+  readonly ownContactRead?: OwnContactReadSource;
+  readonly attackBasis?: StrategyAttackBasis;
 }
+
+export type StrategyAttackBasis =
+  | Readonly<{ kind: 'executed-set' }>
+  | Readonly<{ kind: 'chained-quick'; parentSetDecisionId: string }>;
 
 export interface CommittedStrategyDecision {
   readonly decisionId: string;
@@ -58,6 +69,7 @@ export interface CommittedStrategyDecision {
   readonly ownership: string;
   readonly setterAthleteId?: number;
   readonly attackOriginZ?: number;
+  readonly attackBasis?: StrategyAttackBasis;
   readonly proposal: StrategyProposal;
 }
 
@@ -336,6 +348,17 @@ function validateProposal(proposal: StrategyProposal, expected: ProposalExpectat
   }
 }
 
+function validAttackBasis(attackBasis: unknown): attackBasis is StrategyAttackBasis {
+  if (attackBasis === null || typeof attackBasis !== 'object') return false;
+  const basis = attackBasis as Partial<StrategyAttackBasis>;
+  return (
+    basis.kind === 'executed-set' ||
+    (basis.kind === 'chained-quick' &&
+      typeof basis.parentSetDecisionId === 'string' &&
+      basis.parentSetDecisionId.trim().length > 0)
+  );
+}
+
 function validateRequestShape(request: StrategyDecisionRequest): boolean {
   return (
     Number.isSafeInteger(request.matchEpoch) &&
@@ -347,8 +370,9 @@ function validateRequestShape(request: StrategyDecisionRequest): boolean {
     request.decisionTick >= 0 &&
     typeof request.ownership === 'string' &&
     request.ownership.trim().length > 0 &&
-    (request.kind !== 'attack' ||
-      (Number.isFinite(request.attackOriginZ) && Math.abs(request.attackOriginZ!) <= 4.5))
+    (request.kind === 'attack'
+      ? validAttackBasis(request.attackBasis)
+      : request.attackBasis === undefined)
   );
 }
 
@@ -480,15 +504,83 @@ export class OpponentStrategySystem {
           })
         : INVALID_REQUEST;
     }
-    const perception = this.perceive(request.side, request.difficulty, request.decisionTick);
-    if (perception.status === 'not-ready') return NOT_READY;
+    let ownContactRead: OwnContactRead | undefined;
+    let attackOriginZ: number | undefined;
+    if (request.kind === 'serve') {
+      if (request.ownContactRead !== undefined) return INVALID_REQUEST;
+    } else {
+      if (!request.ownContactRead) return INVALID_REQUEST;
+      try {
+        ownContactRead = buildOwnContactRead(request.ownContactRead);
+      } catch {
+        return INVALID_REQUEST;
+      }
+      if (
+        ownContactRead.side !== request.side ||
+        ownContactRead.tick !== request.decisionTick ||
+        (request.kind === 'set' && ownContactRead.kind !== 'pass' && ownContactRead.kind !== 'dig')
+      ) {
+        return INVALID_REQUEST;
+      }
+    }
     if (
       request.kind === 'set' &&
       (!Number.isSafeInteger(request.setterAthleteId) ||
         request.setterAthleteId! < 0 ||
-        !perception.observation.athletes.some(
-          (athlete) => athlete.side === request.side && athlete.id === request.setterAthleteId,
-        ))
+        !ownContactRead!.ownAthletes.some((athlete) => athlete.id === request.setterAthleteId))
+    ) {
+      return INVALID_REQUEST;
+    }
+    let chainedQuickObservationTick: number | undefined;
+    if (request.kind === 'attack') {
+      const basis = request.attackBasis!;
+      if (basis.kind === 'executed-set') {
+        if (ownContactRead!.kind !== 'set') return INVALID_REQUEST;
+        const origin = deriveAttackOriginFromExecutedSet(ownContactRead!);
+        if (!origin) return INVALID_REQUEST;
+        attackOriginZ = origin.position.z;
+      } else {
+        if (ownContactRead!.kind !== 'pass' && ownContactRead!.kind !== 'dig') {
+          return INVALID_REQUEST;
+        }
+        const parent = this.decisions.find(
+          (decision) => decision.decisionId === basis.parentSetDecisionId,
+        );
+        const parentOutcome = this.outcomes.find(
+          (outcome) => outcome.decisionId === basis.parentSetDecisionId,
+        );
+        if (
+          !parent ||
+          !parentOutcome ||
+          parent.matchEpoch !== request.matchEpoch ||
+          parent.side !== request.side ||
+          parent.kind !== 'set' ||
+          parent.decisionTick !== request.decisionTick ||
+          parentOutcome.status !== 'pending' ||
+          parent.proposal.chosen.optionId !== 'set.quick-center' ||
+          parent.proposal.chosen.family !== 'quick'
+        ) {
+          return INVALID_REQUEST;
+        }
+        chainedQuickObservationTick = parent.observationTick;
+        if (
+          this.decisions.some(
+            (decision) =>
+              decision.kind === 'attack' &&
+              decision.attackBasis?.kind === 'chained-quick' &&
+              decision.attackBasis.parentSetDecisionId === basis.parentSetDecisionId,
+          )
+        ) {
+          return INVALID_REQUEST;
+        }
+        attackOriginZ = parent.proposal.chosen.target.z;
+      }
+    }
+    const perception = this.perceive(request.side, request.difficulty, request.decisionTick);
+    if (perception.status === 'not-ready') return NOT_READY;
+    if (
+      chainedQuickObservationTick !== undefined &&
+      perception.observation.tick !== chainedQuickObservationTick
     ) {
       return INVALID_REQUEST;
     }
@@ -510,8 +602,9 @@ export class OpponentStrategySystem {
         observation: perception.observation,
         memory,
         ticket,
+        ownContactRead,
         setterAthleteId: request.setterAthleteId,
-        attackOriginZ: request.attackOriginZ,
+        attackOriginZ,
       };
       const proposal = this.brain.decide(context);
       validateProposal(proposal, {
@@ -519,7 +612,7 @@ export class OpponentStrategySystem {
         side: context.side,
         observationTick: context.observation.tick,
         ticket: context.ticket,
-        attackOriginZ: context.attackOriginZ,
+        attackOriginZ,
       });
 
       const sequence = this.sequences[request.side] + 1;
@@ -535,7 +628,8 @@ export class OpponentStrategySystem {
         memoryRevision: memory.revision,
         ownership: request.ownership,
         setterAthleteId: request.setterAthleteId,
-        attackOriginZ: request.attackOriginZ,
+        attackOriginZ,
+        attackBasis: request.attackBasis,
         proposal,
       });
       this.sequences[request.side] = sequence;
@@ -860,7 +954,10 @@ function validateSnapshot(snapshot: OpponentStrategySnapshot): void {
       (decision.kind === 'set' &&
         (!Number.isSafeInteger(decision.setterAthleteId) || decision.setterAthleteId! < 0)) ||
       (decision.kind === 'attack' &&
-        (!Number.isFinite(decision.attackOriginZ) || Math.abs(decision.attackOriginZ!) > 4.5))
+        (!Number.isFinite(decision.attackOriginZ) ||
+          Math.abs(decision.attackOriginZ!) > 4.5 ||
+          !validAttackBasis(decision.attackBasis))) ||
+      (decision.kind !== 'attack' && decision.attackBasis !== undefined)
     ) {
       throw new RangeError('decisão comprometida inválida');
     }
@@ -880,6 +977,26 @@ function validateSnapshot(snapshot: OpponentStrategySnapshot): void {
     }
     decisionById.set(decision.decisionId, decision);
     maximumSequence[decision.side] = Math.max(maximumSequence[decision.side], decision.sequence);
+  }
+  const quickParentIds = new Set<string>();
+  for (const decision of snapshot.decisions) {
+    if (decision.attackBasis?.kind !== 'chained-quick') continue;
+    const parentId = decision.attackBasis.parentSetDecisionId;
+    const parent = decisionById.get(parentId);
+    if (
+      !parent ||
+      quickParentIds.has(parentId) ||
+      parent.matchEpoch !== decision.matchEpoch ||
+      parent.side !== decision.side ||
+      parent.kind !== 'set' ||
+      parent.decisionTick !== decision.decisionTick ||
+      parent.observationTick !== decision.observationTick ||
+      parent.proposal.chosen.optionId !== 'set.quick-center' ||
+      parent.proposal.chosen.family !== 'quick'
+    ) {
+      throw new RangeError('encadeamento quick inválido');
+    }
+    quickParentIds.add(parentId);
   }
   if (
     maximumSequence[TeamSide.HOME] !== snapshot.sequences[TeamSide.HOME] ||

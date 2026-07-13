@@ -12,6 +12,12 @@ import {
 } from './OpponentStrategySystem';
 import type { StrategyObservation, StrategyProposal } from './StrategyTypes';
 import { buildStrategyObservation, packStrategyObservation } from './StrategyObservationAdapter';
+import {
+  buildOwnContactRead,
+  deriveAttackOriginFromExecutedSet,
+  type OwnContactKind,
+  type OwnContactReadSource,
+} from './OwnContactRead';
 
 function observation(tick: number, movement = 0): StrategyObservation {
   const athletes = [TeamSide.HOME, TeamSide.AWAY].flatMap((side) => {
@@ -50,6 +56,34 @@ function streams(homeValues = [1, 2, 3, 4, 5, 6], awayValues = [11, 12, 13, 14])
   return {
     home: new SequenceRandom(homeValues),
     away: new SequenceRandom(awayValues),
+  };
+}
+
+function ownContactRead(
+  kind: OwnContactKind,
+  side: TeamSide = TeamSide.HOME,
+  tick = 6,
+): OwnContactReadSource {
+  const observed = observation(0);
+  const attackableSetBall = {
+    position: { x: -2.5, y: 2.25, z: -2.8 },
+    velocity: { x: 0, y: 5, z: 0.2 },
+    inFlight: true,
+  };
+  return {
+    tick,
+    side,
+    kind,
+    athleteId: kind === 'set' ? 3 : 0,
+    ballAfter:
+      kind === 'set'
+        ? attackableSetBall
+        : {
+            position: observed.ball.position,
+            velocity: observed.ball.velocity,
+            inFlight: observed.ball.inFlight,
+          },
+    ownAthletes: observed.athletes.filter((athlete) => athlete.side === side),
   };
 }
 
@@ -187,6 +221,174 @@ describe('OpponentStrategySystem perception', () => {
 });
 
 describe('OpponentStrategySystem transaction and lifecycle', () => {
+  it('usa leitura própria causal em set/attack e mantém +2 somente no lado aceito', () => {
+    const setRandom = streams();
+    const setSystem = new OpponentStrategySystem({ streams: setRandom });
+    setSystem.captureFrame(observation(0));
+    const set = setSystem.commitDecision({
+      ...serveRequest(),
+      kind: 'set',
+      ownership: 'set:0:1:1:1',
+      setterAthleteId: 3,
+      ownContactRead: ownContactRead('pass'),
+    });
+    expect(set.status).toBe('committed');
+    expect(setRandom.home.draws).toBe(2);
+    expect(setRandom.away.draws).toBe(0);
+
+    const attackRandom = streams();
+    const attackSystem = new OpponentStrategySystem({ streams: attackRandom });
+    attackSystem.captureFrame(observation(0));
+    const executedSetRead = ownContactRead('set');
+    const attack = attackSystem.commitDecision({
+      ...serveRequest(),
+      kind: 'attack',
+      ownership: 'attack:0:1:1:2:set-id',
+      attackBasis: { kind: 'executed-set' },
+      ownContactRead: executedSetRead,
+    });
+    expect(attack.status).toBe('committed');
+    if (attack.status !== 'committed') throw new Error('unreachable');
+    const derivedOrigin = deriveAttackOriginFromExecutedSet(buildOwnContactRead(executedSetRead));
+    expect(derivedOrigin).not.toBeNull();
+    expect(attack.decision.attackOriginZ).toBe(derivedOrigin!.position.z);
+    expect(attackRandom.home.draws).toBe(2);
+    expect(attackRandom.away.draws).toBe(0);
+  });
+
+  it('encadeia quick no mesmo contato causal e deriva a origem do set comprometido', () => {
+    const random = streams();
+    const brain = {
+      decide(input: Parameters<OpponentBrain['decide']>[0]) {
+        const proposal = new OpponentBrain().decide(input);
+        if (input.kind !== 'set') return proposal;
+        const quick = proposal.candidates.find(
+          (candidate) => candidate.optionId === 'set.quick-center',
+        );
+        if (!quick) throw new Error('fixture deveria permitir quick');
+        return { ...proposal, chosen: quick };
+      },
+    };
+    const system = new OpponentStrategySystem({ streams: random, brain });
+    system.captureFrame(observation(0));
+    system.captureFrame(observation(20));
+    const pass = ownContactRead('pass');
+    const quickPass = {
+      ...pass,
+      tick: 30,
+      ballAfter: {
+        position: { x: -5, y: 2.2, z: 1 },
+        velocity: { x: 4, y: 5.8, z: 0 },
+        inFlight: true,
+      },
+      ownAthletes: pass.ownAthletes.map((athlete) =>
+        athlete.id === 4
+          ? { ...athlete, position: { x: -6.5, z: 0 }, velocity: { x: 5.6, z: 0 } }
+          : athlete,
+      ),
+    } satisfies OwnContactReadSource;
+    const set = system.commitDecision({
+      ...serveRequest(TeamSide.HOME, 30),
+      kind: 'set',
+      ownership: 'set:quick:causal',
+      setterAthleteId: 3,
+      ownContactRead: quickPass,
+    });
+    expect(set.status).toBe('committed');
+    if (set.status !== 'committed') throw new Error('unreachable');
+    expect(set.decision.proposal.chosen.optionId).toBe('set.quick-center');
+
+    expect(
+      system.commitDecision({
+        ...serveRequest(TeamSide.HOME, 30),
+        kind: 'attack',
+        ownership: 'attack:quick:wrong-parent',
+        attackBasis: { kind: 'chained-quick', parentSetDecisionId: 'inexistente' },
+        ownContactRead: quickPass,
+      }),
+    ).toEqual({ status: 'invalid-request' });
+    expect(random.home.draws).toBe(2);
+
+    expect(
+      system.commitDecision({
+        ...serveRequest(TeamSide.HOME, 30),
+        kind: 'attack',
+        difficulty: 1,
+        ownership: 'attack:quick:different-observation',
+        attackBasis: { kind: 'chained-quick', parentSetDecisionId: set.decision.decisionId },
+        ownContactRead: quickPass,
+      }),
+    ).toEqual({ status: 'invalid-request' });
+    expect(random.home.draws).toBe(2);
+
+    const attack = system.commitDecision({
+      ...serveRequest(TeamSide.HOME, 30),
+      kind: 'attack',
+      ownership: 'attack:quick:causal',
+      attackBasis: { kind: 'chained-quick', parentSetDecisionId: set.decision.decisionId },
+      ownContactRead: quickPass,
+    });
+    expect(attack.status).toBe('committed');
+    if (attack.status !== 'committed') throw new Error('unreachable');
+    expect(attack.decision.attackOriginZ).toBe(set.decision.proposal.chosen.target.z);
+    expect(attack.decision.attackBasis).toEqual({
+      kind: 'chained-quick',
+      parentSetDecisionId: set.decision.decisionId,
+    });
+    expect(random.home.draws).toBe(4);
+    expect(random.away.draws).toBe(0);
+
+    expect(
+      system.commitDecision({
+        ...serveRequest(TeamSide.HOME, 30),
+        kind: 'attack',
+        ownership: 'attack:quick:duplicate-parent',
+        attackBasis: { kind: 'chained-quick', parentSetDecisionId: set.decision.decisionId },
+        ownContactRead: quickPass,
+      }),
+    ).toEqual({ status: 'invalid-request' });
+    expect(random.home.draws).toBe(4);
+  });
+
+  it('rejeita leitura própria ausente, stale, do lado ou kind errado antes do RNG', () => {
+    const random = streams();
+    const system = new OpponentStrategySystem({ streams: random });
+    system.captureFrame(observation(0));
+    const base = {
+      ...serveRequest(),
+      kind: 'set' as const,
+      ownership: 'set:inválido',
+      setterAthleteId: 3,
+    };
+
+    expect(system.commitDecision(base)).toEqual({ status: 'invalid-request' });
+    expect(
+      system.commitDecision({ ...base, ownContactRead: ownContactRead('pass', TeamSide.HOME, 5) }),
+    ).toEqual({ status: 'invalid-request' });
+    expect(
+      system.commitDecision({ ...base, ownContactRead: ownContactRead('pass', TeamSide.HOME, 7) }),
+    ).toEqual({ status: 'invalid-request' });
+    expect(
+      system.commitDecision({ ...base, ownContactRead: ownContactRead('pass', TeamSide.AWAY) }),
+    ).toEqual({ status: 'invalid-request' });
+    expect(system.commitDecision({ ...base, ownContactRead: ownContactRead('set') })).toEqual({
+      status: 'invalid-request',
+    });
+
+    const notReady = new OpponentStrategySystem({ streams: random });
+    notReady.captureFrame(observation(10));
+    expect(
+      notReady.commitDecision({
+        ...base,
+        decisionTick: 10,
+        setterAthleteId: 99,
+        ownContactRead: ownContactRead('pass', TeamSide.HOME, 10),
+      }),
+    ).toEqual({ status: 'invalid-request' });
+    expect(random.home.draws).toBe(0);
+    expect(random.away.draws).toBe(0);
+  });
+
   it('consome exatamente dois uint32 somente no stream do lado aceito', () => {
     const random = streams();
     const system = new OpponentStrategySystem({ streams: random });
