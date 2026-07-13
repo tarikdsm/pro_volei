@@ -649,6 +649,25 @@ describe('HumanController — cancelamento sem release', () => {
 });
 
 describe('HumanController — transições de modo (T4)', () => {
+  it('expõe identidade e revisão readonly somente quando a controlada muda', () => {
+    const hc = new HumanController();
+    const { ctx } = makeCtx();
+    const first = makeAthlete(0, 0, 3).athlete;
+
+    expect(hc.controlSnapshot()).toEqual({ mode: 'none', athleteId: null, selectionRevision: 0 });
+    hc.beginServe(first, ctx);
+    const assigned = hc.controlSnapshot();
+    expect(assigned).toEqual({ mode: 'serve', athleteId: 3, selectionRevision: 1 });
+    expect(Object.isFrozen(assigned)).toBe(true);
+    expect(hc.controlSnapshot()).toBe(assigned);
+    hc.beginServe(first, ctx);
+    expect(hc.controlSnapshot().selectionRevision).toBe(1);
+    hc.release();
+    expect(hc.controlSnapshot()).toEqual({ mode: 'none', athleteId: null, selectionRevision: 2 });
+    hc.release();
+    expect(hc.controlSnapshot().selectionRevision).toBe(2);
+  });
+
   it('beginServe assume o saque: mode "serve" e isControlling true', () => {
     const hc = new HumanController();
     const { ctx } = makeCtx();
@@ -686,6 +705,30 @@ describe('HumanController — transições de modo (T4)', () => {
     hc.onAssigned(ctx, plan);
     expect(hc.mode).toBe('attack');
     expect(hc.isControlling).toBe(true);
+  });
+
+  it('sincroniza imediatamente a atleta do plano com a seleção inicial da recepção', () => {
+    const hc = new HumanController();
+    const { ctx } = makeCtx();
+    const far = makeAthlete(-8, 4, 0).athlete;
+    const near = makeAthlete(-4, 0, 1).athlete;
+    const plan = {
+      planId: 41,
+      side: TeamSide.HOME,
+      athlete: far,
+      contactIn: 1,
+      point: new THREE.Vector3(-4, 0, 0),
+      kind: 'pass',
+      isHuman: true,
+      done: false,
+    } as TouchPlan;
+    ctx.rally.plan = plan;
+    ctx.teamOf = () => makeRoster([far, near]);
+
+    hc.onAssigned(ctx, plan);
+
+    expect(hc.controlSnapshot().athleteId).toBe(1);
+    expect(plan.athlete).toBe(near);
   });
 
   it('spikeQuality retorna 0.4 quando o timing do pulo ainda não foi registrado', () => {

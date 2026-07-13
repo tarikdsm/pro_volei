@@ -284,8 +284,10 @@ export class Team {
     for (const a of this.athletes) a.act('dejected', 2.2);
   }
 
-  update(dt: number, maxSpeed: number): void {
-    for (const a of this.athletes) a.update(dt, maxSpeed);
+  update(dt: number, maxSpeed: number | ((athlete: Athlete) => number)): void {
+    for (const a of this.athletes) {
+      a.update(dt, typeof maxSpeed === 'number' ? maxSpeed : maxSpeed(a));
+    }
   }
 
   beginFixedStep(): void {

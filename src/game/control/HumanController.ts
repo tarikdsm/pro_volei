@@ -25,6 +25,11 @@ import {
 } from '../feedback/TimingFeedback';
 
 export type CtlMode = 'none' | 'serve' | 'receive' | 'set' | 'attack' | 'block' | 'freeball';
+export interface HumanControlSnapshot {
+  readonly mode: CtlMode;
+  readonly athleteId: number | null;
+  readonly selectionRevision: number;
+}
 type ControlMarker = THREE.Object3D & { material?: THREE.Material | THREE.Material[] };
 
 const FIXED_HZ = 60;
@@ -33,6 +38,12 @@ const CONTACT_CONTEXTS = new Set<ActionContext>(['receive', 'set', 'attack', 'fr
 export class HumanController {
   private ctl: CtlMode = 'none';
   private controlled: Athlete | null = null;
+  private selectionRevision = 0;
+  private cachedControlSnapshot: Readonly<HumanControlSnapshot> = Object.freeze({
+    mode: 'none',
+    athleteId: null,
+    selectionRevision: 0,
+  });
   private readonly actionControl = new ActionControl();
   private readonly autoControl = new HumanAutoControl();
   private activeToken: number | null = null;
@@ -76,10 +87,26 @@ export class HumanController {
     return this.controlled !== null && this.ctl !== 'none';
   }
 
+  controlSnapshot(): Readonly<HumanControlSnapshot> {
+    const athleteId = this.controlled?.index ?? null;
+    if (
+      this.cachedControlSnapshot.mode !== this.ctl ||
+      this.cachedControlSnapshot.athleteId !== athleteId ||
+      this.cachedControlSnapshot.selectionRevision !== this.selectionRevision
+    ) {
+      this.cachedControlSnapshot = Object.freeze({
+        mode: this.ctl,
+        athleteId,
+        selectionRevision: this.selectionRevision,
+      });
+    }
+    return this.cachedControlSnapshot;
+  }
+
   /** Libera o controle e revoga qualquer gesto do ponto encerrado. */
   release(): void {
     this.ctl = 'none';
-    this.controlled = null;
+    this.setControlled(null);
     this.autoControl.release();
     this.actionControl.cancel('point-end');
     this.clearResolvedIntent();
@@ -98,7 +125,7 @@ export class HumanController {
   beginServe(server: Athlete, ctx: MechanicsCtx): void {
     this.bindAction(this.nextServeToken--, 'serve');
     this.ctl = 'serve';
-    this.controlled = server;
+    this.setControlled(server);
     this.aim.set(ctx.random.control.range(4, 6.5), 0, ctx.random.control.range(-2, 2));
     ctx.hooks.hint('Toque para saque flutuante · segure para saque potente · setas miram');
     ctx.hooks.serveMeter(true, 0);
@@ -115,7 +142,7 @@ export class HumanController {
 
     if (context === 'attack') {
       this.ctl = 'attack';
-      this.controlled = plan.athlete;
+      this.setControlled(plan.athlete);
       this.aim.set(ctx.random.control.range(4.5, 6.5), 0, ctx.random.control.range(-2.5, 2.5));
       ctx.hooks.hint('Toque para largada · segure para cortada potente · setas miram');
       return;
@@ -123,14 +150,16 @@ export class HumanController {
 
     if (context === 'set') {
       this.ctl = 'set';
-      this.controlled = plan.athlete;
+      this.setControlled(plan.athlete);
       ctx.hooks.hint('Toque para bola alta · segure para tempo rápido · setas escolhem');
       ctx.hooks.zoneHint(this.chosenZone);
       return;
     }
 
     this.ctl = context;
-    this.controlled = this.autoControl.beginReceive(ctx, plan);
+    const selected = this.autoControl.beginReceive(ctx, plan);
+    this.setControlled(selected);
+    plan.athlete = selected;
     ctx.hooks.hint(
       context === 'freeball'
         ? 'Toque para salvar · segure para alcançar mais longe'
@@ -144,14 +173,14 @@ export class HumanController {
     const plan = ctx.rally.plan;
     if (plan) this.bindAction(plan.planId, 'block');
     this.ctl = 'block';
-    this.controlled = this.autoControl.beginBlock(ctx, blocker);
+    this.setControlled(this.autoControl.beginBlock(ctx, blocker));
     ctx.hooks.hint('Toque para bloqueio rápido · segure para penetrar');
   }
 
   idle(ctx: MechanicsCtx): void {
     if (this.ctl !== 'block') {
       this.ctl = 'none';
-      this.controlled = null;
+      this.setControlled(null);
       this.autoControl.release();
       this.actionControl.cancel('plan-changed');
       this.activeToken = null;
@@ -493,9 +522,9 @@ export class HumanController {
     const plan = ctx.rally.plan;
     if (!plan || plan.done) return;
     if ((this.ctl === 'receive' || this.ctl === 'freeball') && this.controlled) {
-      this.controlled = this.autoControl.refreshReceive(ctx, plan, this.controlled);
+      this.setControlled(this.autoControl.refreshReceive(ctx, plan, this.controlled));
     } else if (this.ctl === 'block' && this.controlled && !this.controlled.isAirborne) {
-      this.controlled = this.autoControl.refreshBlock(ctx, plan, this.controlled);
+      this.setControlled(this.autoControl.refreshBlock(ctx, plan, this.controlled));
     }
   }
 
@@ -518,9 +547,14 @@ export class HumanController {
 
     const server = this.controlled;
     this.ctl = 'none';
-    this.controlled = null;
+    this.setControlled(null);
     ctx.hooks.serveMeter(false);
     performServe(ctx, server, Math.max(0.3, intent.power), target, clearance);
+  }
+
+  private setControlled(athlete: Athlete | null): void {
+    if ((this.controlled?.index ?? null) !== (athlete?.index ?? null)) this.selectionRevision++;
+    this.controlled = athlete;
   }
 
   /** Feedback compacto por forma/cor; não adiciona instrução textual ao gameplay. */

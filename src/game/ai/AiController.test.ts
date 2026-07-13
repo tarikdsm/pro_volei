@@ -4,6 +4,7 @@ import { RallyState, TouchPlan } from '../RallyState';
 import type { MechanicsCtx } from '../mechanics/context';
 import type { Athlete } from '../Team';
 import { RandomHub } from '../../core/random';
+import { TeamSide } from '../../core/constants';
 import { SequenceRandom } from '../../core/random/testing/SequenceRandom';
 
 // Stub mínimo de Athlete: só conta as chamadas de act/jump que a IA dispara.
@@ -115,5 +116,63 @@ describe('AiController.updateScheduledJumps — lifecycle do bloqueador agendado
     expect(calls.jump).toBe(0);
     expect(rally.blockers[0].jumped).toBe(false);
     expect(rally.blockers[0].jumpIn).toBeCloseTo(0.4);
+  });
+});
+
+describe('AiController.scheduleApproach — ownership do plano', () => {
+  function approachFixture() {
+    const callbacks: Array<() => void> = [];
+    const moves: Array<[number, number]> = [];
+    const athlete = {
+      moveTo: (x: number, z: number) => moves.push([x, z]),
+    } as unknown as Athlete;
+    const rally = new RallyState();
+    const ctx = {
+      rally,
+      diff: { reactionDelay: 0.2 },
+      after: (_seconds: number, callback: () => void) => callbacks.push(callback),
+    } as unknown as MechanicsCtx;
+    const plan = {
+      planId: 70,
+      athlete,
+      side: TeamSide.AWAY,
+      kind: 'pass',
+      point: { x: 4, z: 1 },
+      contactIn: 1,
+      tacticalRevision: 1,
+    } as unknown as TouchPlan;
+    return { callbacks, moves, athlete, rally, ctx, plan };
+  }
+
+  it('executa a aproximação enquanto plano e atleta ainda são atuais', () => {
+    const fixture = approachFixture();
+    fixture.rally.plan = fixture.plan;
+    new AiController().scheduleApproach(fixture.ctx, fixture.plan);
+
+    fixture.callbacks[0]();
+
+    expect(fixture.moves).toEqual([[4, 1]]);
+  });
+
+  it('ignora callback atrasado depois que o plano foi substituído', () => {
+    const fixture = approachFixture();
+    fixture.rally.plan = fixture.plan;
+    new AiController().scheduleApproach(fixture.ctx, fixture.plan);
+    fixture.rally.plan = { ...fixture.plan, planId: 71 } as TouchPlan;
+
+    fixture.callbacks[0]();
+
+    expect(fixture.moves).toEqual([]);
+  });
+
+  it('ignora callback atrasado quando a revisão tática avança no mesmo plano', () => {
+    const fixture = approachFixture();
+    fixture.rally.plan = fixture.plan;
+    new AiController().scheduleApproach(fixture.ctx, fixture.plan);
+    fixture.plan.tacticalRevision = 2;
+
+    fixture.callbacks[0]();
+
+    expect(fixture.moves).toEqual([]);
   });
 });

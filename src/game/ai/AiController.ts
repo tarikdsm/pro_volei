@@ -15,13 +15,30 @@ export class AiController {
   scheduleApproach(ctx: MechanicsCtx, plan: TouchPlan): void {
     const { athlete, side, kind, point, contactIn } = plan;
     const delay = ctx.diff.reactionDelay;
+    const tacticalRevision = plan.tacticalRevision ?? 0;
     if (kind === 'spike') {
       // atacante corre para trás do ponto de contato; o pulo leva até ele
       const backoff = sideSign(side) * 0.85;
-      ctx.after(delay, () => athlete.moveTo(point.x + backoff * 0.9, point.z));
+      ctx.after(delay, () => {
+        if (
+          ctx.rally.plan !== plan ||
+          ctx.rally.plan.athlete !== athlete ||
+          (plan.tacticalRevision ?? 0) !== tacticalRevision
+        )
+          return;
+        athlete.moveTo(point.x + backoff * 0.9, point.z);
+      });
       plan.jumpScheduledIn = contactIn - 0.26; // IA pula para contato no ápice
     } else {
-      ctx.after(delay, () => athlete.moveTo(point.x, point.z));
+      ctx.after(delay, () => {
+        if (
+          ctx.rally.plan !== plan ||
+          ctx.rally.plan.athlete !== athlete ||
+          (plan.tacticalRevision ?? 0) !== tacticalRevision
+        )
+          return;
+        athlete.moveTo(point.x, point.z);
+      });
     }
   }
 

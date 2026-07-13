@@ -61,7 +61,6 @@ export type TouchKind = 'serve' | 'pass' | 'set' | 'spike' | 'block' | 'freeball
 export interface Difficulty {
   name: string;
   reactionDelay: number; // s até a IA reagir à trajetória
-  moveSpeed: number; // multiplicador de velocidade dos atletas IA
   passQuality: [number, number]; // faixa de qualidade de passe [min,max]
   attackError: number; // prob. de erro no ataque (rede/fora)
   serveError: number; // prob. de erro no saque
@@ -74,7 +73,6 @@ export const DIFFICULTIES: Difficulty[] = [
   {
     name: 'Fácil',
     reactionDelay: 0.42,
-    moveSpeed: 0.8,
     passQuality: [0.3, 0.75],
     attackError: 0.3,
     serveError: 0.18,
@@ -85,7 +83,6 @@ export const DIFFICULTIES: Difficulty[] = [
   {
     name: 'Normal',
     reactionDelay: 0.24,
-    moveSpeed: 1.0,
     passQuality: [0.5, 0.92],
     attackError: 0.13,
     serveError: 0.1,
@@ -96,7 +93,6 @@ export const DIFFICULTIES: Difficulty[] = [
   {
     name: 'Difícil',
     reactionDelay: 0.1,
-    moveSpeed: 1.15,
     passQuality: [0.7, 1.0],
     attackError: 0.05,
     serveError: 0.05,

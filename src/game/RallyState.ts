@@ -12,6 +12,7 @@ export interface TouchPlan {
   point: THREE.Vector3; // onde a bola estará no contato
   kind: TouchKind; // o que este toque deve ser
   isHuman: boolean;
+  tacticalRevision?: number;
   jumpScheduledIn?: number; // p/ ataque IA
   done: boolean;
 }

@@ -135,6 +135,17 @@ describe('Team (modelo lógico desacoplado do visual)', () => {
     expect(team.slotIndexOf(athlete)).toBe(1);
     expect(team.basePositionOf(athlete)).toEqual(team.slotPos(1));
   });
+
+  it('aceita uma política de velocidade máxima por atleta', () => {
+    const team = new Team(TeamSide.HOME, stubFactory);
+    team.athletes[0].moveTo(8, 3);
+    team.athletes[1].moveTo(8, 0);
+
+    team.update(0.1, (athlete) => (athlete.index === 0 ? 1 : 2));
+
+    expect(team.athletes[0].char.moveSpeed).toBeCloseTo(1, 6);
+    expect(team.athletes[1].char.moveSpeed).toBeCloseTo(2, 6);
+  });
 });
 
 // Dublê que registra a última ação pedida ao visual — permite observar o flag

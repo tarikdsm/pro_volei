@@ -148,8 +148,9 @@ export class Match {
       isRally: () => this.state === 'rally',
       advanceWorld: (seconds) => {
         this.stateTime += seconds;
-        this.home.update(seconds, this.speedFor(TeamSide.HOME));
-        this.away.update(seconds, this.speedFor(TeamSide.AWAY));
+        const controlledAthleteId = this.human.controlSnapshot().athleteId;
+        this.home.update(seconds, (athlete) => this.speedFor(athlete, controlledAthleteId));
+        this.away.update(seconds, (athlete) => this.speedFor(athlete, controlledAthleteId));
       },
       resolveContact: (plan) => this.attemptContact(plan),
       resolveNet: () => this.onNetTouch(),
@@ -355,6 +356,7 @@ export class Match {
       point: cPoint,
       kind: nextKind,
       isHuman,
+      tacticalRevision: 0,
       done: false,
     };
 
@@ -363,7 +365,17 @@ export class Match {
     if (isHuman) {
       if (nextKind === 'spike') {
         const backoff = sideSign(landSide) * 0.85;
-        this.after(0, () => athlete.moveTo(cPoint.x + backoff * 0.9, cPoint.z));
+        const ownedPlan = this.rally.plan;
+        const ownedRevision = ownedPlan.tacticalRevision ?? 0;
+        this.after(0, () => {
+          if (
+            this.rally.plan !== ownedPlan ||
+            ownedPlan.athlete !== athlete ||
+            (ownedPlan.tacticalRevision ?? 0) !== ownedRevision
+          )
+            return;
+          athlete.moveTo(cPoint.x + backoff * 0.9, cPoint.z);
+        });
       } else if (nextKind === 'set') {
         athlete.moveTo(cPoint.x, cPoint.z);
       }
@@ -433,8 +445,10 @@ export class Match {
     this.present(1);
   }
 
-  private speedFor(side: TeamSide): number {
-    return this.isHumanSide(side) ? PLAYER.speed : PLAYER.aiSpeed * this.diff.moveSpeed;
+  private speedFor(athlete: Athlete, controlledAthleteId: number | null): number {
+    return this.isHumanSide(athlete.side) && controlledAthleteId === athlete.index
+      ? PLAYER.speed
+      : PLAYER.aiSpeed;
   }
 
   private attemptContact(plan: TouchPlan): void {
