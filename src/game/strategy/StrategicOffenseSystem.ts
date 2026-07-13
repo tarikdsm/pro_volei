@@ -47,6 +47,15 @@ export const STRATEGIC_OFFENSE_TUNING = Object.freeze({
   fallbackAttackWindowSeconds: 2.4,
 } as const);
 
+export const STRATEGIC_OFFENSE_BOUNDARY_VERSION = 1 as const;
+
+export interface StrategicOffenseBoundarySnapshot {
+  readonly version: typeof STRATEGIC_OFFENSE_BOUNDARY_VERSION;
+  readonly matchEpoch: number;
+  readonly rallyEpoch: number;
+  readonly possessionEpoch: number;
+}
+
 export interface OffenseRallyRef {
   readonly matchEpoch: number;
   readonly rallyEpoch: number;
@@ -368,6 +377,40 @@ export class StrategicOffenseSystem {
     }
     if (matchEpoch === this.observedMatchEpoch) return;
     this.observedMatchEpoch = matchEpoch;
+    this.activeRally = undefined;
+    this.activePossession = undefined;
+    this.activeContact = undefined;
+    this.activeSet = undefined;
+    this.activeAttack = undefined;
+  }
+
+  checkpointBoundary(): StrategicOffenseBoundarySnapshot {
+    this.assertBoundary();
+    return Object.freeze({
+      version: STRATEGIC_OFFENSE_BOUNDARY_VERSION,
+      matchEpoch: this.observedMatchEpoch,
+      rallyEpoch: this.rallyEpoch,
+      possessionEpoch: this.possessionEpoch,
+    });
+  }
+
+  restoreBoundary(snapshot: StrategicOffenseBoundarySnapshot): void {
+    this.assertBoundary();
+    if (
+      snapshot === null ||
+      typeof snapshot !== 'object' ||
+      snapshot.version !== STRATEGIC_OFFENSE_BOUNDARY_VERSION ||
+      snapshot.matchEpoch !== this.strategy.matchEpoch ||
+      !Number.isSafeInteger(snapshot.rallyEpoch) ||
+      snapshot.rallyEpoch < 0 ||
+      !Number.isSafeInteger(snapshot.possessionEpoch) ||
+      snapshot.possessionEpoch < 0
+    ) {
+      throw new RangeError('checkpoint de fronteira ofensivo inválido');
+    }
+    this.observedMatchEpoch = snapshot.matchEpoch;
+    this.rallyEpoch = snapshot.rallyEpoch;
+    this.possessionEpoch = snapshot.possessionEpoch;
     this.activeRally = undefined;
     this.activePossession = undefined;
     this.activeContact = undefined;
@@ -1031,5 +1074,17 @@ export class StrategicOffenseSystem {
     this.activeContact = undefined;
     this.activeSet = undefined;
     this.activeAttack = undefined;
+  }
+
+  private assertBoundary(): void {
+    if (
+      this.activeRally ||
+      this.activePossession ||
+      this.activeContact ||
+      this.activeSet ||
+      this.activeAttack
+    ) {
+      throw new Error('checkpoint ofensivo permitido somente na fronteira de ponto');
+    }
   }
 }

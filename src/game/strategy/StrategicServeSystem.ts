@@ -29,6 +29,14 @@ export interface StrategicServeRealization {
   readonly clearance: number;
 }
 
+export const STRATEGIC_SERVE_BOUNDARY_VERSION = 1 as const;
+
+export interface StrategicServeBoundarySnapshot {
+  readonly version: typeof STRATEGIC_SERVE_BOUNDARY_VERSION;
+  readonly matchEpoch: number;
+  readonly serveEpoch: number;
+}
+
 export interface ServeOutcomeToken {
   readonly matchEpoch: number;
   readonly serveEpoch: number;
@@ -165,6 +173,31 @@ export class StrategicServeSystem {
 
   startMatch(): void {
     this.strategy.startMatch();
+    this.active = undefined;
+  }
+
+  checkpointBoundary(): StrategicServeBoundarySnapshot {
+    this.assertBoundary();
+    return Object.freeze({
+      version: STRATEGIC_SERVE_BOUNDARY_VERSION,
+      matchEpoch: this.strategy.matchEpoch,
+      serveEpoch: this.serveEpoch,
+    });
+  }
+
+  restoreBoundary(snapshot: StrategicServeBoundarySnapshot): void {
+    this.assertBoundary();
+    if (
+      snapshot === null ||
+      typeof snapshot !== 'object' ||
+      snapshot.version !== STRATEGIC_SERVE_BOUNDARY_VERSION ||
+      snapshot.matchEpoch !== this.strategy.matchEpoch ||
+      !Number.isSafeInteger(snapshot.serveEpoch) ||
+      snapshot.serveEpoch < 0
+    ) {
+      throw new RangeError('checkpoint de fronteira do saque inválido');
+    }
+    this.serveEpoch = snapshot.serveEpoch;
     this.active = undefined;
   }
 
@@ -364,5 +397,11 @@ export class StrategicServeSystem {
       this.strategy.revokeDecision(active.directive.ref.decisionId);
     }
     active.state = 'revoked';
+  }
+
+  private assertBoundary(): void {
+    if (this.active && this.active.state !== 'resolved' && this.active.state !== 'revoked') {
+      throw new Error('checkpoint do saque permitido somente na fronteira de ponto');
+    }
   }
 }

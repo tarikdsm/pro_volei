@@ -187,6 +187,22 @@ function prepared(offense: StrategicOffenseSystem, ref: OffenseContactRef): SetD
 }
 
 describe('StrategicOffenseSystem set lifecycle', () => {
+  it('checkpoint de fronteira restaura epochs ofensivos sem estado ativo', () => {
+    const { offense } = setup();
+    const first = offense.beginRally();
+    offense.endRally(first);
+    const checkpoint = offense.checkpointBoundary();
+    const second = offense.beginRally();
+    offense.endRally(second);
+
+    offense.restoreBoundary(checkpoint);
+    const replayed = offense.beginRally();
+
+    expect(replayed.rallyEpoch).toBe(second.rallyEpoch);
+    expect(() => offense.checkpointBoundary()).toThrow(/fronteira de ponto/);
+    expect(Object.isFrozen(checkpoint)).toBe(true);
+  });
+
   it('gera epochs próprios monotônicos e rejeita token stale antes do payload', () => {
     const { home, offense } = setup();
     const firstRally = offense.beginRally();

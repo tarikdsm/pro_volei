@@ -1,6 +1,10 @@
 import { TeamSide, otherSide } from '../../core/constants';
 import type { RandomSource } from '../../core/random';
-import { OpponentStrategySystem, type StrategyOutboxEvent } from './OpponentStrategySystem';
+import {
+  OpponentStrategySystem,
+  type OpponentStrategySnapshot,
+  type StrategyOutboxEvent,
+} from './OpponentStrategySystem';
 import {
   serveReceptionEffectiveness,
   type ServeReceptionBallAfter,
@@ -19,6 +23,7 @@ import {
   type StrategicServeCommitResult,
   type StrategicServeLaunchResult,
   type StrategicServeRealization,
+  type StrategicServeBoundarySnapshot,
 } from './StrategicServeSystem';
 import type {
   AttackBindResult,
@@ -37,6 +42,7 @@ import {
   type SetConsumeResult,
   type SetPlanIdentity,
   type SetPrepareResult,
+  type StrategicOffenseBoundarySnapshot,
 } from './StrategicOffenseSystem';
 import type { OwnContactReadSource } from './OwnContactRead';
 import type { StrategyDifficulty, StrategyMemorySnapshot, StrategyPhase } from './StrategyTypes';
@@ -66,6 +72,18 @@ export interface MatchStrategyPoint {
   readonly servingSide: TeamSide;
   readonly winner: TeamSide;
   readonly ace: boolean;
+}
+
+export const MATCH_STRATEGY_POINT_CHECKPOINT_VERSION = 1 as const;
+
+export interface MatchStrategyPointCheckpoint {
+  readonly version: typeof MATCH_STRATEGY_POINT_CHECKPOINT_VERSION;
+  readonly currentMatchEpoch: number;
+  readonly latestCapturedTick: number | null;
+  readonly lastVisibleContactTick: number | null;
+  readonly core: OpponentStrategySnapshot;
+  readonly serve: StrategicServeBoundarySnapshot;
+  readonly offense: StrategicOffenseBoundarySnapshot;
 }
 
 type ServeGuardStage = 'toss' | 'hit';
@@ -190,6 +208,37 @@ export class MatchStrategyBridge implements MatchStrategyPort {
 
   startSet(): void {
     this.#strategy.startSet();
+  }
+
+  checkpointPoint(): MatchStrategyPointCheckpoint {
+    this.assertPointBoundary();
+    return Object.freeze({
+      version: MATCH_STRATEGY_POINT_CHECKPOINT_VERSION,
+      currentMatchEpoch: this.#currentMatchEpoch,
+      latestCapturedTick: this.#latestCapturedTick,
+      lastVisibleContactTick: this.#lastVisibleContactTick,
+      core: this.#strategy.snapshot(),
+      serve: this.#serves.checkpointBoundary(),
+      offense: this.#offense.checkpointBoundary(),
+    });
+  }
+
+  restorePoint(snapshot: MatchStrategyPointCheckpoint): void {
+    this.assertPointBoundary();
+    validatePointCheckpoint(snapshot);
+    const before = this.checkpointPoint();
+    try {
+      this.#strategy.restore(snapshot.core);
+      this.#serves.restoreBoundary(snapshot.serve);
+      this.#offense.restoreBoundary(snapshot.offense);
+      this.applyPointCheckpoint(snapshot);
+    } catch (error) {
+      this.#strategy.restore(before.core);
+      this.#serves.restoreBoundary(before.serve);
+      this.#offense.restoreBoundary(before.offense);
+      this.applyPointCheckpoint(before);
+      throw error;
+    }
   }
 
   captureTick(source: MatchStrategyTickSource): void {
@@ -373,5 +422,50 @@ export class MatchStrategyBridge implements MatchStrategyPort {
 
   flush(): void {
     this.#strategy.flushOutbox();
+  }
+
+  private assertPointBoundary(): void {
+    if (this.#currentServeOpen || this.#activeOutcome) {
+      throw new Error('checkpoint estratégico permitido somente na fronteira de ponto');
+    }
+  }
+
+  private applyPointCheckpoint(snapshot: MatchStrategyPointCheckpoint): void {
+    this.#currentMatchEpoch = snapshot.currentMatchEpoch;
+    this.#latestCapturedTick = snapshot.latestCapturedTick;
+    this.#lastVisibleContactTick = snapshot.lastVisibleContactTick;
+    this.#currentServe = undefined;
+    this.#currentServeOpen = false;
+    this.#activeOutcome = undefined;
+  }
+}
+
+function validatePointCheckpoint(snapshot: MatchStrategyPointCheckpoint): void {
+  if (
+    snapshot === null ||
+    typeof snapshot !== 'object' ||
+    snapshot.version !== MATCH_STRATEGY_POINT_CHECKPOINT_VERSION ||
+    !Number.isSafeInteger(snapshot.currentMatchEpoch) ||
+    snapshot.currentMatchEpoch < 0 ||
+    snapshot.core.matchEpoch !== snapshot.currentMatchEpoch ||
+    snapshot.serve.matchEpoch !== snapshot.currentMatchEpoch ||
+    snapshot.offense.matchEpoch !== snapshot.currentMatchEpoch
+  ) {
+    throw new RangeError('checkpoint estratégico de ponto inválido');
+  }
+  for (const [label, tick] of [
+    ['latestCapturedTick', snapshot.latestCapturedTick],
+    ['lastVisibleContactTick', snapshot.lastVisibleContactTick],
+  ] as const) {
+    if (tick !== null && (!Number.isSafeInteger(tick) || tick < 0)) {
+      throw new RangeError(`${label} do checkpoint estratégico inválido`);
+    }
+  }
+  if (
+    snapshot.latestCapturedTick !== null &&
+    snapshot.lastVisibleContactTick !== null &&
+    snapshot.lastVisibleContactTick > snapshot.latestCapturedTick
+  ) {
+    throw new RangeError('contato visível posterior à captura no checkpoint estratégico');
   }
 }

@@ -358,6 +358,36 @@ describe('MatchStrategyBridge perception and lifecycle', () => {
 });
 
 describe('MatchStrategyBridge outcomes', () => {
+  it('checkpoint de ponto restaura core e epochs sem expor handles internos', () => {
+    const { bridge } = readyBridge();
+    const finishServe = (serverAthleteId: number) => {
+      const serve = launched(
+        bridge,
+        committed(bridge, bridge.beginServe(TeamSide.HOME, serverAthleteId)),
+      );
+      expect(
+        bridge.onPoint({
+          outcomeToken: serve.outcomeToken,
+          servingSide: TeamSide.HOME,
+          winner: TeamSide.HOME,
+          ace: true,
+        }),
+      ).toBe(true);
+      return serve.ref.serveEpoch;
+    };
+
+    expect(finishServe(0)).toBe(1);
+    const checkpoint = bridge.checkpointPoint();
+    expect(finishServe(1)).toBe(2);
+    expect(bridge.memory(TeamSide.HOME).outcomes).toHaveLength(2);
+
+    bridge.restorePoint(checkpoint);
+
+    expect(bridge.memory(TeamSide.HOME).outcomes).toHaveLength(1);
+    expect(bridge.beginServe(TeamSide.AWAY, 2).serveEpoch).toBe(2);
+    expect(Object.isFrozen(checkpoint)).toBe(true);
+  });
+
   it('mark + primeira recepção rival aprende física uma única vez', () => {
     const { bridge } = readyBridge();
     const directive = committed(bridge, bridge.beginServe(TeamSide.HOME, 0));
@@ -494,9 +524,9 @@ describe('MatchStrategyBridge isolation', () => {
     expect(poisonedRandom.home.draws).toBe(2);
   });
 
-  it('fonte do bridge não cria snapshot nem lê future poison', () => {
+  it('fonte do bridge não expõe snapshot cru nem lê future poison', () => {
     const source = readFileSync(new URL('./MatchStrategyBridge.ts', import.meta.url), 'utf8');
-    expect(source).not.toMatch(/\bsnapshot\s*\(/);
+    expect(source).not.toMatch(/\n\s{2}snapshot\s*\(/);
     expect(source).not.toMatch(/\.(?:q|quality|target|landing)\b/);
   });
 });

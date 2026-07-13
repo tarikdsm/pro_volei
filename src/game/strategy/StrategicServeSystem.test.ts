@@ -62,6 +62,33 @@ function realization() {
 }
 
 describe('StrategicServeSystem lifecycle', () => {
+  it('checkpoint de fronteira restaura serveEpoch sem carregar saque resolvido', () => {
+    const { strategy, serves } = setup();
+    strategy.captureFrame(observation(0));
+    const finishServe = (serverAthleteId: number) => {
+      const directive = commit(serves, serves.beginServe(TeamSide.HOME, serverAthleteId));
+      const launched = serves.markLaunched(directive.ref, realization());
+      if (launched.status !== 'launched') throw new Error('saque deveria lançar');
+      expect(
+        serves.resolvePoint(launched.serve.outcomeToken, {
+          servingSide: TeamSide.HOME,
+          winner: TeamSide.HOME,
+          ace: true,
+        }),
+      ).toBe(true);
+      return directive.ref.serveEpoch;
+    };
+
+    expect(finishServe(0)).toBe(1);
+    const checkpoint = serves.checkpointBoundary();
+    expect(finishServe(1)).toBe(2);
+
+    serves.restoreBoundary(checkpoint);
+
+    expect(serves.beginServe(TeamSide.AWAY, 2).serveEpoch).toBe(2);
+    expect(Object.isFrozen(checkpoint)).toBe(true);
+  });
+
   it('gate stale acontece antes de percepção e RNG', () => {
     const { home, strategy, serves } = setup();
     strategy.captureFrame(observation(0));
