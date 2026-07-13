@@ -4,13 +4,42 @@ import { canonicalStrategyOptions, strategyToWorld } from './CourtZones';
 import { OpponentStrategySystem } from './OpponentStrategySystem';
 import {
   buildOwnContactRead,
+  deriveAttackOriginFromExecutedSet,
   selectSetterByEta,
   type OwnContactRead,
   type OwnContactReadSource,
   type PossessionRef,
   type SetterEtaSelection,
 } from './OwnContactRead';
-import type { SetOptionId, StrategyDifficulty, StrategyPoint2 } from './StrategyTypes';
+import {
+  fallbackPlacedSeam,
+  selectAttackerByEta,
+  setDeliveryEffectiveness,
+  STRATEGIC_ATTACK_TUNING,
+} from './StrategicAttackSelection';
+import type {
+  AttackBindResult,
+  AttackConsumeResult,
+  AttackDecisionDraft,
+  AttackExecution,
+  AttackPrepareResult,
+  BoundAttackCommitment,
+  StrategicAttackExecution,
+} from './StrategicAttackTypes';
+import type {
+  AttackOptionId,
+  SetOptionId,
+  StrategyDifficulty,
+  StrategyPoint2,
+} from './StrategyTypes';
+
+export type {
+  AttackBindResult,
+  AttackConsumeResult,
+  AttackDecisionDraft,
+  AttackPrepareResult,
+  BoundAttackCommitment,
+} from './StrategicAttackTypes';
 
 export const STRATEGIC_OFFENSE_TUNING = Object.freeze({
   tickRate: 60,
@@ -34,7 +63,8 @@ export interface SetPlanIdentity {
 }
 
 export type StrategicSetFamily = 'high' | 'quick' | 'accelerated';
-export type StrategicSetFallbackReason = 'insufficient-lead' | 'perception-not-ready';
+export type StrategicSetFallbackReason =
+  'insufficient-lead' | 'perception-not-ready' | 'no-attacker' | 'quick-unavailable';
 
 export interface StrategicSetExecution {
   readonly mode: 'strategic';
@@ -67,6 +97,8 @@ export interface SetDecisionDraft {
   readonly setterContact: StrategyPoint2;
   readonly leadTicks: number;
   readonly execution: SetExecution;
+  readonly plannedAttackerAthleteId: number | null;
+  readonly plannedAttack: AttackDecisionDraft | null;
 }
 
 export interface BoundSetCommitment extends SetPlanIdentity {
@@ -98,6 +130,8 @@ export type SetConsumeResult =
   | Readonly<{ status: 'consumed'; execution: SetExecution }>;
 
 type SetLifecycleState = 'prepared' | 'bound' | 'consumed' | 'unplayable' | 'revoked';
+type AttackLifecycleState =
+  'awaiting-set' | 'prepared' | 'bound' | 'consumed' | 'resolved' | 'revoked';
 
 interface ActivePossession {
   readonly matchEpoch: number;
@@ -117,9 +151,18 @@ interface ActiveSet {
   readonly contact: OffenseContactRef;
   state: SetLifecycleState;
   readonly prepareResult: SetPrepareResult;
-  readonly draft?: SetDecisionDraft;
+  draft?: SetDecisionDraft;
   commitment?: BoundSetCommitment;
   bindResult?: Extract<SetBindResult, { status: 'bound' }>;
+}
+
+interface ActiveAttack {
+  state: AttackLifecycleState;
+  draft: AttackDecisionDraft;
+  originSetPlanId: number | null;
+  prepareResult?: Extract<AttackPrepareResult, { status: 'prepared' }>;
+  commitment?: BoundAttackCommitment;
+  bindResult?: Extract<AttackBindResult, { status: 'bound' }>;
 }
 
 interface FallbackCandidate {
@@ -178,6 +221,40 @@ function validPlan(plan: SetPlanIdentity, setterAthleteId: number): boolean {
 
 function setFamily(value: string): value is StrategicSetFamily {
   return value === 'high' || value === 'quick' || value === 'accelerated';
+}
+
+function attackFamily(value: string): value is StrategicAttackExecution['family'] {
+  return value === 'power' || value === 'placed' || value === 'tip';
+}
+
+function freezeStrategicAttack(
+  decision: Readonly<{
+    decisionId: string;
+    observationTick: number;
+    proposal: Readonly<{
+      chosen: Readonly<{
+        optionId: string;
+        family: string;
+        target: StrategyPoint2;
+      }>;
+    }>;
+  }>,
+): StrategicAttackExecution {
+  const chosen = decision.proposal.chosen;
+  if (!chosen.optionId.startsWith('attack.') || !attackFamily(chosen.family)) {
+    throw new Error('decisão de ataque incompatível com o domínio ofensivo');
+  }
+  return Object.freeze({
+    mode: 'strategic' as const,
+    decisionId: decision.decisionId,
+    optionId: chosen.optionId as AttackOptionId,
+    family: chosen.family,
+    target: Object.freeze({
+      x: canonicalNumber(chosen.target.x),
+      z: canonicalNumber(chosen.target.z),
+    }),
+    observationTick: decision.observationTick,
+  });
 }
 
 function fallbackEta(
@@ -275,6 +352,7 @@ export class StrategicOffenseSystem {
   private activePossession?: ActivePossession;
   private activeContact?: ActiveContact;
   private activeSet?: ActiveSet;
+  private activeAttack?: ActiveAttack;
 
   constructor(private readonly strategy: OpponentStrategySystem) {
     this.observedMatchEpoch = strategy.matchEpoch;
@@ -294,6 +372,7 @@ export class StrategicOffenseSystem {
     this.activePossession = undefined;
     this.activeContact = undefined;
     this.activeSet = undefined;
+    this.activeAttack = undefined;
   }
 
   beginRally(): OffenseRallyRef {
@@ -327,6 +406,7 @@ export class StrategicOffenseSystem {
     if (possessionTouches !== 1 && possessionTouches !== 2 && possessionTouches !== 3) {
       return INVALID;
     }
+    if (possessionTouches === 1 && this.activeAttack?.state === 'consumed') return INVALID;
     let read: OwnContactRead;
     try {
       read = buildOwnContactRead(source);
@@ -414,37 +494,117 @@ export class StrategicOffenseSystem {
       return this.storeFallback(contact, read, setter, leadTicks, 'insufficient-lead');
     }
 
-    const result = this.strategy.commitDecision({
-      matchEpoch: contact.matchEpoch,
-      side: contact.side,
-      kind: 'set',
-      difficulty,
-      decisionTick: contact.tick,
-      ownership: `set:${contact.matchEpoch}:${contact.rallyEpoch}:${contact.possessionEpoch}:${contact.contactSequence}:${contact.side}`,
+    const availableFront = read.ownAthletes.some(
+      (athlete) => athlete.row === 'front' && athlete.id !== setter.athleteId && !athlete.airborne,
+    );
+    if (!availableFront) {
+      return this.storeFallback(contact, read, setter, leadTicks, 'no-attacker');
+    }
+    const quickTarget = strategyToWorld(
+      canonicalStrategyOptions('set').find((option) => option.optionId === 'set.quick-center')!
+        .center,
+      contact.side,
+    );
+    const quickPreliminary = selectAttackerByEta({
+      read,
       setterAthleteId: setter.athleteId,
-      ownContactRead: read,
+      target: quickTarget,
+      availableIn: setter.contactIn + 1 / 60,
+      preferredAthleteId: read.ownAthletes.find((athlete) => athlete.slot === 4)?.id,
+    });
+
+    const ownership = `set:${contact.matchEpoch}:${contact.rallyEpoch}:${contact.possessionEpoch}:${contact.contactSequence}:${contact.side}`;
+    let committedQuickAttacker: ReturnType<typeof selectAttackerByEta> = null;
+    const result = this.strategy.commitSetPlay({
+      set: {
+        matchEpoch: contact.matchEpoch,
+        side: contact.side,
+        kind: 'set',
+        difficulty,
+        decisionTick: contact.tick,
+        ownership,
+        setterAthleteId: setter.athleteId,
+        ownContactRead: read,
+      },
+      quickAttackOwnership: `attack:quick:${contact.matchEpoch}:${contact.rallyEpoch}:${contact.possessionEpoch}:${contact.contactSequence}:${contact.side}`,
+      quickAllowed: quickPreliminary !== null,
+      acceptQuickTarget: (target) => {
+        committedQuickAttacker = selectAttackerByEta({
+          read,
+          setterAthleteId: setter.athleteId,
+          target,
+          availableIn: setter.contactIn + 1 / 60,
+          preferredAthleteId: quickPreliminary?.athleteId,
+        });
+        return committedQuickAttacker !== null;
+      },
     });
     if (result.status === 'not-ready') {
       return this.storeFallback(contact, read, setter, leadTicks, 'perception-not-ready');
     }
+    if (result.status === 'quick-unavailable') {
+      return this.storeFallback(contact, read, setter, leadTicks, 'quick-unavailable');
+    }
     if (result.status === 'invalid-request') return INVALID;
-    const chosen = result.decision.proposal.chosen;
+    const chosen = result.set.proposal.chosen;
     if (!chosen.optionId.startsWith('set.') || !setFamily(chosen.family)) {
-      this.strategy.revokeDecision(result.decision.decisionId);
+      this.strategy.revokeDecision(result.set.decisionId);
+      if (result.quickAttack) this.strategy.revokeDecision(result.quickAttack.decisionId);
       throw new Error('decisão de set incompatível com o domínio ofensivo');
     }
     const execution = Object.freeze({
       mode: 'strategic' as const,
-      decisionId: result.decision.decisionId,
+      decisionId: result.set.decisionId,
       optionId: chosen.optionId as SetOptionId,
       family: chosen.family,
       target: Object.freeze({
         x: canonicalNumber(chosen.target.x),
         z: canonicalNumber(chosen.target.z),
       }),
-      observationTick: result.decision.observationTick,
+      observationTick: result.set.observationTick,
     });
-    return this.storeDraft(contact, setter, leadTicks, execution);
+    const committedPreliminary =
+      chosen.family === 'quick'
+        ? null
+        : selectAttackerByEta({
+            read,
+            setterAthleteId: setter.athleteId,
+            target: execution.target,
+            availableIn: Number.MAX_VALUE,
+          });
+    const preliminary = chosen.family === 'quick' ? committedQuickAttacker : committedPreliminary;
+    let plannedAttack: AttackDecisionDraft | null = null;
+    if (chosen.family === 'quick') {
+      if (!result.quickAttack || !preliminary) {
+        this.revokePending(result.quickAttack?.decisionId);
+        this.revokePending(result.set.decisionId);
+        throw new Error('quick comprometido sem ataque filho ou central legal');
+      }
+      plannedAttack = Object.freeze({
+        basis: 'chained-quick' as const,
+        decisionContact: contact,
+        executedSetContact: null,
+        originSetDecisionId: result.set.decisionId,
+        originSetPlanId: null,
+        attackerAthleteId: preliminary.athleteId,
+        leadTicks: null,
+        deliveryEffectiveness: null,
+        execution: freezeStrategicAttack(result.quickAttack),
+      });
+      this.activeAttack = {
+        state: 'awaiting-set',
+        draft: plannedAttack,
+        originSetPlanId: null,
+      };
+    }
+    return this.storeDraft(
+      contact,
+      setter,
+      leadTicks,
+      execution,
+      preliminary?.athleteId ?? null,
+      plannedAttack,
+    );
   }
 
   bindSet(ref: OffenseContactRef, plan: SetPlanIdentity): SetBindResult {
@@ -463,14 +623,28 @@ export class StrategicOffenseSystem {
     }
     const strategic =
       active.draft.execution.mode === 'strategic' ? active.draft.execution : undefined;
+    let boundDraft = active.draft;
+    if (
+      this.activeAttack?.state === 'awaiting-set' &&
+      this.activeAttack.draft.originSetDecisionId === strategic?.decisionId
+    ) {
+      const boundAttackDraft = Object.freeze({
+        ...this.activeAttack.draft,
+        originSetPlanId: plan.planId,
+      });
+      this.activeAttack.draft = boundAttackDraft;
+      this.activeAttack.originSetPlanId = plan.planId;
+      boundDraft = Object.freeze({ ...boundDraft, plannedAttack: boundAttackDraft });
+      active.draft = boundDraft;
+    }
     const commitment = Object.freeze({
-      ref: active.draft.ref,
+      ref: boundDraft.ref,
       planId: plan.planId,
       tacticalRevision: plan.tacticalRevision,
       athleteId: plan.athleteId,
       decisionId: strategic?.decisionId ?? null,
       observationTick: strategic?.observationTick ?? null,
-      draft: active.draft,
+      draft: boundDraft,
     });
     const bound = Object.freeze({ status: 'bound' as const, commitment });
     active.commitment = commitment;
@@ -498,6 +672,201 @@ export class StrategicOffenseSystem {
     return Object.freeze({ status: 'consumed' as const, execution: commitment.draft.execution });
   }
 
+  prepareAttack(
+    setContact: OffenseContactRef,
+    difficulty: StrategyDifficulty,
+  ): AttackPrepareResult {
+    this.synchronizeMatch();
+    const contact = this.activeContact;
+    const set = this.activeSet;
+    if (
+      !contact ||
+      contact.ref !== setContact ||
+      !set ||
+      !set.draft ||
+      !set.commitment ||
+      set.state !== 'consumed' ||
+      setContact.matchEpoch !== this.observedMatchEpoch ||
+      setContact.rallyEpoch !== set.contact.rallyEpoch ||
+      setContact.possessionEpoch !== set.contact.possessionEpoch ||
+      setContact.side !== set.contact.side ||
+      setContact.contactSequence !== set.contact.contactSequence + 1 ||
+      contact.read.kind !== 'set' ||
+      contact.read.athleteId !== set.draft.setterAthleteId
+    ) {
+      return STALE;
+    }
+    if (
+      this.activeAttack?.prepareResult &&
+      this.activeAttack.draft.executedSetContact === setContact
+    ) {
+      return this.activeAttack.prepareResult;
+    }
+    const origin = deriveAttackOriginFromExecutedSet(contact.read);
+    if (!origin) {
+      this.failAttackBeforeConsume();
+      return UNPLAYABLE;
+    }
+
+    const quick =
+      set.draft.execution.mode === 'strategic' && set.draft.execution.family === 'quick';
+    if (!quick && ![0, 1, 2].includes(difficulty)) return INVALID;
+    const attacker = selectAttackerByEta({
+      read: contact.read,
+      setterAthleteId: set.draft.setterAthleteId,
+      target: origin.position,
+      availableIn: origin.contactIn,
+      preferredAthleteId: set.draft.plannedAttackerAthleteId ?? undefined,
+    });
+    if (!attacker) {
+      this.failAttackBeforeConsume();
+      return UNPLAYABLE;
+    }
+    const deliveryEffectiveness = setDeliveryEffectiveness(
+      set.draft.execution.mode === 'safety-freeball'
+        ? set.draft.setterContact
+        : set.draft.execution.target,
+      origin.position,
+    );
+
+    if (quick) {
+      const active = this.activeAttack;
+      if (!active || active.state !== 'awaiting-set') return STALE;
+      const draft = Object.freeze({
+        ...active.draft,
+        executedSetContact: setContact,
+        originSetPlanId: active.originSetPlanId,
+        attackerAthleteId: attacker.athleteId,
+        deliveryEffectiveness,
+      });
+      return this.storeAttackDraft(active, draft);
+    }
+
+    const leadTicks = Math.floor(origin.contactIn * STRATEGIC_OFFENSE_TUNING.tickRate + 1e-9);
+    let execution: AttackExecution;
+    const originSetDecisionId =
+      set.draft.execution.mode === 'strategic' ? set.draft.execution.decisionId : null;
+    if (set.draft.execution.mode !== 'strategic') {
+      execution = fallbackPlacedSeam(setContact.side, origin.position.z, 'fallback-set');
+    } else if (leadTicks < STRATEGIC_ATTACK_TUNING.minimumLeadTicks) {
+      execution = fallbackPlacedSeam(setContact.side, origin.position.z, 'insufficient-lead');
+    } else {
+      const result = this.strategy.commitDecision({
+        matchEpoch: setContact.matchEpoch,
+        side: setContact.side,
+        kind: 'attack',
+        difficulty,
+        decisionTick: setContact.tick,
+        ownership: `attack:set:${setContact.matchEpoch}:${setContact.rallyEpoch}:${setContact.possessionEpoch}:${setContact.contactSequence}:${setContact.side}`,
+        ownContactRead: contact.read,
+        attackBasis: { kind: 'executed-set' },
+      });
+      if (result.status === 'invalid-request') return INVALID;
+      execution =
+        result.status === 'not-ready'
+          ? fallbackPlacedSeam(setContact.side, origin.position.z, 'perception-not-ready')
+          : freezeStrategicAttack(result.decision);
+    }
+    const draft = Object.freeze({
+      basis: 'executed-set' as const,
+      decisionContact: setContact,
+      executedSetContact: setContact,
+      originSetDecisionId,
+      originSetPlanId: set.commitment.planId,
+      attackerAthleteId: attacker.athleteId,
+      leadTicks,
+      deliveryEffectiveness,
+      execution,
+    });
+    const active: ActiveAttack = {
+      state: 'prepared',
+      draft,
+      originSetPlanId: set.commitment.planId,
+    };
+    this.activeAttack = active;
+    return this.storeAttackDraft(active, draft);
+  }
+
+  bindAttack(draft: AttackDecisionDraft, plan: SetPlanIdentity): AttackBindResult {
+    this.synchronizeMatch();
+    const active = this.activeAttack;
+    if (!active || active.draft !== draft || active.state === 'revoked') return STALE;
+    if (active.state === 'bound' && active.commitment && active.bindResult) {
+      if (samePlan(active.commitment, plan)) return active.bindResult;
+      this.failAttackBeforeConsume();
+      return CONFLICT;
+    }
+    if (
+      active.state !== 'prepared' ||
+      !validPlan(plan, draft.attackerAthleteId) ||
+      !this.activeSet?.commitment ||
+      draft.originSetPlanId !== this.activeSet.commitment.planId
+    ) {
+      this.failAttackBeforeConsume();
+      return CONFLICT;
+    }
+    const strategic = draft.execution.mode === 'strategic' ? draft.execution : undefined;
+    const commitment = Object.freeze({
+      planId: plan.planId,
+      tacticalRevision: plan.tacticalRevision,
+      athleteId: plan.athleteId,
+      draft,
+      decisionId: strategic?.decisionId ?? null,
+      observationTick: strategic?.observationTick ?? null,
+    });
+    const bound = Object.freeze({ status: 'bound' as const, commitment });
+    active.commitment = commitment;
+    active.bindResult = bound;
+    active.state = 'bound';
+    return bound;
+  }
+
+  consumeAttack(commitment: BoundAttackCommitment, plan: SetPlanIdentity): AttackConsumeResult {
+    this.synchronizeMatch();
+    const active = this.activeAttack;
+    if (!active || active.state !== 'bound' || active.commitment !== commitment) {
+      return STALE;
+    }
+    if (!samePlan(commitment, plan)) {
+      this.failAttackBeforeConsume();
+      return CONFLICT;
+    }
+    active.state = 'consumed';
+    this.resolveSetDelivery(commitment.draft.deliveryEffectiveness ?? 0);
+    return Object.freeze({ status: 'consumed' as const, execution: commitment.draft.execution });
+  }
+
+  resolveAttackBlock(commitment: BoundAttackCommitment): boolean {
+    return this.resolveAttackTerminal(commitment, 0);
+  }
+
+  resolveAttackDefense(commitment: BoundAttackCommitment, effectiveness: number): boolean {
+    this.synchronizeMatch();
+    if (
+      !this.activeAttack ||
+      this.activeAttack.state !== 'consumed' ||
+      this.activeAttack.commitment !== commitment
+    ) {
+      return false;
+    }
+    if (!Number.isFinite(effectiveness) || effectiveness < 0 || effectiveness > 1) {
+      throw new RangeError('effectiveness da defesa deve estar em [0,1]');
+    }
+    return this.resolveAttackTerminal(commitment, effectiveness);
+  }
+
+  resolveOffensePoint(rally: OffenseRallyRef, winner: TeamSide): boolean {
+    this.synchronizeMatch();
+    if (!this.activeRally || rally !== this.activeRally) return false;
+    const active = this.activeAttack;
+    if (!active?.commitment || active.state !== 'consumed') return false;
+    if (!validSide(winner)) throw new RangeError('vencedor ofensivo inválido');
+    return this.resolveAttackTerminal(
+      active.commitment,
+      winner === active.draft.decisionContact.side ? 1 : 0,
+    );
+  }
+
   revokeSet(ref: OffenseContactRef): boolean {
     this.synchronizeMatch();
     const active = this.activeSet;
@@ -516,6 +885,56 @@ export class StrategicOffenseSystem {
     this.activeContact = undefined;
   }
 
+  private storeAttackDraft(active: ActiveAttack, draft: AttackDecisionDraft): AttackPrepareResult {
+    const prepared = Object.freeze({ status: 'prepared' as const, draft });
+    active.draft = draft;
+    active.prepareResult = prepared;
+    active.state = 'prepared';
+    this.activeAttack = active;
+    return prepared;
+  }
+
+  private resolveSetDelivery(effectiveness: number): void {
+    const execution = this.activeSet?.draft?.execution;
+    if (execution?.mode !== 'strategic') return;
+    if (this.strategy.outcomeState(execution.decisionId) !== 'pending') return;
+    this.strategy.resolveOutcome(execution.decisionId, effectiveness);
+  }
+
+  private resolveAttackTerminal(commitment: BoundAttackCommitment, effectiveness: number): boolean {
+    this.synchronizeMatch();
+    const active = this.activeAttack;
+    if (!active || active.state !== 'consumed' || active.commitment !== commitment) {
+      return false;
+    }
+    if (commitment.draft.execution.mode === 'strategic') {
+      if (this.strategy.outcomeState(commitment.draft.execution.decisionId) !== 'pending') {
+        return false;
+      }
+      this.strategy.resolveOutcome(commitment.draft.execution.decisionId, effectiveness);
+    }
+    active.state = 'resolved';
+    return true;
+  }
+
+  private failAttackBeforeConsume(): void {
+    const active = this.activeAttack;
+    if (active && active.state !== 'resolved' && active.state !== 'revoked') {
+      this.revokePending(
+        active.draft.execution.mode === 'strategic' ? active.draft.execution.decisionId : undefined,
+      );
+      active.state = 'revoked';
+    }
+    if (this.activeSet?.state === 'consumed') this.resolveSetDelivery(0);
+  }
+
+  private revokePending(decisionId: string | undefined): void {
+    if (!decisionId) return;
+    if (this.strategy.outcomeState(decisionId) === 'pending') {
+      this.strategy.revokeDecision(decisionId);
+    }
+  }
+
   private storeFallback(
     contact: OffenseContactRef,
     read: OwnContactRead,
@@ -523,11 +942,14 @@ export class StrategicOffenseSystem {
     leadTicks: number,
     reason: StrategicSetFallbackReason,
   ): SetPrepareResult {
+    const execution = fallbackExecution(read, setter.athleteId, contact, reason);
     return this.storeDraft(
       contact,
       setter,
       leadTicks,
-      fallbackExecution(read, setter.athleteId, contact, reason),
+      execution,
+      execution.mode === 'fallback-high' ? execution.attackerAthleteId : null,
+      null,
     );
   }
 
@@ -536,6 +958,8 @@ export class StrategicOffenseSystem {
     setter: SetterEtaSelection,
     leadTicks: number,
     execution: SetExecution,
+    plannedAttackerAthleteId: number | null,
+    plannedAttack: AttackDecisionDraft | null,
   ): SetPrepareResult {
     const draft = Object.freeze({
       ref: contact,
@@ -546,6 +970,8 @@ export class StrategicOffenseSystem {
       }),
       leadTicks,
       execution,
+      plannedAttackerAthleteId,
+      plannedAttack,
     });
     const prepared = Object.freeze({ status: 'prepared' as const, draft });
     this.activeSet = {
@@ -560,6 +986,16 @@ export class StrategicOffenseSystem {
   private closeActiveSet(): void {
     const active = this.activeSet;
     if (!active) return;
+    if (this.activeAttack?.state === 'consumed' && this.activeAttack.commitment) {
+      this.resolveAttackTerminal(this.activeAttack.commitment, 0);
+    } else if (
+      this.activeAttack &&
+      this.activeAttack.state !== 'resolved' &&
+      this.activeAttack.state !== 'revoked'
+    ) {
+      this.failAttackBeforeConsume();
+    }
+    if (active.state === 'consumed') this.resolveSetDelivery(0);
     if (
       active.state !== 'consumed' &&
       active.state !== 'unplayable' &&
@@ -568,12 +1004,21 @@ export class StrategicOffenseSystem {
       this.revokeActiveSet(active);
     }
     this.activeSet = undefined;
+    this.activeAttack = undefined;
   }
 
   private revokeActiveSet(active: ActiveSet): void {
     if (active.state === 'revoked') return;
+    if (this.activeAttack) {
+      this.revokePending(
+        this.activeAttack.draft.execution.mode === 'strategic'
+          ? this.activeAttack.draft.execution.decisionId
+          : undefined,
+      );
+      this.activeAttack.state = 'revoked';
+    }
     if (active.draft?.execution.mode === 'strategic') {
-      this.strategy.revokeDecision(active.draft.execution.decisionId);
+      this.revokePending(active.draft.execution.decisionId);
     }
     active.state = 'revoked';
   }
@@ -585,5 +1030,6 @@ export class StrategicOffenseSystem {
     this.activePossession = undefined;
     this.activeContact = undefined;
     this.activeSet = undefined;
+    this.activeAttack = undefined;
   }
 }

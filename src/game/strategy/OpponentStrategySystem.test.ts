@@ -264,6 +264,8 @@ describe('OpponentStrategySystem transaction and lifecycle', () => {
         ownContactRead: ownContactRead('pass'),
       },
       quickAttackOwnership: 'attack:batch:unused',
+      quickAllowed: true,
+      acceptQuickTarget: () => true,
     });
     expect(high.status).toBe('committed');
     if (high.status !== 'committed') throw new Error('unreachable');
@@ -287,6 +289,8 @@ describe('OpponentStrategySystem transaction and lifecycle', () => {
         ownContactRead: quickPassRead(),
       },
       quickAttackOwnership: 'attack:batch:quick',
+      quickAllowed: true,
+      acceptQuickTarget: () => true,
     });
     expect(play.status).toBe('committed');
     if (play.status !== 'committed' || !play.quickAttack) throw new Error('unreachable');
@@ -322,6 +326,40 @@ describe('OpponentStrategySystem transaction and lifecycle', () => {
     system.captureFrame(observation(0));
     const before = system.snapshot();
 
+    expect(
+      system.commitSetPlay({
+        set: {
+          ...serveRequest(),
+          kind: 'set',
+          ownership: 'set:batch:quick-blocked',
+          setterAthleteId: 3,
+          ownContactRead: quickPassRead(6),
+        },
+        quickAttackOwnership: 'attack:batch:quick-blocked',
+        quickAllowed: false,
+        acceptQuickTarget: () => true,
+      }),
+    ).toEqual({ status: 'quick-unavailable' });
+    expect(home.draws).toBe(0);
+    expect(system.snapshot()).toEqual(before);
+
+    expect(
+      system.commitSetPlay({
+        set: {
+          ...serveRequest(),
+          kind: 'set',
+          ownership: 'set:batch:target-blocked',
+          setterAthleteId: 3,
+          ownContactRead: quickPassRead(6),
+        },
+        quickAttackOwnership: 'attack:batch:target-blocked',
+        quickAllowed: true,
+        acceptQuickTarget: () => false,
+      }),
+    ).toEqual({ status: 'quick-unavailable' });
+    expect(home.draws).toBe(0);
+    expect(system.snapshot()).toEqual(before);
+
     expect(() =>
       system.commitSetPlay({
         set: {
@@ -332,6 +370,8 @@ describe('OpponentStrategySystem transaction and lifecycle', () => {
           ownContactRead: quickPassRead(6),
         },
         quickAttackOwnership: 'attack:batch:rollback',
+        quickAllowed: true,
+        acceptQuickTarget: () => true,
       }),
     ).toThrow(/exhaust/i);
 
@@ -365,6 +405,8 @@ describe('OpponentStrategySystem transaction and lifecycle', () => {
     const first = system.commitSetPlay({
       set: { ...baseSet, ownership: 'set:batch:first' },
       quickAttackOwnership: 'attack:batch:shared',
+      quickAllowed: true,
+      acceptQuickTarget: () => true,
     });
     expect(first.status).toBe('committed');
     const before = system.snapshot();
@@ -373,6 +415,8 @@ describe('OpponentStrategySystem transaction and lifecycle', () => {
       system.commitSetPlay({
         set: { ...baseSet, ownership: 'set:batch:second' },
         quickAttackOwnership: 'attack:batch:shared',
+        quickAllowed: true,
+        acceptQuickTarget: () => true,
       }),
     ).toEqual({ status: 'invalid-request' });
 

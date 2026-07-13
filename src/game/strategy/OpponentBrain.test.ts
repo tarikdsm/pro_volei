@@ -508,6 +508,16 @@ describe('OpponentBrain', () => {
     expect(quickExists(withCentral(-6.5, 5.6))).toBe(true);
     expect(quickExists(withCentral(-6.5, -5.6))).toBe(false);
     expect(quickExists(withCentral(-7.5, 0, -1.5))).toBe(false);
+    const airborne = withCentral(-6.5, 5.6);
+    expect(
+      quickExists(
+        withOwnContact(airborne, {
+          ownAthletes: airborne.ownContactRead!.ownAthletes.map((athlete) =>
+            athlete.row === 'front' ? { ...athlete, airborne: true } : athlete,
+          ),
+        }),
+      ),
+    ).toBe(false);
   });
 
   it('não trata a levantadora central como atacante disponível para quick', () => {

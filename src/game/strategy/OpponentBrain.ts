@@ -571,7 +571,8 @@ export class OpponentBrain {
     if (context.kind === 'set') {
       const quickOption = options.find((option) => option.optionId === 'set.quick-center');
       const frontRow = own.filter(
-        (athlete) => athlete.row === 'front' && athlete.id !== context.setterAthleteId,
+        (athlete) =>
+          athlete.row === 'front' && athlete.id !== context.setterAthleteId && !athlete.airborne,
       );
       const central = quickOption
         ? (frontRow.find((athlete) => athlete.slot === 4) ??

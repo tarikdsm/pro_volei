@@ -15,6 +15,7 @@ import type {
   StrategyMemorySnapshot,
   StrategyObservation,
   StrategyOptionId,
+  StrategyPoint2,
   StrategyProposal,
 } from './StrategyTypes';
 import {
@@ -60,6 +61,8 @@ export type StrategyAttackBasis =
 export interface StrategySetPlayRequest {
   readonly set: Omit<StrategyDecisionRequest, 'kind' | 'attackBasis'> & Readonly<{ kind: 'set' }>;
   readonly quickAttackOwnership: string;
+  readonly quickAllowed: boolean;
+  readonly acceptQuickTarget: (target: StrategyPoint2) => boolean;
 }
 
 export interface CommittedStrategyDecision {
@@ -124,6 +127,7 @@ export type StrategyCommitResult =
 export type StrategySetPlayCommitResult =
   | Readonly<{ status: 'invalid-request' }>
   | Readonly<{ status: 'not-ready' }>
+  | Readonly<{ status: 'quick-unavailable' }>
   | Readonly<{
       status: 'committed';
       set: CommittedStrategyDecision;
@@ -142,6 +146,7 @@ interface OpponentStrategySystemOptions {
 
 const NOT_READY = Object.freeze({ status: 'not-ready' } as const);
 const INVALID_REQUEST = Object.freeze({ status: 'invalid-request' } as const);
+const QUICK_UNAVAILABLE = Object.freeze({ status: 'quick-unavailable' } as const);
 
 function deepFreezeCopy<T>(value: T): T {
   const copy = structuredClone(value);
@@ -505,7 +510,9 @@ export class OpponentStrategySystem {
       request.set.kind !== 'set' ||
       ('attackBasis' in request.set && request.set.attackBasis !== undefined) ||
       typeof request.quickAttackOwnership !== 'string' ||
-      request.quickAttackOwnership.trim().length === 0
+      request.quickAttackOwnership.trim().length === 0 ||
+      typeof request.quickAllowed !== 'boolean' ||
+      typeof request.acceptQuickTarget !== 'function'
     ) {
       return INVALID_REQUEST;
     }
@@ -523,6 +530,13 @@ export class OpponentStrategySystem {
       if (setResult.status === 'not-ready') return NOT_READY;
       if (setResult.decision.proposal.chosen.optionId !== 'set.quick-center') {
         return Object.freeze({ status: 'committed' as const, set: setResult.decision });
+      }
+      if (
+        !request.quickAllowed ||
+        !request.acceptQuickTarget(setResult.decision.proposal.chosen.target)
+      ) {
+        rollback();
+        return QUICK_UNAVAILABLE;
       }
       const attackResult = this.commitDecision({
         matchEpoch: request.set.matchEpoch,

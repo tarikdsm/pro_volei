@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { CONTACT, GRAVITY, TeamSide } from '../../core/constants';
 import { SequenceRandom } from '../../core/random/testing/SequenceRandom';
+import { OpponentBrain } from './OpponentBrain';
 import { OpponentStrategySystem } from './OpponentStrategySystem';
 import type { OwnContactReadSource } from './OwnContactRead';
 import {
@@ -11,6 +12,8 @@ import {
   type SetDecisionDraft,
 } from './StrategicOffenseSystem';
 import type { StrategyObservation } from './StrategyTypes';
+import type { StrategyOptionId } from './StrategyTypes';
+import type { BoundAttackCommitment } from './StrategicAttackTypes';
 
 function observation(tick: number): StrategyObservation {
   return {
@@ -95,6 +98,76 @@ function setup() {
   const strategy = new OpponentStrategySystem({ streams: { home, away } });
   const offense = new StrategicOffenseSystem(strategy);
   return { home, away, strategy, offense };
+}
+
+function setupWithChoices(setOption: StrategyOptionId, attackOption: StrategyOptionId) {
+  const home = new SequenceRandom(Array.from({ length: 24 }, (_, index) => index + 1));
+  const away = new SequenceRandom(Array.from({ length: 24 }, (_, index) => index + 101));
+  const brain = {
+    decide(input: Parameters<OpponentBrain['decide']>[0]) {
+      const proposal = new OpponentBrain().decide(input);
+      const optionId =
+        input.kind === 'set' ? setOption : input.kind === 'attack' ? attackOption : null;
+      if (!optionId) return proposal;
+      const chosen = proposal.candidates.find((candidate) => candidate.optionId === optionId);
+      if (!chosen) throw new Error(`fixture deveria permitir ${optionId}`);
+      return { ...proposal, chosen };
+    },
+  };
+  const strategy = new OpponentStrategySystem({ streams: { home, away }, brain });
+  const offense = new StrategicOffenseSystem(strategy);
+  return { home, away, strategy, offense };
+}
+
+function quickPassRead(tick = 6): OwnContactReadSource {
+  const base = passRead(tick);
+  return {
+    ...base,
+    ballAfter: {
+      position: { x: -5, y: 2.2, z: 1 },
+      velocity: { x: 4, y: 5.8, z: 0 },
+      inFlight: true,
+    },
+    ownAthletes: base.ownAthletes.map((athlete) =>
+      athlete.id === 4
+        ? { ...athlete, position: { x: -6.5, z: 0 }, velocity: { x: 5.6, z: 0 } }
+        : athlete,
+    ),
+  };
+}
+
+function executedSetRead(
+  tick: number,
+  setterAthleteId: number,
+  target = { x: -1.05, z: -3.15 },
+  contactLeadTicks?: number,
+): OwnContactReadSource {
+  const base = passRead(tick);
+  const contactIn = contactLeadTicks === undefined ? null : contactLeadTicks / 60;
+  return {
+    ...base,
+    kind: 'set',
+    athleteId: setterAthleteId,
+    ballAfter: {
+      position: {
+        x: target.x,
+        y: contactIn === null ? CONTACT.set : CONTACT.spike,
+        z: target.z,
+      },
+      velocity: {
+        x: 0,
+        y: contactIn === null ? 5 : -0.5 * GRAVITY * contactIn,
+        z: 0,
+      },
+      inFlight: true,
+    },
+    ownAthletes: base.ownAthletes.map((athlete) => {
+      if (athlete.id === 3) return { ...athlete, position: { x: target.x, z: target.z } };
+      if (athlete.id === 4) return { ...athlete, position: { x: -1, z: 0 } };
+      if (athlete.id === 5) return { ...athlete, position: { x: -1, z: 3 } };
+      return athlete;
+    }),
+  };
 }
 
 function contact(
@@ -260,7 +333,7 @@ describe('StrategicOffenseSystem set lifecycle', () => {
 
     expect(draft.execution).toEqual({
       mode: 'safety-freeball',
-      reason: 'perception-not-ready',
+      reason: 'no-attacker',
     });
     expect(home.draws).toBe(0);
   });
@@ -389,7 +462,7 @@ describe('StrategicOffenseSystem set lifecycle', () => {
     expect(home.draws).toBe(2);
   });
 
-  it('nova posse não desfaz set já consumido antes do lifecycle de ataque', () => {
+  it('nova posse sem ataque fecha set consumido como ineficaz', () => {
     const { strategy, offense } = setup();
     strategy.captureFrame(observation(0));
     const rally = offense.beginRally();
@@ -404,7 +477,8 @@ describe('StrategicOffenseSystem set lifecycle', () => {
 
     offense.observeContact(rally, passRead(7, TeamSide.AWAY), 1);
 
-    expect(strategy.outcomeState(draft.execution.decisionId)).toBe('pending');
+    expect(strategy.outcomeState(draft.execution.decisionId)).toBe('resolved');
+    expect(strategy.memory(TeamSide.HOME).outcomes.at(-1)?.effectiveness).toBe(0);
   });
 
   it('reset externo de match torna tokens stale sem ABA nem draws', () => {
@@ -459,5 +533,338 @@ describe('StrategicOffenseSystem set lifecycle', () => {
     );
     expect(implementation).not.toMatch(/from ['"]three['"]/);
     expect(implementation).not.toMatch(/\b(document|window|Match|MechanicsCtx)\b/);
+  });
+});
+
+describe('StrategicOffenseSystem attack lifecycle', () => {
+  it('cria quick atomicamente no set, anexa o voo executado e não relê defesa', () => {
+    const { home, away, strategy, offense } = setupWithChoices(
+      'set.quick-center',
+      'attack.placed-seam',
+    );
+    strategy.captureFrame(observation(0));
+    const rally = offense.beginRally();
+    const pass = offense.observeContact(rally, quickPassRead(), 1);
+    if (pass.status !== 'observed') throw new Error('unreachable');
+    const set = offense.prepareSet(pass.contact, 2);
+    if (set.status !== 'prepared' || set.draft.execution.mode !== 'strategic') {
+      throw new Error('unreachable');
+    }
+
+    expect(set.draft.execution.family).toBe('quick');
+    expect(set.draft.plannedAttack).toMatchObject({
+      basis: 'chained-quick',
+      decisionContact: pass.contact,
+      executedSetContact: null,
+      originSetDecisionId: set.draft.execution.decisionId,
+      originSetPlanId: null,
+      leadTicks: null,
+      execution: { mode: 'strategic' },
+    });
+    expect(home.draws).toBe(4);
+    expect(away.draws).toBe(0);
+    if (!set.draft.plannedAttack || set.draft.plannedAttack.execution.mode !== 'strategic') {
+      throw new Error('unreachable');
+    }
+    expect(set.draft.plannedAttack.execution.observationTick).toBe(
+      set.draft.execution.observationTick,
+    );
+
+    const setPlan = { planId: 70, tacticalRevision: 2, athleteId: set.draft.setterAthleteId };
+    const setBound = offense.bindSet(set.draft.ref, setPlan);
+    if (setBound.status !== 'bound') throw new Error('unreachable');
+    expect(setBound.commitment.draft.plannedAttack?.originSetPlanId).toBe(setPlan.planId);
+    expect(offense.consumeSet(setBound.commitment, setPlan).status).toBe('consumed');
+    const setContact = offense.observeContact(
+      rally,
+      executedSetRead(60, set.draft.setterAthleteId, set.draft.execution.target),
+      2,
+    );
+    if (setContact.status !== 'observed') throw new Error('unreachable');
+    const attack = offense.prepareAttack(setContact.contact, 99 as never);
+
+    expect(attack.status).toBe('prepared');
+    if (attack.status !== 'prepared') throw new Error('unreachable');
+    expect(attack.draft).toMatchObject({
+      basis: 'chained-quick',
+      executedSetContact: setContact.contact,
+      originSetPlanId: setPlan.planId,
+      leadTicks: null,
+      execution: { decisionId: set.draft.plannedAttack.execution.decisionId },
+    });
+    expect(attack.draft.deliveryEffectiveness).toBeGreaterThan(0.9);
+    expect(home.draws).toBe(4);
+  });
+
+  it('conflito no bind do set quick revoga parent e child sem draw extra', () => {
+    const { home, strategy, offense } = setupWithChoices('set.quick-center', 'attack.placed-seam');
+    strategy.captureFrame(observation(0));
+    const rally = offense.beginRally();
+    const pass = offense.observeContact(rally, quickPassRead(), 1);
+    if (pass.status !== 'observed') throw new Error('unreachable');
+    const set = offense.prepareSet(pass.contact, 2);
+    if (
+      set.status !== 'prepared' ||
+      set.draft.execution.mode !== 'strategic' ||
+      set.draft.plannedAttack?.execution.mode !== 'strategic'
+    ) {
+      throw new Error('unreachable');
+    }
+    const plan = { planId: 76, tacticalRevision: 0, athleteId: set.draft.setterAthleteId };
+    expect(offense.bindSet(set.draft.ref, plan).status).toBe('bound');
+
+    expect(offense.bindSet(set.draft.ref, { ...plan, tacticalRevision: 1 })).toEqual({
+      status: 'conflict',
+    });
+    expect(strategy.outcomeState(set.draft.execution.decisionId)).toBe('revoked');
+    expect(strategy.outcomeState(set.draft.plannedAttack.execution.decisionId)).toBe('revoked');
+    expect(home.draws).toBe(4);
+  });
+
+  it('central airborne poda quick e mantém uma alternativa não-rápida legal', () => {
+    const { home, strategy, offense } = setup();
+    strategy.captureFrame(observation(0));
+    const source = quickPassRead();
+    const noQuickAttacker = {
+      ...source,
+      ownAthletes: source.ownAthletes.map((athlete) =>
+        athlete.id === 4 ? { ...athlete, airborne: true } : athlete,
+      ),
+    } satisfies OwnContactReadSource;
+    const rally = offense.beginRally();
+    const pass = offense.observeContact(rally, noQuickAttacker, 1);
+    if (pass.status !== 'observed') throw new Error('unreachable');
+
+    const result = offense.prepareSet(pass.contact, 2);
+    expect(result.status).toBe('prepared');
+    if (result.status !== 'prepared') throw new Error('unreachable');
+    expect(result.draft.execution.mode).toBe('strategic');
+    if (result.draft.execution.mode !== 'strategic') throw new Error('unreachable');
+    expect(result.draft.execution.family).not.toBe('quick');
+    expect(home.draws).toBe(2);
+  });
+
+  it('cria ataque high somente do set executado, com +2 e lead >=19', () => {
+    const { home, strategy, offense } = setupWithChoices('set.high-left', 'attack.power-line-deep');
+    strategy.captureFrame(observation(0));
+    const rally = offense.beginRally();
+    const pass = offense.observeContact(rally, passRead(), 1);
+    if (pass.status !== 'observed') throw new Error('unreachable');
+    const set = offense.prepareSet(pass.contact, 2);
+    if (set.status !== 'prepared' || set.draft.execution.mode !== 'strategic') {
+      throw new Error('unreachable');
+    }
+    expect(set.draft.plannedAttack).toBeNull();
+    const setPlan = { planId: 71, tacticalRevision: 1, athleteId: set.draft.setterAthleteId };
+    const setBound = offense.bindSet(set.draft.ref, setPlan);
+    if (setBound.status !== 'bound') throw new Error('unreachable');
+    offense.consumeSet(setBound.commitment, setPlan);
+    const setContact = offense.observeContact(
+      rally,
+      executedSetRead(60, set.draft.setterAthleteId),
+      2,
+    );
+    if (setContact.status !== 'observed') throw new Error('unreachable');
+    const attack = offense.prepareAttack(setContact.contact, 2);
+
+    expect(attack.status).toBe('prepared');
+    if (attack.status !== 'prepared') throw new Error('unreachable');
+    expect(attack.draft).toMatchObject({
+      basis: 'executed-set',
+      decisionContact: setContact.contact,
+      originSetDecisionId: set.draft.execution.decisionId,
+      originSetPlanId: setPlan.planId,
+      execution: { mode: 'strategic', family: 'power' },
+    });
+    expect(attack.draft.leadTicks).toBeGreaterThanOrEqual(19);
+    expect(home.draws).toBe(4);
+  });
+
+  it('lead 18.9 usa placed-seam sem ticket adicional', () => {
+    const { home, strategy, offense } = setupWithChoices('set.high-left', 'attack.power-line-deep');
+    strategy.captureFrame(observation(0));
+    const rally = offense.beginRally();
+    const pass = offense.observeContact(rally, passRead(), 1);
+    if (pass.status !== 'observed') throw new Error('unreachable');
+    const set = offense.prepareSet(pass.contact, 2);
+    if (set.status !== 'prepared') throw new Error('unreachable');
+    const setPlan = { planId: 72, tacticalRevision: 0, athleteId: set.draft.setterAthleteId };
+    const bound = offense.bindSet(set.draft.ref, setPlan);
+    if (bound.status !== 'bound') throw new Error('unreachable');
+    offense.consumeSet(bound.commitment, setPlan);
+    const setContact = offense.observeContact(
+      rally,
+      executedSetRead(60, set.draft.setterAthleteId, { x: -1.05, z: -3.15 }, 18.9),
+      2,
+    );
+    if (setContact.status !== 'observed') throw new Error('unreachable');
+    const attack = offense.prepareAttack(setContact.contact, 2);
+
+    expect(attack.status).toBe('prepared');
+    if (attack.status !== 'prepared') throw new Error('unreachable');
+    expect(attack.draft.leadTicks).toBe(18);
+    expect(attack.draft.execution).toMatchObject({
+      mode: 'fallback-placed-seam',
+      reason: 'insufficient-lead',
+      optionId: 'attack.placed-seam',
+    });
+    expect(home.draws).toBe(2);
+  });
+
+  it.each([19, 20])('lead conservador de %i ticks aceita ataque estratégico', (leadTicks) => {
+    const { home, strategy, offense } = setupWithChoices('set.high-left', 'attack.power-line-deep');
+    strategy.captureFrame(observation(0));
+    const rally = offense.beginRally();
+    const pass = offense.observeContact(rally, passRead(), 1);
+    if (pass.status !== 'observed') throw new Error('unreachable');
+    const set = offense.prepareSet(pass.contact, 2);
+    if (set.status !== 'prepared') throw new Error('unreachable');
+    const plan = { planId: 77, tacticalRevision: 0, athleteId: set.draft.setterAthleteId };
+    const bound = offense.bindSet(set.draft.ref, plan);
+    if (bound.status !== 'bound') throw new Error('unreachable');
+    offense.consumeSet(bound.commitment, plan);
+    const setContact = offense.observeContact(
+      rally,
+      executedSetRead(60, set.draft.setterAthleteId, { x: -1.05, z: -3.15 }, leadTicks),
+      2,
+    );
+    if (setContact.status !== 'observed') throw new Error('unreachable');
+    const attack = offense.prepareAttack(setContact.contact, 2);
+
+    expect(attack.status).toBe('prepared');
+    if (attack.status !== 'prepared') throw new Error('unreachable');
+    expect(attack.draft.leadTicks).toBe(leadTicks);
+    expect(attack.draft.execution.mode).toBe('strategic');
+    expect(home.draws).toBe(4);
+  });
+
+  it('set fallback produz ataque fallback e nenhum outcome estratégico', () => {
+    const { home, strategy, offense } = setup();
+    strategy.captureFrame(observation(10));
+    const rally = offense.beginRally();
+    const pass = offense.observeContact(rally, passRead(10), 1);
+    if (pass.status !== 'observed') throw new Error('unreachable');
+    const set = offense.prepareSet(pass.contact, 2);
+    if (set.status !== 'prepared') throw new Error('unreachable');
+    expect(set.draft.execution.mode).toBe('fallback-high');
+    const setPlan = { planId: 73, tacticalRevision: 0, athleteId: set.draft.setterAthleteId };
+    const bound = offense.bindSet(set.draft.ref, setPlan);
+    if (bound.status !== 'bound') throw new Error('unreachable');
+    offense.consumeSet(bound.commitment, setPlan);
+    const target = set.draft.execution.mode === 'fallback-high' ? set.draft.execution.target : null;
+    if (!target) throw new Error('unreachable');
+    const setContact = offense.observeContact(
+      rally,
+      executedSetRead(60, set.draft.setterAthleteId, target),
+      2,
+    );
+    if (setContact.status !== 'observed') throw new Error('unreachable');
+    const attack = offense.prepareAttack(setContact.contact, 2);
+
+    expect(attack.status).toBe('prepared');
+    if (attack.status !== 'prepared') throw new Error('unreachable');
+    expect(attack.draft.execution).toMatchObject({
+      mode: 'fallback-placed-seam',
+      reason: 'fallback-set',
+    });
+    expect(home.draws).toBe(0);
+    expect(strategy.snapshot().decisions).toEqual([]);
+  });
+
+  it('bind/consume do ataque são exatos e resolvem o set somente no consumo', () => {
+    const { strategy, offense } = setupWithChoices('set.high-left', 'attack.placed-seam');
+    strategy.captureFrame(observation(0));
+    const rally = offense.beginRally();
+    const pass = offense.observeContact(rally, passRead(), 1);
+    if (pass.status !== 'observed') throw new Error('unreachable');
+    const set = offense.prepareSet(pass.contact, 2);
+    if (set.status !== 'prepared' || set.draft.execution.mode !== 'strategic') {
+      throw new Error('unreachable');
+    }
+    const setPlan = { planId: 74, tacticalRevision: 0, athleteId: set.draft.setterAthleteId };
+    const setBound = offense.bindSet(set.draft.ref, setPlan);
+    if (setBound.status !== 'bound') throw new Error('unreachable');
+    offense.consumeSet(setBound.commitment, setPlan);
+    const setContact = offense.observeContact(
+      rally,
+      executedSetRead(60, set.draft.setterAthleteId),
+      2,
+    );
+    if (setContact.status !== 'observed') throw new Error('unreachable');
+    const attack = offense.prepareAttack(setContact.contact, 2);
+    if (attack.status !== 'prepared' || attack.draft.execution.mode !== 'strategic') {
+      throw new Error('unreachable');
+    }
+    const attackPlan = {
+      planId: 75,
+      tacticalRevision: 4,
+      athleteId: attack.draft.attackerAthleteId,
+    };
+    const attackBound = offense.bindAttack(attack.draft, attackPlan);
+    if (attackBound.status !== 'bound') throw new Error('unreachable');
+    expect(strategy.outcomeState(set.draft.execution.decisionId)).toBe('pending');
+
+    const consumed = offense.consumeAttack(attackBound.commitment, attackPlan);
+    expect(consumed.status).toBe('consumed');
+    expect(strategy.outcomeState(set.draft.execution.decisionId)).toBe('resolved');
+    expect(strategy.outcomeState(attack.draft.execution.decisionId)).toBe('pending');
+    expect(offense.consumeAttack(attackBound.commitment, attackPlan)).toEqual({ status: 'stale' });
+  });
+
+  it('block/defesa/ponto resolvem ataque uma vez e ignoram callbacks duplicados', () => {
+    const run = (terminal: 'block' | 'defense' | 'point') => {
+      const { strategy, offense } = setupWithChoices('set.high-left', 'attack.placed-seam');
+      strategy.captureFrame(observation(0));
+      const rally = offense.beginRally();
+      const pass = offense.observeContact(rally, passRead(), 1);
+      if (pass.status !== 'observed') throw new Error('unreachable');
+      const set = offense.prepareSet(pass.contact, 2);
+      if (set.status !== 'prepared') throw new Error('unreachable');
+      const setPlan = { planId: 80, tacticalRevision: 0, athleteId: set.draft.setterAthleteId };
+      const setBound = offense.bindSet(set.draft.ref, setPlan);
+      if (setBound.status !== 'bound') throw new Error('unreachable');
+      offense.consumeSet(setBound.commitment, setPlan);
+      const setContact = offense.observeContact(
+        rally,
+        executedSetRead(60, set.draft.setterAthleteId),
+        2,
+      );
+      if (setContact.status !== 'observed') throw new Error('unreachable');
+      const attack = offense.prepareAttack(setContact.contact, 2);
+      if (attack.status !== 'prepared' || attack.draft.execution.mode !== 'strategic') {
+        throw new Error('unreachable');
+      }
+      const attackPlan = {
+        planId: 81,
+        tacticalRevision: 0,
+        athleteId: attack.draft.attackerAthleteId,
+      };
+      const bound = offense.bindAttack(attack.draft, attackPlan);
+      if (bound.status !== 'bound') throw new Error('unreachable');
+      offense.consumeAttack(bound.commitment, attackPlan);
+      const commitment: BoundAttackCommitment = bound.commitment;
+      const first =
+        terminal === 'block'
+          ? offense.resolveAttackBlock(commitment)
+          : terminal === 'defense'
+            ? offense.resolveAttackDefense(commitment, 0.4)
+            : offense.resolveOffensePoint(rally, TeamSide.HOME);
+      return { strategy, offense, rally, attack, commitment, first };
+    };
+
+    const block = run('block');
+    expect(block.first).toBe(true);
+    expect(block.offense.resolveAttackBlock(block.commitment)).toBe(false);
+    expect(block.strategy.memory(TeamSide.HOME).outcomes.at(-1)?.effectiveness).toBe(0);
+
+    const defense = run('defense');
+    expect(defense.first).toBe(true);
+    expect(defense.offense.resolveAttackDefense(defense.commitment, Number.NaN)).toBe(false);
+    expect(defense.strategy.memory(TeamSide.HOME).outcomes.at(-1)?.effectiveness).toBe(0.4);
+
+    const point = run('point');
+    expect(point.first).toBe(true);
+    expect(point.offense.resolveOffensePoint(point.rally, 99 as never)).toBe(false);
+    expect(point.strategy.memory(TeamSide.HOME).outcomes.at(-1)?.effectiveness).toBe(1);
   });
 });
