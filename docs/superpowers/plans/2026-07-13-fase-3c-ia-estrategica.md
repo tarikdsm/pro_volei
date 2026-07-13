@@ -112,7 +112,7 @@ eventos concluídos ──> StrategyMemory ────┤
 | atraso de percepção | 30 ticks | 15 ticks | 6 ticks |
 | eventos de memória lidos | 2 | 5 | 6 |
 | exploração/variedade | 25% | 12% | 6% |
-| temperatura do softmax | 1,15 | 0,80 | 0,55 |
+| temperatura do softmax | 0,35 | 0,22 | 0,15 |
 | teto da melhor candidata | 50% | 60% | 70% |
 
 `reactionDelay`, qualidade de passe, erro técnico, chance de bloqueio e defesa permanecem políticas
