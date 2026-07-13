@@ -185,10 +185,13 @@ describe('OpponentStrategySystem transaction and lifecycle', () => {
     const system = new OpponentStrategySystem({ streams: random });
     system.captureFrame(observation(0));
     const request = serveRequest();
-    committed(system, request);
+    const existing = committed(system, request);
     const beforeDuplicate = system.snapshot();
 
-    expect(system.commitDecision(request)).toEqual({ status: 'invalid-request' });
+    expect(system.commitDecision(request)).toEqual({
+      status: 'invalid-request',
+      existingDecisionId: existing.decisionId,
+    });
     expect(random.home.draws).toBe(2);
     expect(system.snapshot()).toEqual(beforeDuplicate);
 

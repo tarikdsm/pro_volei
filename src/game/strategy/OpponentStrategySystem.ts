@@ -94,7 +94,7 @@ export type StrategyPerceptionResult =
   | Readonly<{ status: 'ready'; observation: StrategyObservation }>;
 
 export type StrategyCommitResult =
-  | Readonly<{ status: 'invalid-request' }>
+  | Readonly<{ status: 'invalid-request'; existingDecisionId?: string }>
   | Readonly<{ status: 'not-ready' }>
   | Readonly<{ status: 'committed'; decision: CommittedStrategyDecision }>;
 
@@ -429,12 +429,23 @@ export class OpponentStrategySystem {
   }
 
   commitDecision(request: StrategyDecisionRequest): StrategyCommitResult {
-    if (
-      !validateRequestShape(request) ||
-      request.matchEpoch !== this.currentMatchEpoch ||
-      this.ownershipKeySet.has(ownershipKey(request))
-    ) {
+    if (!validateRequestShape(request) || request.matchEpoch !== this.currentMatchEpoch) {
       return INVALID_REQUEST;
+    }
+    if (this.ownershipKeySet.has(ownershipKey(request))) {
+      const existing = this.decisions.find(
+        (decision) =>
+          decision.matchEpoch === request.matchEpoch &&
+          decision.side === request.side &&
+          decision.kind === request.kind &&
+          decision.ownership === request.ownership,
+      );
+      return existing
+        ? Object.freeze({
+            status: 'invalid-request' as const,
+            existingDecisionId: existing.decisionId,
+          })
+        : INVALID_REQUEST;
     }
     const perception = this.perceive(request.side, request.difficulty, request.decisionTick);
     if (perception.status === 'not-ready') return NOT_READY;
