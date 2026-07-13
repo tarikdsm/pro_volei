@@ -1,0 +1,243 @@
+import { TeamSide, otherSide } from '../../core/constants';
+import type { RandomSource } from '../../core/random';
+import { OpponentStrategySystem, type StrategyOutboxEvent } from './OpponentStrategySystem';
+import {
+  serveReceptionEffectiveness,
+  type ServeReceptionBallAfter,
+  type ServeReceptionPoint2,
+} from './ServeReceptionOutcome';
+import {
+  buildStrategyObservation,
+  type StrategyObservationBallSource,
+  type StrategyObservationSource,
+} from './StrategyObservationAdapter';
+import {
+  StrategicServeSystem,
+  type ServeCommitmentRef,
+  type ServeEpochToken,
+  type ServeOutcomeToken,
+  type StrategicServeCommitResult,
+  type StrategicServeLaunchResult,
+  type StrategicServeRealization,
+} from './StrategicServeSystem';
+import type { StrategyDifficulty, StrategyMemorySnapshot, StrategyPhase } from './StrategyTypes';
+
+export type MatchStrategyTickSource = Omit<StrategyObservationSource, 'ball'> &
+  Readonly<{
+    ball: Omit<StrategyObservationBallSource, 'lastVisibleContactTick'>;
+  }>;
+
+export interface MatchStrategyServeFacts {
+  readonly phase: StrategyPhase;
+  readonly servingSide: TeamSide;
+  readonly serverAthleteId: number;
+}
+
+export interface MatchStrategyBallContact {
+  readonly matchEpoch: number;
+  readonly tick: number;
+  readonly outcomeToken: ServeOutcomeToken | null;
+  readonly side: TeamSide;
+  readonly ballAfter: ServeReceptionBallAfter;
+  readonly setterPosition: ServeReceptionPoint2;
+}
+
+export interface MatchStrategyPoint {
+  readonly outcomeToken: ServeOutcomeToken | null;
+  readonly servingSide: TeamSide;
+  readonly winner: TeamSide;
+  readonly ace: boolean;
+}
+
+type ServeGuardStage = 'toss' | 'hit';
+
+interface ActiveOutcome {
+  readonly token: ServeOutcomeToken;
+  readonly servingSide: TeamSide;
+}
+
+const STALE = Object.freeze({ status: 'stale' } as const);
+
+function sameServeToken(left: ServeEpochToken, right: ServeEpochToken): boolean {
+  return (
+    left.matchEpoch === right.matchEpoch &&
+    left.serveEpoch === right.serveEpoch &&
+    left.side === right.side &&
+    left.serverAthleteId === right.serverAthleteId
+  );
+}
+
+function sameOutcomeToken(left: ServeOutcomeToken, right: ServeOutcomeToken): boolean {
+  return left.matchEpoch === right.matchEpoch && left.serveEpoch === right.serveEpoch;
+}
+
+function validSide(side: unknown): side is TeamSide {
+  return side === TeamSide.HOME || side === TeamSide.AWAY;
+}
+
+function contactTick(tick: number): number {
+  if (!Number.isSafeInteger(tick) || tick < 0) {
+    throw new RangeError('tick de contato deve ser inteiro seguro não negativo');
+  }
+  return Object.is(tick, -0) ? 0 : tick;
+}
+
+export class MatchStrategyBridge {
+  readonly #strategy: OpponentStrategySystem;
+  readonly #serves: StrategicServeSystem;
+  #currentMatchEpoch = 0;
+  #latestCapturedTick: number | null = null;
+  #lastVisibleContactTick: number | null = null;
+  #currentServe?: ServeEpochToken;
+  #currentServeOpen = false;
+  #activeOutcome?: ActiveOutcome;
+
+  constructor(
+    streams: Readonly<{ home: RandomSource; away: RandomSource }>,
+    sink?: (event: StrategyOutboxEvent) => void,
+  ) {
+    this.#strategy = new OpponentStrategySystem({ streams, sink });
+    this.#serves = new StrategicServeSystem(this.#strategy);
+  }
+
+  startMatch(): void {
+    const nextEpoch = this.#currentMatchEpoch + 1;
+    if (!Number.isSafeInteger(nextEpoch)) throw new RangeError('matchEpoch excedeu o limite');
+    this.#serves.startMatch();
+    this.#currentMatchEpoch = nextEpoch;
+    this.#latestCapturedTick = null;
+    this.#lastVisibleContactTick = null;
+    this.#currentServe = undefined;
+    this.#currentServeOpen = false;
+    this.#activeOutcome = undefined;
+  }
+
+  startSet(): void {
+    this.#strategy.startSet();
+  }
+
+  captureTick(source: MatchStrategyTickSource): void {
+    const observation = buildStrategyObservation({
+      ...source,
+      ball: {
+        ...source.ball,
+        lastVisibleContactTick: this.#lastVisibleContactTick,
+      },
+    });
+    this.#strategy.captureFrame(observation);
+    this.#latestCapturedTick = observation.tick;
+  }
+
+  beginServe(side: TeamSide, serverAthleteId: number): ServeEpochToken {
+    const token = this.#serves.beginServe(side, serverAthleteId);
+    this.#currentServe = token;
+    this.#currentServeOpen = true;
+    this.#activeOutcome = undefined;
+    return token;
+  }
+
+  commitServe(
+    token: ServeEpochToken,
+    difficulty: StrategyDifficulty,
+    decisionTick: number,
+  ): StrategicServeCommitResult {
+    if (
+      !this.#currentServe ||
+      !this.#currentServeOpen ||
+      !sameServeToken(this.#currentServe, token)
+    ) {
+      return STALE;
+    }
+    return this.#serves.commit(token, difficulty, decisionTick);
+  }
+
+  guardServe(
+    ref: ServeCommitmentRef,
+    stage: ServeGuardStage,
+    facts: MatchStrategyServeFacts,
+  ): boolean {
+    if (
+      !this.#currentServe ||
+      !this.#currentServeOpen ||
+      !sameServeToken(this.#currentServe, ref) ||
+      !this.#serves.isActive(ref, 'committed')
+    ) {
+      return false;
+    }
+    const matches =
+      (stage === 'toss' || stage === 'hit') &&
+      facts.phase === 'serve-prep' &&
+      facts.servingSide === ref.side &&
+      facts.serverAthleteId === ref.serverAthleteId;
+    if (matches) return true;
+    this.#serves.revoke(ref);
+    this.#currentServeOpen = false;
+    this.#activeOutcome = undefined;
+    return false;
+  }
+
+  markServeLaunched(
+    ref: ServeCommitmentRef,
+    realization: StrategicServeRealization,
+  ): StrategicServeLaunchResult {
+    if (
+      !this.#currentServe ||
+      !this.#currentServeOpen ||
+      !sameServeToken(this.#currentServe, ref) ||
+      (!this.#serves.isActive(ref, 'committed') && !this.#serves.isActive(ref, 'in-flight'))
+    ) {
+      return STALE;
+    }
+    const result = this.#serves.markLaunched(ref, realization);
+    if (result.status === 'launched') {
+      this.#activeOutcome = Object.freeze({
+        token: result.serve.outcomeToken,
+        servingSide: result.serve.ref.side,
+      });
+    }
+    return result;
+  }
+
+  onBallContact(contact: MatchStrategyBallContact): boolean {
+    if (contact.matchEpoch !== this.#currentMatchEpoch) return false;
+    const token = contact.outcomeToken;
+    const active = this.#activeOutcome;
+    if (token && (!active || !sameOutcomeToken(active.token, token))) return false;
+    if (this.#latestCapturedTick === null || contact.tick > this.#latestCapturedTick) return false;
+    const tick = contactTick(contact.tick);
+    this.#lastVisibleContactTick = Math.max(this.#lastVisibleContactTick ?? tick, tick);
+    if (!token || !active) return false;
+    if (!validSide(contact.side)) throw new RangeError('lado do contato inválido');
+    if (contact.side !== otherSide(active.servingSide)) return false;
+    const effectiveness = serveReceptionEffectiveness({
+      ballAfter: contact.ballAfter,
+      setterPosition: contact.setterPosition,
+    });
+    const resolved = this.#serves.resolveReception(token, contact.side, effectiveness);
+    if (resolved) {
+      this.#activeOutcome = undefined;
+      this.#currentServeOpen = false;
+    }
+    return resolved;
+  }
+
+  onPoint(point: MatchStrategyPoint): boolean {
+    const token = point.outcomeToken;
+    const active = this.#activeOutcome;
+    if (!token || !active || !sameOutcomeToken(active.token, token)) return false;
+    const resolved = this.#serves.resolvePoint(token, point);
+    if (resolved) {
+      this.#activeOutcome = undefined;
+      this.#currentServeOpen = false;
+    }
+    return resolved;
+  }
+
+  memory(side: TeamSide): StrategyMemorySnapshot {
+    return this.#strategy.memory(side);
+  }
+
+  flush(): void {
+    this.#strategy.flushOutbox();
+  }
+}
