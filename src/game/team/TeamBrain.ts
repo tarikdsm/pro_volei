@@ -96,6 +96,12 @@ export class TeamBrain {
       case 'reception':
         assignments = this.planReception(frame, athletes);
         break;
+      case 'offense-transition':
+        assignments = this.planOffenseTransition(frame, athletes);
+        break;
+      case 'attack-coverage':
+        assignments = this.planAttackCoverage(frame, athletes);
+        break;
       default:
         throw new Error(`Fase tática ainda não implementada: ${frame.phase}`);
     }
@@ -169,6 +175,132 @@ export class TeamBrain {
             a.athleteId - b.athleteId,
         )[0];
       assignments.push({ athleteId: selected.athleteId, role: formation.role, target });
+      remaining.splice(
+        remaining.findIndex((athlete) => athlete.athleteId === selected.athleteId),
+        1,
+      );
+    }
+    return assignments;
+  }
+
+  private planOffenseTransition(
+    frame: TeamBrainFrame,
+    athletes: readonly LocalAthlete[],
+  ): LocalAssignment[] {
+    const { active, target } = this.activeContact(frame, athletes, 'Transição ofensiva');
+    const remaining = athletes.filter((athlete) => athlete.athleteId !== active.athleteId);
+    return [
+      { athleteId: active.athleteId, role: 'active', target },
+      ...this.assignFormation(remaining, TEAM_TACTICS.offenseTransition, [target]),
+    ];
+  }
+
+  private planAttackCoverage(
+    frame: TeamBrainFrame,
+    athletes: readonly LocalAthlete[],
+  ): LocalAssignment[] {
+    const { active, target: activeTarget } = this.activeContact(
+      frame,
+      athletes,
+      'Cobertura de ataque',
+    );
+    const setterId = frame.setterAthleteId;
+    const setter = athletes.find(
+      (athlete) => athlete.athleteId === setterId && athlete.athleteId !== active.athleteId,
+    );
+    if (!setter) {
+      throw new Error(
+        `Cobertura de ataque exige levantadora diferente da atacante (setter=${String(setterId)}, active=${active.athleteId})`,
+      );
+    }
+    const localContact = toLocalCourt(frame.contactPoint!, frame.side);
+    const lateralDirection = localContact.z >= 0 ? -1 : 1;
+    const setterTarget = this.separateTarget(
+      {
+        x: TEAM_TACTICS.attackCoverage.setterDepth,
+        z: localContact.z + lateralDirection * TEAM_TACTICS.attackCoverage.setterLateralOffset,
+      },
+      [activeTarget],
+    );
+    const remaining = athletes.filter(
+      (athlete) => athlete.athleteId !== active.athleteId && athlete.athleteId !== setter.athleteId,
+    );
+    const specs = [
+      {
+        role: 'cover-short-left' as const,
+        target: {
+          x: TEAM_TACTICS.attackCoverage.shortDepth,
+          z: localContact.z - TEAM_TACTICS.attackCoverage.shortLateralOffset,
+        },
+      },
+      {
+        role: 'cover-short-right' as const,
+        target: {
+          x: TEAM_TACTICS.attackCoverage.shortDepth,
+          z: localContact.z + TEAM_TACTICS.attackCoverage.shortLateralOffset,
+        },
+      },
+      {
+        role: 'cover-deep' as const,
+        target: { x: TEAM_TACTICS.attackCoverage.deepDepth, z: localContact.z * 0.4 },
+      },
+      {
+        role: 'attacker' as const,
+        target: {
+          x: -2.1,
+          z:
+            localContact.z >= 0
+              ? -TEAM_TACTICS.attackCoverage.oppositeAttackZ
+              : TEAM_TACTICS.attackCoverage.oppositeAttackZ,
+        },
+      },
+    ];
+    return [
+      { athleteId: active.athleteId, role: 'active', target: activeTarget },
+      { athleteId: setter.athleteId, role: 'setter', target: setterTarget },
+      ...this.assignFormation(remaining, specs, [activeTarget, setterTarget]),
+    ];
+  }
+
+  private activeContact(
+    frame: TeamBrainFrame,
+    athletes: readonly LocalAthlete[],
+    label: string,
+  ): { active: LocalAthlete; target: TacticalPoint } {
+    if (frame.activeAthleteId === null || frame.contactPoint === null) {
+      throw new Error(`${label} exige atleta ativa e ponto de contato`);
+    }
+    const active = athletes.find((athlete) => athlete.athleteId === frame.activeAthleteId);
+    if (!active) throw new Error('Atleta ativa não pertence ao time');
+    return {
+      active,
+      target: clampOwnHalf(
+        toLocalCourt(frame.contactPoint, frame.side),
+        TEAM_TACTICS.courtMargin,
+        TEAM_TACTICS.netMargin,
+      ),
+    };
+  }
+
+  private assignFormation(
+    source: readonly LocalAthlete[],
+    specs: readonly { readonly role: TacticalRole; readonly target: TacticalPoint }[],
+    occupied: TacticalPoint[],
+  ): LocalAssignment[] {
+    const remaining = [...source];
+    const assignments: LocalAssignment[] = [];
+    for (const spec of specs) {
+      const target = this.separateTarget(spec.target, occupied);
+      occupied.push(target);
+      const selected = remaining
+        .slice()
+        .sort(
+          (a, b) =>
+            distanceSq(a.position, target) - distanceSq(b.position, target) ||
+            a.athleteId - b.athleteId,
+        )[0];
+      if (!selected) throw new Error('Formação possui mais papéis do que atletas disponíveis');
+      assignments.push({ athleteId: selected.athleteId, role: spec.role, target });
       remaining.splice(
         remaining.findIndex((athlete) => athlete.athleteId === selected.athleteId),
         1,

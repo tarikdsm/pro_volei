@@ -142,9 +142,7 @@ describe('TeamTacticsSystem', () => {
     const team = fakeTeam();
     const system = new TeamTacticsSystem();
 
-    expect(() => system.coordinate({ team, phase: 'offense-transition' })).toThrow(
-      /não implementada/i,
-    );
+    expect(() => system.coordinate({ team, phase: 'defense-read' })).toThrow(/não implementada/i);
     expect(system.coordinate({ team, phase: 'base' }).revision).toBe(1);
   });
 

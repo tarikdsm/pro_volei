@@ -171,6 +171,21 @@ export const TEAM_TACTICS = {
     { role: 'receive-right', target: { x: -5.4, z: 2.8 } },
     { role: 'cover-deep', target: { x: -7.6, z: 0 } },
   ],
+  offenseTransition: [
+    { role: 'attack-left', target: { x: -2.2, z: -3 } },
+    { role: 'attack-center', target: { x: -1.8, z: 0 } },
+    { role: 'attack-right', target: { x: -2.2, z: 3 } },
+    { role: 'cover-short-left', target: { x: -4.2, z: -1.4 } },
+    { role: 'cover-short-right', target: { x: -4.2, z: 1.4 } },
+  ],
+  attackCoverage: {
+    setterDepth: -2.4,
+    setterLateralOffset: 1.2,
+    shortDepth: -3.2,
+    shortLateralOffset: 1.1,
+    deepDepth: -6.2,
+    oppositeAttackZ: 3.1,
+  },
 } as const;
 
 // Zonas de ataque na rede (z), do lado que ataca

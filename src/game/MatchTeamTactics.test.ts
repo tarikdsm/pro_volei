@@ -51,6 +51,8 @@ describe('Match + TeamTacticsSystem', () => {
     const match = headlessMatch(null);
     match.startMatch(1, 0);
     let sawReception = false;
+    let sawTransition = false;
+    let sawAttackCoverage = false;
     let tick = 1;
 
     for (; tick <= 7_200 && match.state !== 'point'; tick++) {
@@ -58,9 +60,13 @@ describe('Match + TeamTacticsSystem', () => {
       const home = match.teamTacticsSnapshot(TeamSide.HOME);
       const away = match.teamTacticsSnapshot(TeamSide.AWAY);
       sawReception ||= home?.phase === 'reception' || away?.phase === 'reception';
+      sawTransition ||=
+        home?.phase === 'offense-transition' || away?.phase === 'offense-transition';
+      sawAttackCoverage ||= home?.phase === 'attack-coverage' || away?.phase === 'attack-coverage';
     }
 
     expect(sawReception).toBe(true);
+    expect(sawTransition).toBe(true);
     expect(match.state).toBe('point');
     expect(match.teamTacticsSnapshot(TeamSide.HOME)?.phase).toBe('hold');
     expect(match.teamTacticsSnapshot(TeamSide.AWAY)?.phase).toBe('hold');
@@ -85,5 +91,13 @@ describe('Match + TeamTacticsSystem', () => {
     expect(serverAssignment?.athleteId).toBe(server.index);
     expect(serverAssignment?.target.x).toBeCloseTo(server.pos.x, 8);
     expect(serverAssignment?.target.z).toBeCloseTo(server.pos.z, 8);
+
+    for (; tick <= 60_000 && !sawAttackCoverage; tick++) {
+      match.update(1 / 60, neutralFrame(tick));
+      sawAttackCoverage =
+        match.teamTacticsSnapshot(TeamSide.HOME)?.phase === 'attack-coverage' ||
+        match.teamTacticsSnapshot(TeamSide.AWAY)?.phase === 'attack-coverage';
+    }
+    expect(sawAttackCoverage).toBe(true);
   });
 });

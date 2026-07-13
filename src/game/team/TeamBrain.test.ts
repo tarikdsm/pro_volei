@@ -127,6 +127,62 @@ describe('TeamBrain', () => {
     );
   });
 
+  it('organiza transição ofensiva com três opções de ataque e duas coberturas', () => {
+    const plan = new TeamBrain().plan(
+      frame(TeamSide.HOME, [0, 1, 2, 3, 4, 5], {
+        phase: 'offense-transition',
+        planId: 30,
+        activeAthleteId: 1,
+        contactPoint: { x: -1.1, z: 0.8 },
+        setterAthleteId: 1,
+      }),
+    );
+
+    expectValid(plan, TeamSide.HOME);
+    expect(plan.assignments.find((assignment) => assignment.role === 'active')?.athleteId).toBe(1);
+    expect(
+      plan.assignments.filter((assignment) => assignment.role.startsWith('attack-')),
+    ).toHaveLength(3);
+    expect(
+      plan.assignments.filter((assignment) => assignment.role.startsWith('cover-short-')),
+    ).toHaveLength(2);
+  });
+
+  it('forma cobertura de ataque espelhada ao redor da atacante e da levantadora', () => {
+    const homeFrame = frame(TeamSide.HOME, [0, 1, 2, 3, 4, 5], {
+      phase: 'attack-coverage',
+      planId: 31,
+      activeAthleteId: 4,
+      contactPoint: { x: -1, z: 2.6 },
+      setterAthleteId: 1,
+    });
+    const awayFrame = frame(TeamSide.AWAY, [0, 1, 2, 3, 4, 5], {
+      phase: 'attack-coverage',
+      planId: 31,
+      activeAthleteId: 4,
+      contactPoint: { x: 1, z: -2.6 },
+      setterAthleteId: 1,
+    });
+    const home = new TeamBrain().plan(homeFrame);
+    const away = new TeamBrain().plan(awayFrame);
+
+    expectValid(home, TeamSide.HOME);
+    expect(home.assignments.find((assignment) => assignment.role === 'active')?.athleteId).toBe(4);
+    expect(home.assignments.find((assignment) => assignment.role === 'setter')?.athleteId).toBe(1);
+    expect(
+      home.assignments.filter((assignment) => assignment.role.startsWith('cover-short-')),
+    ).toHaveLength(2);
+    expect(home.assignments.filter((assignment) => assignment.role === 'cover-deep')).toHaveLength(
+      1,
+    );
+    expect(away.assignments).toEqual(
+      home.assignments.map((assignment) => ({
+        ...assignment,
+        target: { x: -assignment.target.x, z: -assignment.target.z },
+      })),
+    );
+  });
+
   it('mantém recepção simétrica, separada e determinística em empate', () => {
     const slots = [0, 1, 2, 3, 4, 5];
     const homeFrame = frame(TeamSide.HOME, slots, {
@@ -203,7 +259,7 @@ describe('TeamBrain', () => {
 
   it('rejeita fase não implementada, metadados e geometria inválidos', () => {
     const valid = frame(TeamSide.HOME, [0, 1, 2, 3, 4, 5]);
-    expect(() => new TeamBrain().plan({ ...valid, phase: 'offense-transition' })).toThrow(
+    expect(() => new TeamBrain().plan({ ...valid, phase: 'defense-read' })).toThrow(
       /não implementada/i,
     );
     expect(() => new TeamBrain().plan({ ...valid, phase: 'serve-formation' })).toThrow(/exige/i);

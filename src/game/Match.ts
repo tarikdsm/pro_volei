@@ -19,6 +19,7 @@ import {
 import { ballisticArc, clamp } from '../core/math3d';
 import { RandomHub } from '../core/random';
 import { computeNetCrossing, netTouchPoint } from './mechanics/net';
+import { contactSideAt } from './mechanics/contactSide';
 import { RallyState, TouchPlan } from './RallyState';
 import { prepareBlock } from './mechanics/block';
 import { executeTouch } from './mechanics/touch';
@@ -40,7 +41,7 @@ import type {
   SimulationTelemetryPort,
 } from './simulation/SimulationTelemetry';
 import { TeamTacticsSystem } from './team/TeamTacticsSystem';
-import type { TeamPlan } from './team/TeamTactics';
+import type { TeamPlan, TeamTacticsPhase } from './team/TeamTactics';
 
 export type { MatchHooks as Hooks, MatchStats } from './ports/MatchHooks';
 
@@ -271,7 +272,7 @@ export class Match {
     this.rally.plan = plan;
     this.ball.hold(new THREE.Vector3(plan.point.x, plan.point.y + 0.4, plan.point.z));
     this.human.onAssigned(this.ctx, plan);
-    this.coordinateReception(plan);
+    this.coordinateTeamPlan(plan);
     this.hooks.camera.setMode('rally', { cut: true });
   }
 
@@ -340,11 +341,6 @@ export class Match {
     const landing = this.ball.predictLanding();
     if (landing.time <= 0) return;
 
-    const landSide: TeamSide = landing.point.x < 0 ? TeamSide.HOME : TeamSide.AWAY;
-
-    // bola indo para o time que já usou 3 toques (e não pode mais) → ninguém joga, deixa cair
-    if (this.rally.possessionTeam === landSide && this.rally.possessionTouches >= 3) return;
-
     const contactH =
       nextKind === 'set' ? CONTACT.set : nextKind === 'spike' ? CONTACT.spike : CONTACT.pass;
     let cT = this.ball.timeToDescend(contactH);
@@ -354,15 +350,25 @@ export class Match {
     }
     this.ball.posAt(cT, cPoint);
 
+    // O contato pertence ao lado em que a bola cruza a altura técnica. Usar a queda futura fazia
+    // algumas levantadas escolherem uma atacante da equipe oposta antes de cruzar a rede.
+    const landSide = contactSideAt(
+      cPoint.x,
+      this.ball.vel.x,
+      this.rally.possessionTeam ?? this.servingTeam,
+    );
+    if (this.rally.possessionTeam === landSide && this.rally.possessionTouches >= 3) return;
+
     const team = this.teamOf(landSide);
     let athlete: Athlete;
     if (nextKind === 'set') {
       const sp = team.setterSpot();
       athlete =
-        this.rally.setterHold ?? team.nearestTo(sp.x, sp.z, this.rally.lastToucher ?? undefined);
+        (this.rally.setterHold?.side === landSide ? this.rally.setterHold : null) ??
+        team.nearestTo(sp.x, sp.z, this.rally.lastToucher ?? undefined);
     } else if (nextKind === 'spike') {
       athlete =
-        this.rally.plannedAttacker ??
+        (this.rally.plannedAttacker?.side === landSide ? this.rally.plannedAttacker : null) ??
         team.nearestFrontRowTo(cPoint.z, this.rally.lastToucher ?? undefined);
     } else {
       athlete = team.nearestTo(cPoint.x, cPoint.z, this.rally.excludedPasser(landSide));
@@ -386,7 +392,7 @@ export class Match {
       this.human.onAssigned(this.ctx, this.rally.plan);
       humanReceptionAssigned = true;
     }
-    if (isReceptionTouch(nextKind)) this.coordinateReception(this.rally.plan);
+    this.coordinateTeamPlan(this.rally.plan);
 
     // Aproximação: a IA agenda o deslocamento e o pulo. No humano, ataque e levantamento mantêm
     // rotas táticas; recepção fica nas setas + assistência limitada do AutoSelector.
@@ -764,14 +770,39 @@ export class Match {
     return this.humanSide !== null && side === this.humanSide;
   }
 
-  private coordinateReception(plan: TouchPlan): void {
+  private coordinateTeamPlan(plan: TouchPlan): void {
+    let phase: TeamTacticsPhase;
+    let setterAthleteId: number | null;
+    if (isReceptionTouch(plan.kind)) {
+      phase = 'reception';
+      setterAthleteId =
+        this.rally.setterHold?.side === plan.side ? this.rally.setterHold.index : null;
+    } else if (plan.kind === 'set') {
+      phase = 'offense-transition';
+      setterAthleteId = plan.athlete.index;
+    } else if (plan.kind === 'spike') {
+      phase = 'attack-coverage';
+      const lastSetter =
+        this.rally.lastKind === 'set' && this.rally.lastToucher?.side === plan.side
+          ? this.rally.lastToucher
+          : null;
+      if (lastSetter && lastSetter !== plan.athlete) {
+        setterAthleteId = lastSetter.index;
+      } else {
+        const team = this.teamOf(plan.side);
+        const spot = team.setterSpot();
+        setterAthleteId = team.nearestTo(spot.x, spot.z, plan.athlete).index;
+      }
+    } else {
+      return;
+    }
     const tactical = this.teamTactics.coordinate({
       team: this.teamOf(plan.side),
-      phase: 'reception',
+      phase,
       planId: plan.planId,
       activeAthleteId: plan.athlete.index,
       contactPoint: { x: plan.point.x, z: plan.point.z },
-      setterAthleteId: this.rally.setterHold?.index ?? null,
+      setterAthleteId,
     });
     plan.tacticalRevision = tactical.revision;
     if (plan.isHuman) {
@@ -784,7 +815,7 @@ export class Match {
     if (control.selectionRevision === this.lastHumanSelectionRevision) return;
     this.lastHumanSelectionRevision = control.selectionRevision;
     const plan = this.rally.plan;
-    if (plan?.isHuman && isReceptionTouch(plan.kind)) this.coordinateReception(plan);
+    if (plan?.isHuman && isReceptionTouch(plan.kind)) this.coordinateTeamPlan(plan);
   }
 
   private emitTelemetry(event: Readonly<SimulationEventDraft>): void {
