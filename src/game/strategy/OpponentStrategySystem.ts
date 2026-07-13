@@ -57,6 +57,11 @@ export type StrategyAttackBasis =
   | Readonly<{ kind: 'executed-set' }>
   | Readonly<{ kind: 'chained-quick'; parentSetDecisionId: string }>;
 
+export interface StrategySetPlayRequest {
+  readonly set: Omit<StrategyDecisionRequest, 'kind' | 'attackBasis'> & Readonly<{ kind: 'set' }>;
+  readonly quickAttackOwnership: string;
+}
+
 export interface CommittedStrategyDecision {
   readonly decisionId: string;
   readonly matchEpoch: number;
@@ -115,6 +120,15 @@ export type StrategyCommitResult =
   | Readonly<{ status: 'invalid-request'; existingDecisionId?: string }>
   | Readonly<{ status: 'not-ready' }>
   | Readonly<{ status: 'committed'; decision: CommittedStrategyDecision }>;
+
+export type StrategySetPlayCommitResult =
+  | Readonly<{ status: 'invalid-request' }>
+  | Readonly<{ status: 'not-ready' }>
+  | Readonly<{
+      status: 'committed';
+      set: CommittedStrategyDecision;
+      quickAttack?: CommittedStrategyDecision;
+    }>;
 
 interface StrategyBrainPort {
   decide(context: StrategyDecisionContext): StrategyProposal;
@@ -483,6 +497,59 @@ export class OpponentStrategySystem {
   memory(side: TeamSide): StrategyMemorySnapshot {
     if (!validSide(side)) throw new RangeError('side inválido');
     return this.memories[side];
+  }
+
+  /** Compromete set e, somente se quick, seu ataque filho numa transação estocástica única. */
+  commitSetPlay(request: StrategySetPlayRequest): StrategySetPlayCommitResult {
+    if (
+      request.set.kind !== 'set' ||
+      ('attackBasis' in request.set && request.set.attackBasis !== undefined) ||
+      typeof request.quickAttackOwnership !== 'string' ||
+      request.quickAttackOwnership.trim().length === 0
+    ) {
+      return INVALID_REQUEST;
+    }
+    const homeBefore = this.streams.home.snapshot();
+    const awayBefore = this.streams.away.snapshot();
+    const systemBefore = this.checkpoint();
+    const rollback = (): void => {
+      this.streams.home.restore(homeBefore);
+      this.streams.away.restore(awayBefore);
+      this.restoreCheckpoint(systemBefore);
+    };
+    try {
+      const setResult = this.commitDecision(request.set);
+      if (setResult.status === 'invalid-request') return INVALID_REQUEST;
+      if (setResult.status === 'not-ready') return NOT_READY;
+      if (setResult.decision.proposal.chosen.optionId !== 'set.quick-center') {
+        return Object.freeze({ status: 'committed' as const, set: setResult.decision });
+      }
+      const attackResult = this.commitDecision({
+        matchEpoch: request.set.matchEpoch,
+        side: request.set.side,
+        kind: 'attack',
+        difficulty: request.set.difficulty,
+        decisionTick: request.set.decisionTick,
+        ownership: request.quickAttackOwnership,
+        ownContactRead: request.set.ownContactRead,
+        attackBasis: {
+          kind: 'chained-quick',
+          parentSetDecisionId: setResult.decision.decisionId,
+        },
+      });
+      if (attackResult.status !== 'committed') {
+        rollback();
+        return attackResult.status === 'not-ready' ? NOT_READY : INVALID_REQUEST;
+      }
+      return Object.freeze({
+        status: 'committed' as const,
+        set: setResult.decision,
+        quickAttack: attackResult.decision,
+      });
+    } catch (error) {
+      rollback();
+      throw error;
+    }
   }
 
   commitDecision(request: StrategyDecisionRequest): StrategyCommitResult {

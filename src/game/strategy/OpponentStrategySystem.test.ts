@@ -87,6 +87,23 @@ function ownContactRead(
   };
 }
 
+function quickPassRead(tick = 30): OwnContactReadSource {
+  const pass = ownContactRead('pass', TeamSide.HOME, tick);
+  return {
+    ...pass,
+    ballAfter: {
+      position: { x: -5, y: 2.2, z: 1 },
+      velocity: { x: 4, y: 5.8, z: 0 },
+      inFlight: true,
+    },
+    ownAthletes: pass.ownAthletes.map((athlete) =>
+      athlete.id === 4
+        ? { ...athlete, position: { x: -6.5, z: 0 }, velocity: { x: 5.6, z: 0 } }
+        : athlete,
+    ),
+  };
+}
+
 function serveRequest(
   side: TeamSide = TeamSide.HOME,
   decisionTick = 6,
@@ -221,6 +238,149 @@ describe('OpponentStrategySystem perception', () => {
 });
 
 describe('OpponentStrategySystem transaction and lifecycle', () => {
+  it('commitSetPlay mantém nonquick em +2 e quick causal atômico em +4', () => {
+    const makeBrain = (optionId: 'set.high-left' | 'set.quick-center') => ({
+      decide(input: Parameters<OpponentBrain['decide']>[0]) {
+        const proposal = new OpponentBrain().decide(input);
+        if (input.kind !== 'set') return proposal;
+        const chosen = proposal.candidates.find((candidate) => candidate.optionId === optionId);
+        if (!chosen) throw new Error(`fixture deveria permitir ${optionId}`);
+        return { ...proposal, chosen };
+      },
+    });
+
+    const nonquickRandom = streams();
+    const nonquick = new OpponentStrategySystem({
+      streams: nonquickRandom,
+      brain: makeBrain('set.high-left'),
+    });
+    nonquick.captureFrame(observation(0));
+    const high = nonquick.commitSetPlay({
+      set: {
+        ...serveRequest(),
+        kind: 'set',
+        ownership: 'set:batch:high',
+        setterAthleteId: 3,
+        ownContactRead: ownContactRead('pass'),
+      },
+      quickAttackOwnership: 'attack:batch:unused',
+    });
+    expect(high.status).toBe('committed');
+    if (high.status !== 'committed') throw new Error('unreachable');
+    expect(high.set.proposal.chosen.optionId).toBe('set.high-left');
+    expect(high.quickAttack).toBeUndefined();
+    expect(nonquickRandom.home.draws).toBe(2);
+
+    const quickRandom = streams();
+    const quick = new OpponentStrategySystem({
+      streams: quickRandom,
+      brain: makeBrain('set.quick-center'),
+    });
+    quick.captureFrame(observation(0));
+    quick.captureFrame(observation(20));
+    const play = quick.commitSetPlay({
+      set: {
+        ...serveRequest(TeamSide.HOME, 30),
+        kind: 'set',
+        ownership: 'set:batch:quick',
+        setterAthleteId: 3,
+        ownContactRead: quickPassRead(),
+      },
+      quickAttackOwnership: 'attack:batch:quick',
+    });
+    expect(play.status).toBe('committed');
+    if (play.status !== 'committed' || !play.quickAttack) throw new Error('unreachable');
+    expect(play.set.proposal.chosen.optionId).toBe('set.quick-center');
+    expect(play.quickAttack.attackBasis).toEqual({
+      kind: 'chained-quick',
+      parentSetDecisionId: play.set.decisionId,
+    });
+    expect(play.quickAttack.observationTick).toBe(play.set.observationTick);
+    expect(quickRandom.home.draws).toBe(4);
+    expect(quickRandom.away.draws).toBe(0);
+  });
+
+  it('commitSetPlay restaura stream, sequence, decisions, outcomes e outbox se o child falha', () => {
+    const home = new SequenceRandom([1, 2, 3]);
+    const away = new SequenceRandom([11, 12, 13, 14]);
+    const brain = {
+      decide(input: Parameters<OpponentBrain['decide']>[0]) {
+        const proposal = new OpponentBrain().decide(input);
+        if (input.kind !== 'set') return proposal;
+        const quick = proposal.candidates.find(
+          (candidate) => candidate.optionId === 'set.quick-center',
+        );
+        if (!quick) throw new Error('fixture deveria permitir quick');
+        return { ...proposal, chosen: quick };
+      },
+    };
+    const system = new OpponentStrategySystem({
+      streams: { home, away },
+      brain,
+      sink: () => undefined,
+    });
+    system.captureFrame(observation(0));
+    const before = system.snapshot();
+
+    expect(() =>
+      system.commitSetPlay({
+        set: {
+          ...serveRequest(),
+          kind: 'set',
+          ownership: 'set:batch:rollback',
+          setterAthleteId: 3,
+          ownContactRead: quickPassRead(6),
+        },
+        quickAttackOwnership: 'attack:batch:rollback',
+      }),
+    ).toThrow(/exhaust/i);
+
+    expect(home.draws).toBe(0);
+    expect(away.draws).toBe(0);
+    expect(system.snapshot()).toEqual(before);
+  });
+
+  it('commitSetPlay também restaura o set quando o child retorna invalid-request', () => {
+    const random = streams();
+    const brain = {
+      decide(input: Parameters<OpponentBrain['decide']>[0]) {
+        const proposal = new OpponentBrain().decide(input);
+        if (input.kind !== 'set') return proposal;
+        const quick = proposal.candidates.find(
+          (candidate) => candidate.optionId === 'set.quick-center',
+        );
+        if (!quick) throw new Error('fixture deveria permitir quick');
+        return { ...proposal, chosen: quick };
+      },
+    };
+    const system = new OpponentStrategySystem({ streams: random, brain, sink: () => undefined });
+    system.captureFrame(observation(0));
+    system.captureFrame(observation(20));
+    const baseSet = {
+      ...serveRequest(TeamSide.HOME, 30),
+      kind: 'set' as const,
+      setterAthleteId: 3,
+      ownContactRead: quickPassRead(),
+    };
+    const first = system.commitSetPlay({
+      set: { ...baseSet, ownership: 'set:batch:first' },
+      quickAttackOwnership: 'attack:batch:shared',
+    });
+    expect(first.status).toBe('committed');
+    const before = system.snapshot();
+
+    expect(
+      system.commitSetPlay({
+        set: { ...baseSet, ownership: 'set:batch:second' },
+        quickAttackOwnership: 'attack:batch:shared',
+      }),
+    ).toEqual({ status: 'invalid-request' });
+
+    expect(random.home.draws).toBe(4);
+    expect(random.away.draws).toBe(0);
+    expect(system.snapshot()).toEqual(before);
+  });
+
   it('usa leitura própria causal em set/attack e mantém +2 somente no lado aceito', () => {
     const setRandom = streams();
     const setSystem = new OpponentStrategySystem({ streams: setRandom });
