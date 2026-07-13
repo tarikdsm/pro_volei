@@ -10,12 +10,20 @@ import type { MatchHooks as Hooks, MatchStats } from '../ports/MatchHooks';
 import type { ActionIntent } from '../control/ActionIntent';
 import type { RandomSource } from '../../core/random';
 import type { SimulationTelemetryEmitter } from '../simulation/SimulationTelemetry';
+import type { ServeOutcomeToken } from '../strategy/StrategicServeSystem';
 
 export interface GameplayRandomStreams {
   readonly rules: RandomSource;
   readonly ai: RandomSource;
   readonly contact: RandomSource;
   readonly control: RandomSource;
+}
+
+export interface MechanicsBallContact {
+  readonly side: TeamSide;
+  readonly kind: TouchKind;
+  readonly athleteId: number;
+  readonly outcomeToken: ServeOutcomeToken | null;
 }
 
 export interface MechanicsCtx {
@@ -29,6 +37,7 @@ export interface MechanicsCtx {
   stats: MatchStats; // escrita (stats.blocks no bloqueio)
   random: GameplayRandomStreams;
   emitTelemetry: SimulationTelemetryEmitter;
+  onBallContact(contact: MechanicsBallContact): void;
   isHumanSide(side: TeamSide): boolean;
   teamOf(side: TeamSide): Team;
   after(t: number, fn: () => void): void;

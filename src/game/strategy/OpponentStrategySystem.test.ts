@@ -11,6 +11,7 @@ import {
   type StrategyDecisionRequest,
 } from './OpponentStrategySystem';
 import type { StrategyObservation, StrategyProposal } from './StrategyTypes';
+import { buildStrategyObservation, packStrategyObservation } from './StrategyObservationAdapter';
 
 function observation(tick: number, movement = 0): StrategyObservation {
   const athletes = [TeamSide.HOME, TeamSide.AWAY].flatMap((side) => {
@@ -74,6 +75,40 @@ function committed(system: OpponentStrategySystem, request = serveRequest()) {
 }
 
 describe('OpponentStrategySystem perception', () => {
+  it('aceita fast path somente para observação canônica e preserva sua identidade congelada', () => {
+    const system = new OpponentStrategySystem({ streams: streams() });
+    const canonical = buildStrategyObservation(observation(0));
+
+    expect(() => system.captureCanonicalFrame(Object.freeze(observation(0)))).toThrow(/canônic/i);
+    system.captureCanonicalFrame(canonical);
+
+    const perceived = system.perceive(TeamSide.HOME, 2, 6);
+    expect(perceived.status).toBe('ready');
+    if (perceived.status !== 'ready') throw new Error('unreachable');
+    expect(perceived.observation).toBe(canonical);
+    expect(Object.isFrozen(perceived.observation.athletes[0].position)).toBe(true);
+  });
+
+  it('mantém frame compacto no ring e materializa DTO canônico somente ao perceber', () => {
+    const system = new OpponentStrategySystem({ streams: streams() });
+    const packed = packStrategyObservation(observation(0));
+
+    expect(() => system.capturePackedFrame(Object.freeze({ ...packed }) as never)).toThrow(
+      /compact|empacot|canônic/i,
+    );
+    system.capturePackedFrame(packed);
+
+    const perceived = system.perceive(TeamSide.HOME, 2, 6);
+    expect(perceived.status).toBe('ready');
+    if (perceived.status !== 'ready') throw new Error('unreachable');
+    expect(perceived.observation).toEqual(buildStrategyObservation(observation(0)));
+    expect(Object.isFrozen(perceived.observation.athletes[0].position)).toBe(true);
+    expect(system.perceive(TeamSide.HOME, 2, 6)).toMatchObject({
+      status: 'ready',
+      observation: perceived.observation,
+    });
+  });
+
   it('mantém ring 48, aceita gaps, ignora tick duplicado e rejeita regressão', () => {
     const system = new OpponentStrategySystem({ streams: streams() });
     system.captureFrame(observation(1));

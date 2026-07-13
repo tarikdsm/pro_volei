@@ -175,6 +175,7 @@ describe('resolveBlock — união da dupla', () => {
       teamOf: () => ({ frontRow: () => blockers }),
       after: (_t: number, fn: () => void) => scheduled.push(fn),
       planNext: (kind: string) => planNextCalls.push(kind),
+      onBallContact() {},
       takeHumanBlockIntent: () => null,
       emitTelemetry: (event: unknown) => telemetry.push(event),
       random: { ...makeRandomStreams(), contact },
@@ -240,6 +241,7 @@ describe('resolveBlock — união da dupla', () => {
       teamOf: () => ({ frontRow: () => [primary, lateAssist] }),
       after: (_t: number, fn: () => void) => scheduled.push(fn),
       planNext: (kind: string) => planNextCalls.push(kind),
+      onBallContact() {},
       emitTelemetry() {},
       random: { ...makeRandomStreams(), contact: SequenceRandom.fromFloats([0.35]) },
       isHumanSide: () => false,
@@ -350,6 +352,7 @@ describe('resolveBlock — snap ao ponto analítico de cruzamento (x = 0)', () =
         scheduled.push({ t, fn });
       },
       planNext: noop,
+      onBallContact: noop,
       takeHumanBlockIntent: () => blockIntent,
       emitTelemetry: noop,
       random,
@@ -435,13 +438,15 @@ describe('resolveBlock — posse após bloqueio', () => {
   function makeCtx(contactFloats: readonly number[] = [0.5, 0.5, 0.5]) {
     const scheduled: { t: number; fn: () => void }[] = [];
     const planNextCalls: string[] = [];
+    const order: string[] = [];
+    const domainContacts: Array<Record<string, unknown>> = [];
     const noop = (): void => {};
 
     // bola stale; cruza x=0 em t=0.2 a y≈2,94 (acima da fita → bloqueável)
     const ball = {
       pos: new THREE.Vector3(-2, 3.0, 0.5),
       vel: new THREE.Vector3(10, 1, 0),
-      launch: noop,
+      launch: () => order.push('ball:launch'),
     };
     // HOME defende no ar contra ataque AWAY; z alinhado ao cruzamento → prox = 1
     const blocker = {
@@ -453,7 +458,10 @@ describe('resolveBlock — posse após bloqueio', () => {
     } as unknown as Athlete;
     const team = { frontRow: () => [blocker] };
     const rally = new RallyState();
-    rally.plan = { planId: 7 } as TouchPlan;
+    rally.plan = {
+      planId: 7,
+      serveOutcomeToken: { matchEpoch: 4, serveEpoch: 6 },
+    } as TouchPlan;
     rally.blockPlan = {
       planId: 7,
       tacticalRevision: 1,
@@ -480,18 +488,33 @@ describe('resolveBlock — posse após bloqueio', () => {
       },
       planNext: (k: string) => {
         planNextCalls.push(k);
+        order.push(`plan:${k}`);
+      },
+      onBallContact: (contact: Record<string, unknown>) => {
+        domainContacts.push(contact);
+        order.push(`contact:${String(contact.kind)}`);
       },
       emitTelemetry: noop,
       random,
       isHumanSide: (side: TeamSide) => side === TeamSide.HOME,
     } as unknown as MechanicsCtx;
 
-    return { ctx, rally, scheduled, planNextCalls, contact: random.contact };
+    return {
+      ctx,
+      rally,
+      scheduled,
+      planNextCalls,
+      contact: random.contact,
+      order,
+      domainContacts,
+    };
   }
 
   it('STUFF: zera a posse e agenda o dig (cobertura do ataque bloqueado)', () => {
     // r baixo (0.1 < prox*0.5 = 0.5) cai no ramo STUFF; demais chamadas alimentam rand().
-    const { ctx, rally, scheduled, planNextCalls, contact } = makeCtx([0.1, 0.5, 0.5]);
+    const { ctx, rally, scheduled, planNextCalls, contact, order, domainContacts } = makeCtx([
+      0.1, 0.5, 0.5,
+    ]);
     // a cortada chegou como 3º toque do atacante (AWAY)
     rally.countTouch(TeamSide.AWAY);
     rally.countTouch(TeamSide.AWAY);
@@ -508,6 +531,15 @@ describe('resolveBlock — posse após bloqueio', () => {
     expect(rally.possessionTouches).toBe(0);
     expect(planNextCalls).toEqual(['dig']);
     expect(contact.draws).toBe(3);
+    expect(domainContacts).toEqual([
+      {
+        side: TeamSide.HOME,
+        kind: 'block',
+        athleteId: 0,
+        outcomeToken: { matchEpoch: 4, serveEpoch: 6 },
+      },
+    ]);
+    expect(order).toEqual(['ball:launch', 'contact:block', 'plan:dig']);
   });
 
   it('pingo: mantém a posse limpa e agenda o pass (comportamento já correto)', () => {

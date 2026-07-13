@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { TeamSide, TouchKind } from '../core/constants';
 import { Athlete } from './Team';
+import type { ServeOutcomeToken } from './strategy/StrategicServeSystem';
 
 export interface TouchPlan {
   planId: number;
@@ -13,6 +14,7 @@ export interface TouchPlan {
   kind: TouchKind; // o que este toque deve ser
   isHuman: boolean;
   tacticalRevision?: number;
+  serveOutcomeToken: ServeOutcomeToken | null;
   jumpScheduledIn?: number; // p/ ataque IA
   done: boolean;
 }
@@ -33,6 +35,7 @@ export class RallyState {
   lastTouchTeam: TeamSide | null = null;
   lastKind: TouchKind = 'serve';
   rallyTouches = 0;
+  serveOutcomeToken: ServeOutcomeToken | null = null;
 
   // próximo contato e geometria de rede
   plan: TouchPlan | null = null;
@@ -84,6 +87,7 @@ export class RallyState {
     this.possessionTouches = 0;
     this.rallyTouches = 0;
     this.lastTouchTeam = null;
+    this.serveOutcomeToken = null;
     this.plan = null;
     this.netEventIn = null;
     this.outAntennaIn = null;

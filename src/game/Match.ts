@@ -43,6 +43,9 @@ import type {
 } from './simulation/SimulationTelemetry';
 import { TeamTacticsSystem } from './team/TeamTacticsSystem';
 import type { AthleteTacticalSnapshot, TeamPlan, TeamTacticsPhase } from './team/TeamTactics';
+import { MatchStrategyBridge, type MatchStrategyPort } from './strategy/MatchStrategyBridge';
+import type { StrategyDifficulty } from './strategy/StrategyTypes';
+import { MatchStrategyCoordinator } from './strategy/MatchStrategyCoordinator';
 
 export type { MatchHooks as Hooks, MatchStats } from './ports/MatchHooks';
 
@@ -70,6 +73,7 @@ export interface MatchOptions {
   readonly charFactory?: CharFactory;
   readonly teamFactory?: TeamFactory;
   readonly telemetry?: SimulationTelemetryPort;
+  readonly strategy?: MatchStrategyPort;
 }
 
 export class Match {
@@ -83,6 +87,7 @@ export class Match {
   private timeline!: MatchTimeline;
 
   private diff: Difficulty = DIFFICULTIES[1];
+  private strategyDifficulty: StrategyDifficulty = 1;
   private format = MATCH_FORMATS[0];
   score: [number, number] = [0, 0];
   sets: [number, number] = [0, 0];
@@ -102,6 +107,7 @@ export class Match {
   private readonly random: GameplayRandomStreams;
   private readonly humanSide: TeamSide.HOME | null;
   private readonly telemetry: SimulationTelemetryPort | null;
+  private readonly strategyCoordinator: MatchStrategyCoordinator;
   private readonly telemetryOutbox: Readonly<SimulationTelemetryEvent>[] = [];
   private telemetryEnabled = true;
   private simulationTick = 0;
@@ -141,6 +147,25 @@ export class Match {
       contact: this.randomHub.stream('contact'),
       control: this.randomHub.stream('control'),
     };
+    const strategy =
+      options.strategy ??
+      new MatchStrategyBridge({
+        home: this.randomHub.stream('strategy.home'),
+        away: this.randomHub.stream('strategy.away'),
+      });
+    this.strategyCoordinator = new MatchStrategyCoordinator(strategy, {
+      ball: this.ball,
+      rally: this.rally,
+      home: this.home,
+      away: this.away,
+      tick: () => this.simulationTick,
+      state: () => this.state,
+      score: () => this.score,
+      serving: () => this.servingTeam,
+      difficulty: () => this.strategyDifficulty,
+      mechanics: () => this.ctx,
+      after: (seconds, fn) => this.after(seconds, fn),
+    });
     this.group.add(this.ball.group, this.home.group, this.away.group);
     this.group.add(this.human.marker);
     this.ball.hold(new THREE.Vector3(0, 1.2, 0));
@@ -167,8 +192,11 @@ export class Match {
 
   startMatch(diffIdx: number, fmtIdx: number): void {
     this.simulationTick = 0;
+    this.strategyCoordinator.startMatch();
     this.teamTactics.reset();
-    this.diff = DIFFICULTIES[clamp(diffIdx, 0, DIFFICULTIES.length - 1)];
+    const difficultyIndex = clamp(diffIdx, 0, DIFFICULTIES.length - 1) as StrategyDifficulty;
+    this.strategyDifficulty = difficultyIndex;
+    this.diff = DIFFICULTIES[difficultyIndex];
     this.format = MATCH_FORMATS[clamp(fmtIdx, 0, MATCH_FORMATS.length - 1)];
     this.score = [0, 0];
     this.sets = [0, 0];
@@ -287,6 +315,7 @@ export class Match {
       point: new THREE.Vector3(-3.5, CONTACT.pass, 0),
       kind: 'pass',
       isHuman: true,
+      serveOutcomeToken: null,
       done: false,
     };
 
@@ -320,6 +349,7 @@ export class Match {
       kind: 'spike',
       isHuman: false,
       tacticalRevision: 0,
+      serveOutcomeToken: null,
       done: false,
     };
     this.rally.plan = plan;
@@ -364,6 +394,7 @@ export class Match {
 
     this.hooks.camera.servePos.set(spot.x, 1.6, spot.z);
     const humanServes = this.isHumanSide(this.servingTeam);
+    this.strategyCoordinator.beginServe(this.servingTeam, server, !humanServes);
     this.hooks.camera.setMode(humanServes ? 'serveHome' : 'serveAway', { cut: true });
     this.after(0.5, () => this.hooks.audio.whistle());
 
@@ -372,7 +403,6 @@ export class Match {
     } else {
       this.human.awaitOpponentServe();
       this.hooks.hint('Saque do adversário — prepare a recepção!');
-      this.after(this.random.ai.range(1.4, 2.4), () => this.ai.serve(this.ctx));
     }
   }
 
@@ -429,6 +459,7 @@ export class Match {
       kind: nextKind,
       isHuman,
       tacticalRevision: 0,
+      serveOutcomeToken: this.rally.serveOutcomeToken,
       done: false,
     };
 
@@ -514,6 +545,7 @@ export class Match {
   // ---------------------------------------------------------------- UPDATE
   update(dt: number, frame: ControlFrame): void {
     this.simulationTick = frame.simulationTick;
+    this.strategyCoordinator.captureTick();
     this.ball.beginFixedStep();
     this.home.beginFixedStep();
     this.away.beginFixedStep();
@@ -523,6 +555,7 @@ export class Match {
     this.timeline.step(dt);
     this.ball.endFixedStep();
     this.flushTelemetry();
+    this.strategyCoordinator.flush();
   }
 
   /** Apresentação interpolada; não altera posições ou timers lógicos da simulação. */
@@ -627,6 +660,12 @@ export class Match {
       this.rally.lastKind = 'freeball';
       this.rally.lastToucher = a;
       this.rally.rallyTouches++;
+      this.strategyCoordinator.onBallContact({
+        side: plan.side,
+        kind: 'freeball',
+        athleteId: a.index,
+        outcomeToken: plan.serveOutcomeToken,
+      });
       this.emitTelemetry({
         type: 'contact',
         side: plan.side,
@@ -714,6 +753,7 @@ export class Match {
       aim: this.human.aim,
       random: this.random,
       emitTelemetry: (event) => this.emitTelemetry(event),
+      onBallContact: (contact) => this.strategyCoordinator.onBallContact(contact),
       isHumanSide: (side) => this.isHumanSide(side),
       get diff() {
         return diff();
@@ -770,6 +810,7 @@ export class Match {
       rally: this.rally,
       hooks: this.hooks,
       emitTelemetry: (event) => this.emitTelemetry(event),
+      onPointResolved: (point) => this.strategyCoordinator.onPoint(point),
       get score() {
         return score();
       },
@@ -813,6 +854,7 @@ export class Match {
         this.teamTactics.hold(this.away);
       },
       enterSetEnd: () => {
+        this.strategyCoordinator.startSet();
         this.state = 'setEnd';
         this.stateTime = 0;
       },

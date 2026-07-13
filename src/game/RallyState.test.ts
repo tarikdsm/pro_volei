@@ -14,6 +14,7 @@ describe('RallyState — valores iniciais', () => {
     expect(r.plan).toBe(null);
     expect(r.netEventIn).toBe(null);
     expect(r.outAntennaIn).toBe(null);
+    expect(r.serveOutcomeToken).toBe(null);
   });
 
   it('começa sem campos de planejamento definidos', () => {
@@ -85,7 +86,10 @@ describe('RallyState.reset', () => {
     r.lastTouchTeam = TeamSide.HOME;
     r.netEventIn = 0.3;
     r.outAntennaIn = 0.3;
-    r.plan = {} as TouchPlan;
+    r.serveOutcomeToken = { matchEpoch: 4, serveEpoch: 9 };
+    r.plan = {
+      serveOutcomeToken: r.serveOutcomeToken,
+    } as TouchPlan;
 
     r.reset();
 
@@ -96,6 +100,15 @@ describe('RallyState.reset', () => {
     expect(r.netEventIn).toBe(null);
     expect(r.outAntennaIn).toBe(null);
     expect(r.plan).toBe(null);
+    expect(r.serveOutcomeToken).toBe(null);
+  });
+
+  it('mantém no plano somente o token causal mínimo do saque', () => {
+    const token = { matchEpoch: 4, serveEpoch: 9 };
+    const plan = { serveOutcomeToken: token } as TouchPlan;
+
+    expect(plan.serveOutcomeToken).toEqual(token);
+    expect(Object.keys(plan.serveOutcomeToken!)).toEqual(['matchEpoch', 'serveEpoch']);
   });
 
   it('limpa o planejamento (bloqueadores agendados + ponteiros do próximo toque) entre pontos', () => {

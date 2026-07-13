@@ -237,6 +237,12 @@ function emitContact(
   quality: number,
   target: THREE.Vector3,
 ): void {
+  ctx.onBallContact({
+    side: plan.side,
+    kind,
+    athleteId: plan.athlete.index,
+    outcomeToken: plan.serveOutcomeToken,
+  });
   ctx.emitTelemetry({
     type: 'contact',
     side: plan.side,

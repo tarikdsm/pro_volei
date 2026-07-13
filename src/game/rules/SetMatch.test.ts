@@ -38,6 +38,7 @@ function makeCtx(o: CtxOpts): ScoringCtx {
     rally: {} as unknown as RallyState,
     hooks: stubHooks(),
     emitTelemetry: noop,
+    onPointResolved: noop,
     score: [0, 0],
     sets: o.sets,
     stats,
@@ -195,6 +196,7 @@ function makeFake(o: FakeOpts = {}) {
     rally,
     hooks,
     emitTelemetry: noop,
+    onPointResolved: noop,
     score: o.score ?? [0, 0],
     sets: o.sets ?? [0, 0],
     stats: { aces: 0, blocks: 0, longestRally: 0, points: [0, 0] },
@@ -219,6 +221,26 @@ function makeFake(o: FakeOpts = {}) {
 }
 
 describe('awardPoint — placar, saque e rodízio', () => {
+  it('publica o resultado com o lado sacador antigo antes de qualquer transição', () => {
+    const { ctx, enterPoint } = makeFake({ servingTeam: TeamSide.HOME });
+    const onPointResolved = vi.fn(() => {
+      expect(enterPoint).not.toHaveBeenCalled();
+      expect(ctx.score).toEqual([0, 0]);
+      expect(ctx.servingTeam).toBe(TeamSide.HOME);
+    });
+    (ctx as unknown as { onPointResolved: typeof onPointResolved }).onPointResolved =
+      onPointResolved;
+
+    awardPoint(ctx, TeamSide.AWAY, 'Bola no chão deles!', 'floor-in');
+
+    expect(onPointResolved).toHaveBeenCalledWith({
+      servingSide: TeamSide.HOME,
+      winner: TeamSide.AWAY,
+      ace: false,
+      cause: 'floor-in',
+    });
+  });
+
   it('side-out: ponto de quem não sacava troca o saque e roda só o vencedor', () => {
     const { ctx, teams } = makeFake({ servingTeam: TeamSide.HOME });
     awardPoint(ctx, TeamSide.AWAY, 'Bola no chão deles!');

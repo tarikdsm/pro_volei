@@ -40,7 +40,11 @@ function makeCtx(stalePos: THREE.Vector3): {
   ball: FakeBall;
   acts: string[];
   planned: string[];
+  order: string[];
+  domainContacts: Array<Record<string, unknown>>;
 } {
+  const order: string[] = [];
+  const domainContacts: Array<Record<string, unknown>> = [];
   const ball: FakeBall = {
     pos: stalePos.clone(),
     vel: new THREE.Vector3(),
@@ -49,12 +53,14 @@ function makeCtx(stalePos: THREE.Vector3): {
       this.origin = p0.clone();
       this.pos.copy(p0);
       this.vel.copy(v0);
+      order.push('ball:launch');
     },
   };
 
   const acts: string[] = [];
   const planned: string[] = [];
   const athlete = {
+    index: 2,
     pos: new THREE.Vector3(),
     act(kind: string): void {
       acts.push(kind);
@@ -84,13 +90,20 @@ function makeCtx(stalePos: THREE.Vector3): {
     chosenZone: 1,
     teamOf: () => team,
     after: noop,
-    planNext: (kind: string) => planned.push(kind),
+    planNext: (kind: string) => {
+      planned.push(kind);
+      order.push(`plan:${kind}`);
+    },
+    onBallContact: (contact: Record<string, unknown>) => {
+      domainContacts.push(contact);
+      order.push(`contact:${String(contact.kind)}`);
+    },
     emitTelemetry: noop,
     random: makeRandomStreams(),
     isHumanSide: (side: TeamSide) => side === TeamSide.HOME,
   } as unknown as MechanicsCtx;
 
-  return { ctx, ball, acts, planned };
+  return { ctx, ball, acts, planned, order, domainContacts };
 }
 
 function makePlan(kind: TouchPlan['kind'], athlete: Athlete): TouchPlan {
@@ -102,6 +115,7 @@ function makePlan(kind: TouchPlan['kind'], athlete: Athlete): TouchPlan {
     point: new THREE.Vector3(-3, 0.9, 1), // ponto analítico do contato
     kind,
     isHuman: true,
+    serveOutcomeToken: null,
     done: false,
   };
 }
@@ -244,6 +258,30 @@ describe('executeTouch — intenção semântica humana', () => {
 });
 
 describe('executeTouch — ownership e orçamento de RNG', () => {
+  it('publica contato mínimo com o token do plano depois do launch e antes de planNext', () => {
+    const sample = makeCtx(new THREE.Vector3());
+    const plan = makePlan('set', sample.ctx.teamOf(TeamSide.HOME).nearestTo(0, 0));
+    plan.serveOutcomeToken = { matchEpoch: 3, serveEpoch: 8 };
+
+    executeTouch(sample.ctx, plan, 1);
+
+    expect(sample.domainContacts).toEqual([
+      {
+        side: TeamSide.HOME,
+        kind: 'set',
+        athleteId: plan.athlete.index,
+        outcomeToken: { matchEpoch: 3, serveEpoch: 8 },
+      },
+    ]);
+    expect(Object.keys(sample.domainContacts[0])).toEqual([
+      'side',
+      'kind',
+      'athleteId',
+      'outcomeToken',
+    ]);
+    expect(sample.order).toEqual(['ball:launch', 'contact:set', 'plan:spike']);
+  });
+
   it('passe preciso consome apenas dois draws físicos do stream contact', () => {
     const sample = makeCtx(new THREE.Vector3());
     const contact = SequenceRandom.fromFloats([0.25, 0.75]);

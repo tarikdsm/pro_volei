@@ -4,6 +4,10 @@ import { describe, expect, it } from 'vitest';
 import { TeamSide } from '../../core/constants';
 import {
   buildStrategyObservation,
+  isCanonicalStrategyObservation,
+  materializePackedStrategyObservation,
+  packStrategyObservation,
+  StrategyObservationPacker,
   type StrategyObservationSource,
 } from './StrategyObservationAdapter';
 
@@ -168,6 +172,57 @@ describe('StrategyObservationAdapter', () => {
     const second = buildStrategyObservation(first);
     expect(second).toEqual(first);
     expect(second).not.toBe(first);
+  });
+
+  it('marca somente DTOs produzidos pelo adaptador como canônicos', () => {
+    const canonical = buildStrategyObservation(source());
+
+    expect(isCanonicalStrategyObservation(canonical)).toBe(true);
+    expect(isCanonicalStrategyObservation(structuredClone(canonical))).toBe(false);
+    expect(isCanonicalStrategyObservation(Object.freeze(source()))).toBe(false);
+  });
+
+  it('empacota por valor e materializa o mesmo DTO público profundamente imutável', () => {
+    const input = source();
+    const before = structuredClone(input);
+    const packed = packStrategyObservation(input);
+
+    (input.score as [number, number])[0] = 99;
+    (input.athletes[0].position as { x: number }).x = 99;
+    const materialized = materializePackedStrategyObservation(packed);
+
+    expect(materialized).toEqual(buildStrategyObservation(before));
+    expect(isCanonicalStrategyObservation(materialized)).toBe(true);
+    expect(Object.isFrozen(packed)).toBe(true);
+    expect('values' in packed).toBe(false);
+    expect(Object.isFrozen(materialized)).toBe(true);
+    expect(Object.isFrozen(materialized.athletes[0].position)).toBe(true);
+    expect(() =>
+      materializePackedStrategyObservation(Object.freeze({ ...packed }) as never),
+    ).toThrow(/compact|empacot|canônic/i);
+  });
+
+  it('revalida o roster quando o layout cacheado muda ou recebe fraude', () => {
+    const packer = new StrategyObservationPacker();
+    const initial = source();
+    expect(materializePackedStrategyObservation(packer.pack(initial))).toEqual(
+      buildStrategyObservation(initial),
+    );
+
+    const rotated = source();
+    const rotatedAthletes = [...rotated.athletes];
+    [rotatedAthletes[0], rotatedAthletes[1]] = [rotatedAthletes[1], rotatedAthletes[0]];
+    rotatedAthletes[0] = { ...rotatedAthletes[0], slot: 0 };
+    rotatedAthletes[1] = { ...rotatedAthletes[1], slot: 1 };
+    const rotatedSource = { ...rotated, athletes: rotatedAthletes };
+    expect(materializePackedStrategyObservation(packer.pack(rotatedSource))).toEqual(
+      buildStrategyObservation(rotatedSource),
+    );
+
+    const forged = source();
+    const forgedAthletes = [...forged.athletes];
+    forgedAthletes[1] = { ...forgedAthletes[1], id: forgedAthletes[0].id };
+    expect(() => packer.pack({ ...forged, athletes: forgedAthletes })).toThrow(/duplicad/i);
   });
 
   it('não importa runtime privado, render, DOM ou RNG', () => {

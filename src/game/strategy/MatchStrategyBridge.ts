@@ -7,7 +7,7 @@ import {
   type ServeReceptionPoint2,
 } from './ServeReceptionOutcome';
 import {
-  buildStrategyObservation,
+  StrategyObservationPacker,
   type StrategyObservationBallSource,
   type StrategyObservationSource,
 } from './StrategyObservationAdapter';
@@ -51,6 +51,33 @@ export interface MatchStrategyPoint {
 
 type ServeGuardStage = 'toss' | 'hit';
 
+/** Fronteira estrutural injetada pelo Match; os sistemas adaptativos permanecem privados. */
+export interface MatchStrategyPort {
+  readonly matchEpoch: number;
+  startMatch(): void;
+  startSet(): void;
+  captureTick(source: MatchStrategyTickSource): void;
+  beginServe(side: TeamSide, serverAthleteId: number): ServeEpochToken;
+  commitServe(
+    token: ServeEpochToken,
+    difficulty: StrategyDifficulty,
+    decisionTick: number,
+  ): StrategicServeCommitResult;
+  guardServe(
+    ref: ServeCommitmentRef,
+    stage: ServeGuardStage,
+    facts: MatchStrategyServeFacts,
+  ): boolean;
+  markServeLaunched(
+    ref: ServeCommitmentRef,
+    realization: StrategicServeRealization,
+  ): StrategicServeLaunchResult;
+  onBallContact(contact: MatchStrategyBallContact): boolean;
+  onPoint(point: MatchStrategyPoint): boolean;
+  memory(side: TeamSide): StrategyMemorySnapshot;
+  flush(): void;
+}
+
 interface ActiveOutcome {
   readonly token: ServeOutcomeToken;
   readonly servingSide: TeamSide;
@@ -82,9 +109,10 @@ function contactTick(tick: number): number {
   return Object.is(tick, -0) ? 0 : tick;
 }
 
-export class MatchStrategyBridge {
+export class MatchStrategyBridge implements MatchStrategyPort {
   readonly #strategy: OpponentStrategySystem;
   readonly #serves: StrategicServeSystem;
+  readonly #observationPacker = new StrategyObservationPacker();
   #currentMatchEpoch = 0;
   #latestCapturedTick: number | null = null;
   #lastVisibleContactTick: number | null = null;
@@ -98,6 +126,10 @@ export class MatchStrategyBridge {
   ) {
     this.#strategy = new OpponentStrategySystem({ streams, sink });
     this.#serves = new StrategicServeSystem(this.#strategy);
+  }
+
+  get matchEpoch(): number {
+    return this.#currentMatchEpoch;
   }
 
   startMatch(): void {
@@ -117,14 +149,14 @@ export class MatchStrategyBridge {
   }
 
   captureTick(source: MatchStrategyTickSource): void {
-    const observation = buildStrategyObservation({
+    const observation = this.#observationPacker.pack({
       ...source,
       ball: {
         ...source.ball,
         lastVisibleContactTick: this.#lastVisibleContactTick,
       },
     });
-    this.#strategy.captureFrame(observation);
+    this.#strategy.capturePackedFrame(observation);
     this.#latestCapturedTick = observation.tick;
   }
 

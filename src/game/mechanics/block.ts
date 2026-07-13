@@ -117,6 +117,7 @@ export function prepareBlock(
 /** verifica bloqueio no cruzamento da rede (chamado no lançamento da cortada) */
 export function resolveBlock(ctx: MechanicsCtx, attackSide: TeamSide): void {
   const defSide = otherSide(attackSide);
+  const outcomeToken = ctx.rally.plan?.serveOutcomeToken ?? null;
   const cross = blockCrossing(ctx.ball.pos, ctx.ball.vel);
   if (!cross) return;
   // bola cruza abaixo da fita → deixa o evento de rede resolver como falta, sem bloqueio
@@ -202,6 +203,7 @@ export function resolveBlock(ctx: MechanicsCtx, attackSide: TeamSide): void {
       );
       const { v0 } = ballisticDrive(bp, tgt, 0.32);
       ctx.ball.launch(bp, v0);
+      ctx.onBallContact({ side: defSide, kind: 'block', athleteId: blocker.index, outcomeToken });
       if (defSide === TeamSide.HOME) ctx.stats.blocks++;
       ctx.hooks.banner(defSide === TeamSide.HOME ? 'MONSTER BLOCK!' : 'BLOQUEADO!');
       ctx.hooks.crowd.excite(1);
@@ -220,6 +222,7 @@ export function resolveBlock(ctx: MechanicsCtx, attackSide: TeamSide): void {
       v.z *= 0.4;
       v.y = Math.abs(v.y) * 0.3 + 3.2;
       ctx.ball.launch(bp, v);
+      ctx.onBallContact({ side: defSide, kind: 'block', athleteId: blocker.index, outcomeToken });
       ctx.emitTelemetry({
         type: 'block',
         side: defSide,
@@ -234,6 +237,7 @@ export function resolveBlock(ctx: MechanicsCtx, attackSide: TeamSide): void {
       v.y = 2;
       v.z = ctx.random.contact.range(-6, 6);
       ctx.ball.launch(bp, v);
+      ctx.onBallContact({ side: defSide, kind: 'block', athleteId: blocker.index, outcomeToken });
       ctx.emitTelemetry({
         type: 'block',
         side: defSide,

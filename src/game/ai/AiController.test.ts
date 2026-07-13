@@ -22,6 +22,10 @@ function makeBlockerStub(): { athlete: Athlete; calls: { act: number; jump: numb
 }
 
 describe('AiController — consumo determinístico na defesa', () => {
+  it('não expõe mais o saque legado', () => {
+    expect('serve' in new AiController()).toBe(false);
+  });
+
   function qualityCtx(contactValues: readonly number[]): {
     ctx: MechanicsCtx;
     contact: SequenceRandom;

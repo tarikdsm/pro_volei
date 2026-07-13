@@ -12,7 +12,8 @@ import type {
   StrategicServeRealization,
 } from '../strategy/StrategicServeSystem';
 import type { MechanicsCtx } from './context';
-import { aiServe, performServe, performStrategicServe } from './serve';
+import * as serveMechanics from './serve';
+import { performServe, performStrategicServe } from './serve';
 
 function makeCtx(aiValues: readonly number[], contactValues: readonly number[]) {
   const ai = SequenceRandom.fromFloats(aiValues);
@@ -25,6 +26,7 @@ function makeCtx(aiValues: readonly number[], contactValues: readonly number[]) 
   const telemetry: Array<Record<string, unknown>> = [];
   const actions: Array<{ action: string; duration: number }> = [];
   const scheduleTimes: number[] = [];
+  const domainContacts: Array<Record<string, unknown>> = [];
   const server = {
     side: TeamSide.HOME,
     index: 4,
@@ -70,6 +72,10 @@ function makeCtx(aiValues: readonly number[], contactValues: readonly number[]) 
       events.push('rally-start');
     },
     planNext: (kind: string) => events.push(`plan:${kind}`),
+    onBallContact: (contact: Record<string, unknown>) => {
+      domainContacts.push(contact);
+      events.push(`contact:${String(contact.kind)}`);
+    },
     emitTelemetry: (event: Record<string, unknown>) => {
       telemetryOrder.push(event.type as string);
       telemetry.push(event);
@@ -89,6 +95,7 @@ function makeCtx(aiValues: readonly number[], contactValues: readonly number[]) 
     events,
     actions,
     server,
+    domainContacts,
   };
 }
 
@@ -115,43 +122,9 @@ function runCallbacks(scheduled: Array<() => void>): void {
   for (const callback of scheduled) callback();
 }
 
-describe('aiServe — ownership e consumo do RNG', () => {
-  it('saque dentro consome decisões de alvo no stream ai e contato físico no contact', () => {
-    const { ctx, ai, contact, launches, scheduled } = makeCtx([0.5, 0.25, 0.75], [0.9, 0.5]);
-
-    aiServe(ctx);
-
-    expect(ai.draws).toBe(3);
-    expect(contact.draws).toBe(2);
-    expect(launches).toHaveLength(1);
-    expect(scheduled).toHaveLength(2);
-  });
-
-  it('erro longo mantém toda a dispersão física no stream contact', () => {
-    const { ctx, ai, contact } = makeCtx([0.5], [0.1, 0.1, 0.2, 0.3, 0.4]);
-
-    aiServe(ctx);
-
-    expect(ai.draws).toBe(1);
-    expect(contact.draws).toBe(5);
-  });
-
-  it('erro na rede tem o mesmo orçamento de draws do erro longo', () => {
-    const { ctx, ai, contact } = makeCtx([0.5], [0.1, 0.9, 0.2, 0.3, 0.4]);
-
-    aiServe(ctx);
-
-    expect(ai.draws).toBe(1);
-    expect(contact.draws).toBe(5);
-  });
-
-  it('transiciona o rally antes de publicar o evento de saque', () => {
-    const { ctx, scheduled, telemetryOrder } = makeCtx([0.5, 0.25, 0.75], [0.9, 0.5]);
-
-    aiServe(ctx);
-    scheduled[1]();
-
-    expect(telemetryOrder).toEqual(['rally-start', 'serve']);
+describe('API de saque', () => {
+  it('não exporta o seletor legado aiServe', () => {
+    expect('aiServe' in serveMechanics).toBe(false);
   });
 });
 
@@ -174,6 +147,33 @@ describe('performStrategicServe - protocolo e realização física', () => {
     expect(sample.scheduled).toEqual([]);
     expect(sample.contact.draws).toBe(0);
     expect(sample.ai.draws).toBe(0);
+  });
+
+  it('não publica contato no toss e publica o token mínimo depois do launch real', () => {
+    const sample = makeCtx([0.5], [0.5, 0.99, 0.5, 0.5, 0.5, 0.5]);
+
+    performStrategicServe(sample.ctx, sample.server, directive(), {
+      guard: () => true,
+      onLaunched: () => true,
+    });
+
+    expect(sample.launches).toHaveLength(1);
+    expect(sample.domainContacts).toEqual([]);
+    runCallbacks(sample.scheduled);
+
+    expect(sample.domainContacts).toEqual([
+      {
+        side: TeamSide.HOME,
+        kind: 'serve',
+        athleteId: 4,
+        outcomeToken: { matchEpoch: 2, serveEpoch: 7 },
+      },
+    ]);
+    expect(sample.events.indexOf('contact:serve')).toBeGreaterThan(
+      sample.events.lastIndexOf('ball:launch'),
+    );
+    expect(sample.events.indexOf('contact:serve')).toBeLessThan(sample.events.indexOf('plan:pass'));
+    expect(sample.ctx.rally.serveOutcomeToken).toEqual({ matchEpoch: 2, serveEpoch: 7 });
   });
 
   it.each([
@@ -280,6 +280,7 @@ describe('performStrategicServe - protocolo e realização física', () => {
       'guard:hit',
       'onLaunched',
       'ball:launch',
+      'contact:serve',
       'rally-start',
       'telemetry:serve',
       'audio:hard',
@@ -509,5 +510,17 @@ describe('performServe - regressão humana', () => {
       clearance: 0.48,
     });
     expect(sample.telemetryOrder).toEqual(['rally-start', 'serve']);
+    expect(sample.domainContacts).toEqual([
+      {
+        side: TeamSide.HOME,
+        kind: 'serve',
+        athleteId: 4,
+        outcomeToken: null,
+      },
+    ]);
+    expect(sample.events.indexOf('contact:serve')).toBeGreaterThan(
+      sample.events.lastIndexOf('ball:launch'),
+    );
+    expect(sample.events.indexOf('contact:serve')).toBeLessThan(sample.events.indexOf('plan:pass'));
   });
 });

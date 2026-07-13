@@ -2,15 +2,9 @@
 // ctx.diff. Sem estado próprio. A seleção de alvo da IA fica em mechanics/ (touch/serve).
 import { PLAYER, sideSign } from '../../core/constants';
 import { TouchPlan } from '../RallyState';
-import { aiServe } from '../mechanics/serve';
 import type { MechanicsCtx } from '../mechanics/context';
 
 export class AiController {
-  /** Saque da IA (física + escolha de alvo/erro ficam em mechanics/serve). */
-  serve(ctx: MechanicsCtx): void {
-    aiServe(ctx);
-  }
-
   /** Manda o atleta da IA ao ponto de contato (com reactionDelay) e agenda o pulo no ataque. */
   scheduleApproach(ctx: MechanicsCtx, plan: TouchPlan): void {
     const { athlete, side, kind, point, contactIn } = plan;

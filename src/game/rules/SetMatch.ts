@@ -19,6 +19,13 @@ import {
   nextFirstServer,
 } from './scoring';
 
+export interface PointResolvedEvent {
+  readonly servingSide: TeamSide;
+  readonly winner: TeamSide;
+  readonly ace: boolean;
+  readonly cause: PointCause;
+}
+
 // A fatia do Match que o fluxo de pontuação precisa. `state` continua sendo do orquestrador: em vez
 // de setters crus, transições vêm por métodos de intenção (enterPoint/enterSetEnd/enterMatchEnd).
 export interface ScoringCtx {
@@ -26,6 +33,7 @@ export interface ScoringCtx {
   rally: RallyState;
   hooks: Hooks;
   emitTelemetry: SimulationTelemetryEmitter;
+  onPointResolved(event: PointResolvedEvent): void;
   readonly score: [number, number]; // mutado in-place
   readonly sets: [number, number]; // mutado in-place
   readonly stats: MatchStats; // mutado in-place
@@ -67,6 +75,9 @@ export function awardPoint(
   pointCause: PointCause = 'other',
 ): void {
   if (!ctx.isRally()) return;
+  const ace = isAce(ctx.rally.lastKind, winner, ctx.servingTeam, ctx.rally.rallyTouches);
+  const cause: PointCause = ace ? 'ace' : pointCause;
+  ctx.onPointResolved({ servingSide: ctx.servingTeam, winner, ace, cause });
   ctx.enterPoint();
   ctx.rally.plan = null;
   ctx.releaseControl();
@@ -76,8 +87,6 @@ export function awardPoint(
   ctx.hooks.serveMeter(false);
   ctx.hooks.zoneHint(null);
 
-  const ace = isAce(ctx.rally.lastKind, winner, ctx.servingTeam, ctx.rally.rallyTouches);
-  const cause: PointCause = ace ? 'ace' : pointCause;
   ctx.score[winner]++;
   ctx.stats.points[winner]++;
   ctx.stats.longestRally = Math.max(ctx.stats.longestRally, ctx.rally.rallyTouches);

@@ -8,6 +8,7 @@ import { SERVE_RECEPTION_OUTCOME_TUNING } from './ServeReceptionOutcome';
 import {
   MatchStrategyBridge,
   type MatchStrategyBallContact,
+  type MatchStrategyPort,
   type MatchStrategyTickSource,
 } from './MatchStrategyBridge';
 import type {
@@ -15,6 +16,15 @@ import type {
   StrategicServeDirective,
   StrategicServeRealization,
 } from './StrategicServeSystem';
+import {
+  materializePackedStrategyObservation,
+  type PackedStrategyObservation,
+} from './StrategyObservationAdapter';
+
+function materializedCapture(packed: PackedStrategyObservation | undefined) {
+  if (!packed) throw new Error('captura compacta ausente');
+  return materializePackedStrategyObservation(packed);
+}
 
 function streams() {
   return {
@@ -103,25 +113,55 @@ function readyBridge(sink?: (event: StrategyOutboxEvent) => void) {
 }
 
 describe('MatchStrategyBridge perception and lifecycle', () => {
+  it('encaminha captura whitelisted pela fast path compacta do system', () => {
+    const packed = vi.spyOn(OpponentStrategySystem.prototype, 'capturePackedFrame');
+    const canonical = vi.spyOn(OpponentStrategySystem.prototype, 'captureCanonicalFrame');
+    const external = vi.spyOn(OpponentStrategySystem.prototype, 'captureFrame');
+    try {
+      const bridge = new MatchStrategyBridge(streams());
+      bridge.captureTick(tickSource());
+
+      expect(packed).toHaveBeenCalledTimes(1);
+      expect(canonical).not.toHaveBeenCalled();
+      expect(external).not.toHaveBeenCalled();
+    } finally {
+      packed.mockRestore();
+      canonical.mockRestore();
+      external.mockRestore();
+    }
+  });
+
+  it('expõe somente o contrato estrutural e o epoch atual da partida', () => {
+    const bridge: MatchStrategyPort = new MatchStrategyBridge(streams());
+
+    expect(bridge.matchEpoch).toBe(0);
+    bridge.startMatch();
+    expect(bridge.matchEpoch).toBe(1);
+  });
+
   it('injeta contato visível somente nos frames seguintes', () => {
-    const capture = vi.spyOn(OpponentStrategySystem.prototype, 'captureFrame');
+    const capture = vi.spyOn(OpponentStrategySystem.prototype, 'capturePackedFrame');
     try {
       const { bridge } = readyBridge();
-      expect(capture.mock.calls.at(-1)?.[0].ball.lastVisibleContactTick).toBeNull();
+      expect(
+        materializedCapture(capture.mock.calls.at(-1)?.[0]).ball.lastVisibleContactTick,
+      ).toBeNull();
 
       bridge.captureTick(tickSource(1));
       expect(bridge.onBallContact(perfectContact(1, null))).toBe(false);
       bridge.captureTick(tickSource(2));
 
       expect(capture.mock.calls.at(-1)?.[0].tick).toBe(2);
-      expect(capture.mock.calls.at(-1)?.[0].ball.lastVisibleContactTick).toBe(1);
+      expect(materializedCapture(capture.mock.calls.at(-1)?.[0]).ball.lastVisibleContactTick).toBe(
+        1,
+      );
     } finally {
       capture.mockRestore();
     }
   });
 
   it('callback da partida anterior após reset é stale antes de tick e payload', () => {
-    const capture = vi.spyOn(OpponentStrategySystem.prototype, 'captureFrame');
+    const capture = vi.spyOn(OpponentStrategySystem.prototype, 'capturePackedFrame');
     try {
       const bridge = new MatchStrategyBridge(streams());
       bridge.captureTick(tickSource(0));
@@ -138,14 +178,16 @@ describe('MatchStrategyBridge perception and lifecycle', () => {
         }),
       ).toBe(false);
       expect(() => bridge.captureTick(tickSource(0))).not.toThrow();
-      expect(capture.mock.calls.at(-1)?.[0].ball.lastVisibleContactTick).toBeNull();
+      expect(
+        materializedCapture(capture.mock.calls.at(-1)?.[0]).ball.lastVisibleContactTick,
+      ).toBeNull();
     } finally {
       capture.mockRestore();
     }
   });
 
   it('tick futuro current é rejeitado sem envenenar a captura seguinte', () => {
-    const capture = vi.spyOn(OpponentStrategySystem.prototype, 'captureFrame');
+    const capture = vi.spyOn(OpponentStrategySystem.prototype, 'capturePackedFrame');
     try {
       const { bridge } = readyBridge();
       expect(
@@ -159,14 +201,16 @@ describe('MatchStrategyBridge perception and lifecycle', () => {
         }),
       ).toBe(false);
       expect(() => bridge.captureTick(tickSource(1))).not.toThrow();
-      expect(capture.mock.calls.at(-1)?.[0].ball.lastVisibleContactTick).toBeNull();
+      expect(
+        materializedCapture(capture.mock.calls.at(-1)?.[0]).ball.lastVisibleContactTick,
+      ).toBeNull();
     } finally {
       capture.mockRestore();
     }
   });
 
   it('sem captura válida ainda, contato current não grava tick', () => {
-    const capture = vi.spyOn(OpponentStrategySystem.prototype, 'captureFrame');
+    const capture = vi.spyOn(OpponentStrategySystem.prototype, 'capturePackedFrame');
     try {
       const bridge = new MatchStrategyBridge(streams());
       expect(() => bridge.captureTick({ ...tickSource(0), athletes: [] })).toThrow();
@@ -181,7 +225,9 @@ describe('MatchStrategyBridge perception and lifecycle', () => {
         }),
       ).toBe(false);
       expect(() => bridge.captureTick(tickSource(0))).not.toThrow();
-      expect(capture.mock.calls.at(-1)?.[0].ball.lastVisibleContactTick).toBeNull();
+      expect(
+        materializedCapture(capture.mock.calls.at(-1)?.[0]).ball.lastVisibleContactTick,
+      ).toBeNull();
     } finally {
       capture.mockRestore();
     }
@@ -245,7 +291,7 @@ describe('MatchStrategyBridge perception and lifecycle', () => {
   });
 
   it('startSet preserva memória; startMatch reseta memória/visibilidade sem resetar serveEpoch', () => {
-    const capture = vi.spyOn(OpponentStrategySystem.prototype, 'captureFrame');
+    const capture = vi.spyOn(OpponentStrategySystem.prototype, 'capturePackedFrame');
     try {
       const { bridge } = readyBridge();
       const firstToken = bridge.beginServe(TeamSide.HOME, 0);
@@ -269,7 +315,9 @@ describe('MatchStrategyBridge perception and lifecycle', () => {
         recentChoices: [],
       });
       bridge.captureTick(tickSource(0));
-      expect(capture.mock.calls.at(-1)?.[0].ball.lastVisibleContactTick).toBeNull();
+      expect(
+        materializedCapture(capture.mock.calls.at(-1)?.[0]).ball.lastVisibleContactTick,
+      ).toBeNull();
       const next = bridge.beginServe(TeamSide.HOME, 0);
       expect(next.matchEpoch).toBe(firstToken.matchEpoch + 1);
       expect(next.serveEpoch).toBe(firstToken.serveEpoch + 1);
@@ -352,7 +400,7 @@ describe('MatchStrategyBridge outcomes', () => {
   });
 
   it('contato sem token apenas atualiza tick e ignora payload físico', () => {
-    const capture = vi.spyOn(OpponentStrategySystem.prototype, 'captureFrame');
+    const capture = vi.spyOn(OpponentStrategySystem.prototype, 'capturePackedFrame');
     try {
       const { bridge } = readyBridge();
       bridge.captureTick(tickSource(4));
@@ -367,7 +415,9 @@ describe('MatchStrategyBridge outcomes', () => {
         }),
       ).toBe(false);
       bridge.captureTick(tickSource(5));
-      expect(capture.mock.calls.at(-1)?.[0].ball.lastVisibleContactTick).toBe(4);
+      expect(materializedCapture(capture.mock.calls.at(-1)?.[0]).ball.lastVisibleContactTick).toBe(
+        4,
+      );
       expect(bridge.memory(TeamSide.HOME).outcomes).toEqual([]);
     } finally {
       capture.mockRestore();

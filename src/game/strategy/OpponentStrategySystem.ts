@@ -17,6 +17,12 @@ import type {
   StrategyOptionId,
   StrategyProposal,
 } from './StrategyTypes';
+import {
+  isCanonicalStrategyObservation,
+  isPackedStrategyObservation,
+  materializePackedStrategyObservation,
+  type PackedStrategyObservation,
+} from './StrategyObservationAdapter';
 
 export const PERCEPTION_RING_CAPACITY = 48;
 export const TERMINAL_HISTORY_CAPACITY_PER_SIDE = 48;
@@ -368,7 +374,9 @@ export class OpponentStrategySystem {
   private sinkEnabled = true;
   private currentMatchEpoch = 0;
   private sequences: [number, number] = [0, 0];
-  private perceptionFrames: StrategyObservation[] = [];
+  private perceptionFrames: (StrategyObservation | PackedStrategyObservation)[] = [];
+  private perceptionStart = 0;
+  private perceptionCount = 0;
   private memories: [StrategyMemorySnapshot, StrategyMemorySnapshot] = [
     createStrategyMemory(),
     createStrategyMemory(),
@@ -391,15 +399,40 @@ export class OpponentStrategySystem {
 
   captureFrame(observation: StrategyObservation): void {
     validateObservation(observation);
-    const latestTick = this.perceptionFrames.at(-1)?.tick;
+    this.captureAcceptedFrame(deepFreezeCopy(observation));
+  }
+
+  /** Fast path interno: aceita apenas DTO frozen produzido pelo adaptador whitelisted. */
+  captureCanonicalFrame(observation: StrategyObservation): void {
+    if (!isCanonicalStrategyObservation(observation)) {
+      throw new RangeError('observação não é canônica');
+    }
+    this.captureAcceptedFrame(observation);
+  }
+
+  /** Fast path compacta autenticada; o DTO público só é materializado quando observado. */
+  capturePackedFrame(observation: PackedStrategyObservation): void {
+    if (!isPackedStrategyObservation(observation)) {
+      throw new RangeError('observação compacta não é canônica');
+    }
+    this.captureAcceptedFrame(observation);
+  }
+
+  private captureAcceptedFrame(observation: StrategyObservation | PackedStrategyObservation): void {
+    const latestTick = this.perceptionFrameAt(this.perceptionCount - 1)?.tick;
     if (latestTick !== undefined && observation.tick < latestTick) {
       throw new RangeError('tick regressivo na captura estratégica');
     }
     if (latestTick === observation.tick) return;
-    this.perceptionFrames = [
-      ...this.perceptionFrames.slice(-(PERCEPTION_RING_CAPACITY - 1)),
-      deepFreezeCopy(observation),
-    ];
+    if (this.perceptionCount < PERCEPTION_RING_CAPACITY) {
+      const physicalIndex =
+        (this.perceptionStart + this.perceptionCount) % PERCEPTION_RING_CAPACITY;
+      this.perceptionFrames[physicalIndex] = observation;
+      this.perceptionCount++;
+      return;
+    }
+    this.perceptionFrames[this.perceptionStart] = observation;
+    this.perceptionStart = (this.perceptionStart + 1) % PERCEPTION_RING_CAPACITY;
   }
 
   perceive(
@@ -414,8 +447,8 @@ export class OpponentStrategySystem {
       throw new RangeError('decisionTick inválido');
     }
     const cutoff = decisionTick - PERCEPTION_DELAY_TICKS[difficulty];
-    for (let index = this.perceptionFrames.length - 1; index >= 0; index--) {
-      const observation = this.perceptionFrames[index];
+    for (let index = this.perceptionCount - 1; index >= 0; index--) {
+      const observation = this.materializedPerceptionFrameAt(index);
       if (observation.tick <= cutoff) {
         return Object.freeze({ status: 'ready', observation });
       }
@@ -600,6 +633,8 @@ export class OpponentStrategySystem {
     this.ownerships = [];
     this.ownershipKeySet = new Set();
     this.perceptionFrames = [];
+    this.perceptionStart = 0;
+    this.perceptionCount = 0;
     this.pruneTerminalHistory();
   }
 
@@ -620,7 +655,7 @@ export class OpponentStrategySystem {
       version: OPPONENT_STRATEGY_SNAPSHOT_VERSION,
       matchEpoch: this.currentMatchEpoch,
       sequences: [this.sequences[0], this.sequences[1]] as const,
-      perceptionFrames: this.perceptionFrames,
+      perceptionFrames: this.perceptionFramesInOrder(),
       memories: [this.memories[0], this.memories[1]] as const,
       ownerships: this.ownerships,
       decisions: this.decisions,
@@ -673,7 +708,9 @@ export class OpponentStrategySystem {
   private checkpoint(): {
     readonly matchEpoch: number;
     readonly sequences: readonly [number, number];
-    readonly perceptionFrames: StrategyObservation[];
+    readonly perceptionFrames: (StrategyObservation | PackedStrategyObservation)[];
+    readonly perceptionStart: number;
+    readonly perceptionCount: number;
     readonly memories: [StrategyMemorySnapshot, StrategyMemorySnapshot];
     readonly ownerships: StrategyOwnershipRecord[];
     readonly ownershipKeySet: ReadonlySet<string>;
@@ -685,7 +722,9 @@ export class OpponentStrategySystem {
     return {
       matchEpoch: this.currentMatchEpoch,
       sequences: [this.sequences[0], this.sequences[1]],
-      perceptionFrames: this.perceptionFrames,
+      perceptionFrames: [...this.perceptionFrames],
+      perceptionStart: this.perceptionStart,
+      perceptionCount: this.perceptionCount,
       memories: this.memories,
       ownerships: this.ownerships,
       ownershipKeySet: this.ownershipKeySet,
@@ -700,6 +739,8 @@ export class OpponentStrategySystem {
     this.currentMatchEpoch = checkpoint.matchEpoch;
     this.sequences = [checkpoint.sequences[0], checkpoint.sequences[1]];
     this.perceptionFrames = checkpoint.perceptionFrames;
+    this.perceptionStart = checkpoint.perceptionStart;
+    this.perceptionCount = checkpoint.perceptionCount;
     this.memories = checkpoint.memories;
     this.ownerships = checkpoint.ownerships;
     this.ownershipKeySet = checkpoint.ownershipKeySet;
@@ -714,12 +755,37 @@ export class OpponentStrategySystem {
     this.currentMatchEpoch = frozen.matchEpoch;
     this.sequences = [frozen.sequences[0], frozen.sequences[1]];
     this.perceptionFrames = [...frozen.perceptionFrames];
+    this.perceptionStart = 0;
+    this.perceptionCount = frozen.perceptionFrames.length;
     this.memories = [frozen.memories[0], frozen.memories[1]];
     this.ownerships = [...frozen.ownerships];
     this.ownershipKeySet = new Set(frozen.ownerships.map(ownershipKey));
     this.decisions = [...frozen.decisions];
     this.outcomes = [...frozen.outcomes];
     this.outbox = [...frozen.outbox];
+  }
+
+  private perceptionFrameAt(
+    index: number,
+  ): StrategyObservation | PackedStrategyObservation | undefined {
+    if (index < 0 || index >= this.perceptionCount) return undefined;
+    return this.perceptionFrames[(this.perceptionStart + index) % PERCEPTION_RING_CAPACITY];
+  }
+
+  private perceptionFramesInOrder(): StrategyObservation[] {
+    return Array.from({ length: this.perceptionCount }, (_, index) =>
+      this.materializedPerceptionFrameAt(index),
+    );
+  }
+
+  private materializedPerceptionFrameAt(index: number): StrategyObservation {
+    const frame = this.perceptionFrameAt(index);
+    if (!frame) throw new RangeError('índice do ring de percepção inválido');
+    if (!isPackedStrategyObservation(frame)) return frame;
+    const materialized = materializePackedStrategyObservation(frame);
+    const physicalIndex = (this.perceptionStart + index) % PERCEPTION_RING_CAPACITY;
+    this.perceptionFrames[physicalIndex] = materialized;
+    return materialized;
   }
 }
 

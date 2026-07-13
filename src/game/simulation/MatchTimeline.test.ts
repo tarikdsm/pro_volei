@@ -96,6 +96,7 @@ describe('MatchTimeline', () => {
       point: new THREE.Vector3(),
       kind: 'spike',
       isHuman: false,
+      serveOutcomeToken: null,
       jumpScheduledIn: 0.01 + 1e-10,
       done: false,
     };
@@ -131,6 +132,7 @@ describe('MatchTimeline', () => {
       point: new THREE.Vector3(),
       kind: 'pass',
       isHuman: false,
+      serveOutcomeToken: null,
       done: false,
     };
     port.resolveContact = (plan) => {

@@ -41,7 +41,7 @@ injetadas (audio, effects, camera, crowd, referee, arena). O wiring acontece em 
 | `world/` | Cenário estático e ambiente | `Court.ts`, `Arena.ts`, `Crowd.ts` (~1500 instanciados), `Referee.ts` |
 | `entities/` | Atores dinâmicos | `PlayerCharacter.ts` (humanoide + animações paramétricas), `Ball.ts` (rastro, sombra) |
 | `systems/` | Sistemas transversais | `CameraDirector.ts` (câmera broadcast), `Effects.ts` (partículas, confete, shake) |
-| `game/` | Regras, estado, IA e controle | `Match.ts` (orquestrador), `RallyState.ts`, `Team.ts`, `simulation/` (timeline analítica), `rules/`, `mechanics/`, `ai/AiController`, `control/HumanController` |
+| `game/` | Regras, estado, IA e controle | `Match.ts` (orquestrador), `RallyState.ts`, `Team.ts`, `simulation/` (timeline analítica), `rules/`, `mechanics/`, `strategy/`, `ai/AiController`, `control/HumanController` |
 | `ui/` | Apresentação e input do jogador | `HUD.ts`, `Menu.ts`, `TouchControls.ts` |
 
 ### Pipeline local de assets 2.0
@@ -103,12 +103,23 @@ src/game/
 │   └── SetMatch.ts       orquestração ponto → set → partida sobre ScoringCtx
 ├── mechanics/
 │   ├── context.ts        MechanicsCtx — fatia do Match injetada nas mecânicas
-│   ├── serve.ts          performServe, aiServe
-│   ├── touch.ts          executeTouch, doPass, doSet, doSpike (inclui escolha de alvo da IA)
+│   ├── serve.ts          performServe + realização física guardada do saque estratégico
+│   ├── touch.ts          executeTouch, doPass, doSet, doSpike (alvos convencionais da IA)
 │   ├── block.ts          geometria pura + prepareBlock, resolveBlock
 │   └── net.ts            geometria de cruzamento da rede
 ├── ai/
-│   └── AiController.ts   decisões por dificuldade: aproximação, pulos agendados, qualidade, saque
+│   └── AiController.ts   aproximação, pulos agendados e rolagens de qualidade por dificuldade
+├── strategy/
+│   ├── StrategyTypes.ts              DTOs e vocabulário estratégico
+│   ├── CourtZones.ts                 opções canônicas e espelhamento da quadra
+│   ├── StrategyObservationAdapter.ts observação pública validada, frozen e whitelisted
+│   ├── StrategyMemory.ts             memória limitada de escolhas e resultados
+│   ├── OpponentBrain.ts              pontuação e escolha de candidatas
+│   ├── OpponentStrategySystem.ts     percepção atrasada, commits, outcomes e outbox
+│   ├── StrategicServeSystem.ts       lifecycle causal do saque adaptativo
+│   ├── ServeReceptionOutcome.ts      efetividade física da recepção
+│   ├── MatchStrategyBridge.ts        porta estrutural sobre os sistemas privados
+│   └── MatchStrategyCoordinator.ts   wiring de lifecycle, observação e hooks do Match
 └── control/
     ├── ControlFrame.ts      InputFrame já convertido para o plano da quadra
     ├── kinematics.ts        aceleração/frenagem compartilhadas por Athlete e ETA
@@ -122,6 +133,35 @@ src/game/
     ├── HumanController.ts  movimento/mira + ActionControl + estado + marker
     └── timing.ts           helpers puros timing → qualidade (recepção/pulo)
 ```
+
+### Pipeline de estratégia 3C2
+
+`Match` delega o wiring ao `MatchStrategyCoordinator`, que acessa a estratégia somente pela porta
+estrutural `MatchStrategyPort`; o bridge mantém `OpponentStrategySystem` e
+`StrategicServeSystem` privados. A instância de produção recebe dois
+streams determinísticos exclusivos do `RandomHub`, `strategy.home` e `strategy.away`, separados de
+`rules`, `ai`, `contact` e `control`. Assim, decisões de um lado e mudanças na estratégia não
+deslocam o orçamento aleatório das demais camadas.
+
+No início de cada tick, logo depois de `Match` registrar `simulationTick` e antes de consumir input
+ou avançar a simulação, o coordinator captura uma observação canônica. O adaptador aceita somente o recorte
+público permitido: placar, fase, posse, saque, toques, bola e os 12 atletas na ordem atual dos
+`Team.slots`. A estratégia percebe versões atrasadas desse histórico de acordo com a dificuldade;
+ela não recebe objetos internos do `Match`, previsões privadas nem o input do tick corrente.
+
+Cada preparação de saque abre um token de época. No saque da CPU, o atraso de apresentação consome
+uma única rolagem de `ai`; o commit estratégico usa o stream do lado e, se a percepção ainda não
+estiver pronta, tenta novamente um tick depois sem novo draw de `ai`. Guardas validam partida,
+saque, lado e atleta no toss e no hit. Depois da realização física validada, o bridge marca o saque
+e libera seu `ServeOutcomeToken`; a mecânica então chama `ball.launch` e publica o contato de
+domínio. O token segue pelo `RallyState` e pelos `TouchPlan`.
+
+Os hooks de domínio `MechanicsCtx.onBallContact` e `ScoringCtx.onPointResolved` fecham o outcome
+uma única vez: pela primeira recepção adversária válida ou pelo ponto, ainda com o lado sacador
+anterior à troca de saque. Esse caminho é interno e independente da telemetria; ausência ou falha
+do sink de telemetria não muda memória, decisão nem resolução estratégica. Tokens de partida e
+saque descartam callbacks antigos e impedem dupla resolução. Nesta fase, somente o saque da CPU
+está ligado a esse lifecycle adaptativo; levantamento e ataque continuam no fluxo convencional.
 
 ### Pipeline de controle 2.0
 
@@ -142,8 +182,10 @@ conta como troca; depois exige score 15% menor, aceita no máximo duas trocas e 
 finais. Ataque, levantamento e saque permanecem fora desse seletor. O alvo manual é a âncora da
 assistência, que corrige no máximo 0,65 m sem acumular ou mover diretamente a atleta.
 
-> A escolha de alvo da IA ficou em `mechanics/` (já lê `ctx.diff` e nunca depende de `aim`/
-> `chosenZone` do humano), então `ai/targeting.ts` do plano original não foi necessário.
+> O alvo do saque da CPU agora é escolhido por `strategy/OpponentBrain.ts` sobre as opções de
+> `CourtZones.ts`; `mechanics/serve.ts` apenas aplica variação física e executa a diretiva guardada.
+> Os alvos convencionais de levantamento e ataque permanecem em `mechanics/touch.ts` e ainda não
+> participam do lifecycle adaptativo 3C2.
 
 ### Padrão a seguir (strangler, com TDD)
 

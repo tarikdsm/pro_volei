@@ -192,6 +192,7 @@ function assignPlan(
     point: new THREE.Vector3(-3, 1, 0),
     kind,
     isHuman: true,
+    serveOutcomeToken: null,
     done: false,
   } satisfies TouchPlan;
   ctx.rally.plan = plan;
@@ -324,6 +325,7 @@ describe('HumanController ActionControl 2D', () => {
       point: new THREE.Vector3(2, 3, 0),
       kind: 'spike',
       isHuman: false,
+      serveOutcomeToken: null,
       done: false,
     } satisfies TouchPlan;
     ctx.rally.plan = plan;
@@ -458,6 +460,7 @@ describe('HumanController — AutoSelector e assistência', () => {
       point: new THREE.Vector3(-3.5, 1, 0),
       kind: 'pass',
       isHuman: true,
+      serveOutcomeToken: null,
       done: false,
     } satisfies TouchPlan;
     ctx.rally.plan = plan;
@@ -484,6 +487,7 @@ describe('HumanController — AutoSelector e assistência', () => {
       point: new THREE.Vector3(-3.5, 1, 0),
       kind: 'pass',
       isHuman: true,
+      serveOutcomeToken: null,
       done: false,
     } satisfies TouchPlan;
     ctx.rally.plan = plan;
@@ -516,6 +520,7 @@ describe('HumanController — AutoSelector e assistência', () => {
       point: new THREE.Vector3(-3, 1, 0),
       kind: 'dig',
       isHuman: true,
+      serveOutcomeToken: null,
       done: false,
     } satisfies TouchPlan;
     ctx.rally.plan = plan;
@@ -546,6 +551,7 @@ describe('HumanController — AutoSelector e assistência', () => {
       point: new THREE.Vector3(2, 3, 0),
       kind: 'spike',
       isHuman: false,
+      serveOutcomeToken: null,
       done: false,
     } satisfies TouchPlan;
     ctx.rally.plan = plan;
