@@ -163,6 +163,20 @@ export const BASE_SLOTS: { x: number; z: number }[] = [
 export const SETTER_SPOT = { x: -0.95, z: 1.1 }; // ponto-alvo do passe (lado HOME; espelhar p/ AWAY)
 export const SERVE_SPOT = { x: -9.7, z: 3.2 };
 
+/** Geometria determinística das formações coletivas, expressa no referencial local HOME. */
+export const TEAM_TACTICS = {
+  courtMargin: 0.35,
+  netMargin: 0.45,
+  targetSeparation: 0.65,
+  setterRelease: { x: -1.15, z: 1.1 },
+  reception: [
+    { role: 'receive-left', target: { x: -5.4, z: -2.8 } },
+    { role: 'receive-center', target: { x: -6, z: 0 } },
+    { role: 'receive-right', target: { x: -5.4, z: 2.8 } },
+    { role: 'cover-deep', target: { x: -7.6, z: 0 } },
+  ],
+} as const;
+
 // Zonas de ataque na rede (z), do lado que ataca
 export const ATTACK_ZONES = [-3.1, 0, 3.1]; // esquerda, centro, direita (perspectiva HOME)
 
