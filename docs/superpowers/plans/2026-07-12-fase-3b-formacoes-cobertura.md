@@ -182,12 +182,30 @@ acima; isso impede jitter e torna o trace independente da frequência externa.
 
 ## Gate final
 
-- [ ] Planner puro, simétrico e determinístico produz seis assignments válidos por lado.
-- [ ] Atleta ativa/humana/sacadora/bloqueadora não tem sua autoridade sobrescrita.
-- [ ] Callback atrasado do plano N não altera a rota depois do plano N+1.
-- [ ] Recepção, transição, cobertura e defesa por corredores movem coletivamente as equipes.
-- [ ] Bloqueio simples/duplo respeita ETA, input humano e regras dos três toques.
-- [ ] Trace headless é readonly, invariável a 30/60/120 Hz e não consome RNG.
-- [ ] Batch, testes, E2E, build, playtests e revisões independentes estão verdes.
-- [ ] CI, Pages e smoke público desktop/mobile estão verdes.
-- [ ] Remoto continua literalmente somente `main`.
+- [x] Planner puro, simétrico e determinístico produz seis assignments válidos por lado.
+- [x] Atleta ativa/humana/sacadora/bloqueadora não tem sua autoridade sobrescrita.
+- [x] Callback atrasado do plano N não altera a rota depois do plano N+1.
+- [x] Recepção, transição, cobertura e defesa por corredores movem coletivamente as equipes.
+- [x] Bloqueio simples/duplo respeita ETA, input humano e regras dos três toques.
+- [x] Trace headless é readonly, invariável a 30/60/120 Hz e não consome RNG.
+- [x] Batch, testes, E2E, build, playtests e revisões independentes estão verdes.
+- [x] CI, Pages e smoke público desktop/mobile estão verdes.
+- [x] Remoto continua literalmente somente `main`.
+
+## Resultado da execução
+
+- Núcleo coletivo, ownership, transições, cobertura, defesa por corredores e bloqueio duplo foram
+  publicados em nove commits atômicos, de `06f9dce` a `8602360`.
+- Gate local final: 78 arquivos e 668 testes verdes; cobertura de 72,68% de statements, 76,31% de
+  branches, 78,51% de funções e 73,22% de linhas.
+- Matriz headless: 1.000 rallies totais em 20 seeds fixas, placar informativo 510–490, participação
+  física das doze atletas e zero violações táticas. O trace registra por rally targets e execução
+  real, incluindo deslocamento, chegada, velocidade, salto e dupla comprovada no contato mecânico.
+- Determinismo comprovado para mesma seed e frequências externas de 30/60/120 Hz, mantendo separado
+  e inalterado o schema do `RallyJournal` v1.
+- E2E completo exercitou desktop e touch landscape; o único caso intermitente de timing do browser
+  passou três vezes seguidas isoladamente. Build, smoke de produção e revisão independente ficaram
+  sem findings altos ou médios.
+- CI e deploy Pages verdes na execução `29220550106`; smoke na URL pública passou em Chromium
+  desktop e em emulação Pixel 5 landscape com touch.
+- Repositório local e remoto preservados em fluxo main-only, sem branch de feature ou PR.
