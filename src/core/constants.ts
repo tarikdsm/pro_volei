@@ -144,6 +144,43 @@ export const SERVE_TUNING = {
   perfectPower: 0.95, // potência aplicada num saque perfeito
 } as const;
 
+/**
+ * Realização física do saque estratégico. O orçamento é invariável: seis draws de `contact`
+ * na ordem power, error, errorMode, dx, dz e clearance. Decisão estratégica nunca consome aqui.
+ */
+export const STRATEGIC_SERVE_TUNING = {
+  drawBudget: 6,
+  longErrorModeBelow: 0.5,
+  longErrorDepth: [9.55, 10.85] as const,
+  longErrorClearance: [0.3, 0.8] as const,
+  netErrorClearance: [-0.5, -0.18] as const,
+  validClearancePowerDrop: 0.24,
+  validClearanceMin: 0.05,
+  families: {
+    'float-short': {
+      powerBias: -0.08,
+      clearance: [0.8, 1.15] as const,
+      dispersion: { x: 0.28, z: 0.4 },
+      errorMultiplier: 0.7,
+      visual: { tossVelocity: 5.15, tossDuration: 0.46, hitDuration: 0.46 },
+    },
+    'float-deep': {
+      powerBias: 0,
+      clearance: [0.48, 0.74] as const,
+      dispersion: { x: 0.46, z: 0.62 },
+      errorMultiplier: 1,
+      visual: { tossVelocity: 5.45, tossDuration: 0.5, hitDuration: 0.5 },
+    },
+    'power-deep': {
+      powerBias: 0.1,
+      clearance: [0.18, 0.34] as const,
+      dispersion: { x: 0.7, z: 0.9 },
+      errorMultiplier: 1.35,
+      visual: { tossVelocity: 6.1, tossDuration: 0.62, hitDuration: 0.68 },
+    },
+  },
+} as const;
+
 // Posições-base por slot de rodízio (para o lado HOME, x negativo).
 // Slots: 0..5 = posições 1(fundo-dir), 6(fundo-centro), 5(fundo-esq), 4(frente-esq), 3(frente-centro), 2(frente-dir)
 // Do ponto de vista de quem olha para a rede no lado HOME: +z é a direita.
