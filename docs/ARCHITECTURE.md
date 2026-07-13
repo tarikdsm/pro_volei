@@ -96,7 +96,10 @@ src/game/
 ├── RallyState.ts         estado do rally (posse, nº de toques, plano do contato, eventos de rede)
 ├── simulation/
 │   ├── EventTimeline.ts  seleção determinística por instante, prioridade e sequência
-│   └── MatchTimeline.ts  segmentação do tick e integração dos eventos da partida
+│   ├── MatchTimeline.ts  segmentação do tick e integração dos eventos da partida
+│   ├── HeadlessRallyRunner.ts  CPU×CPU, traces, batches e checkpoint estocástico
+│   ├── RallyJournal.ts        eventos físicos versionados e serialização determinística
+│   └── TacticalTrace.ts       execução coletiva observável por rally
 ├── rules/
 │   ├── scoring.ts        funções puras: rally point, set/match point, vantagem de 2, ace, queda
 │   ├── rotation.ts       rodízio de 6 posições
@@ -104,7 +107,7 @@ src/game/
 ├── mechanics/
 │   ├── context.ts        MechanicsCtx — fatia do Match injetada nas mecânicas
 │   ├── serve.ts          performServe + realização física guardada do saque estratégico
-│   ├── touch.ts          executeTouch, doPass, doSet, doSpike (alvos convencionais da IA)
+│   ├── touch.ts          executeTouch, doPass, doSet, doSpike e diretivas estratégicas
 │   ├── block.ts          geometria pura + prepareBlock, resolveBlock
 │   └── net.ts            geometria de cruzamento da rede
 ├── ai/
@@ -117,7 +120,10 @@ src/game/
 │   ├── OpponentBrain.ts              pontuação e escolha de candidatas
 │   ├── OpponentStrategySystem.ts     percepção atrasada, commits, outcomes e outbox
 │   ├── StrategicServeSystem.ts       lifecycle causal do saque adaptativo
+│   ├── StrategicOffenseSystem.ts     lifecycle causal de set, ataque e fallbacks seguros
+│   ├── OwnContactRead.ts             propriocepção validada depois do contato executado
 │   ├── ServeReceptionOutcome.ts      efetividade física da recepção
+│   ├── StrategyTrace.ts              auditoria headless canônica, quantizada e hashável
 │   ├── MatchStrategyBridge.ts        porta estrutural sobre os sistemas privados
 │   └── MatchStrategyCoordinator.ts   wiring de lifecycle, observação e hooks do Match
 └── control/
@@ -134,11 +140,11 @@ src/game/
     └── timing.ts           helpers puros timing → qualidade (recepção/pulo)
 ```
 
-### Pipeline de estratégia 3C2
+### Pipeline de estratégia — marco 3A–3C concluído
 
 `Match` delega o wiring ao `MatchStrategyCoordinator`, que acessa a estratégia somente pela porta
-estrutural `MatchStrategyPort`; o bridge mantém `OpponentStrategySystem` e
-`StrategicServeSystem` privados. A instância de produção recebe dois
+estrutural `MatchStrategyPort`; o bridge mantém `OpponentStrategySystem`,
+`StrategicServeSystem` e `StrategicOffenseSystem` privados. A instância de produção recebe dois
 streams determinísticos exclusivos do `RandomHub`, `strategy.home` e `strategy.away`, separados de
 `rules`, `ai`, `contact` e `control`. Assim, decisões de um lado e mudanças na estratégia não
 deslocam o orçamento aleatório das demais camadas.
@@ -160,8 +166,24 @@ Os hooks de domínio `MechanicsCtx.onBallContact` e `ScoringCtx.onPointResolved`
 uma única vez: pela primeira recepção adversária válida ou pelo ponto, ainda com o lado sacador
 anterior à troca de saque. Esse caminho é interno e independente da telemetria; ausência ou falha
 do sink de telemetria não muda memória, decisão nem resolução estratégica. Tokens de partida e
-saque descartam callbacks antigos e impedem dupla resolução. Nesta fase, somente o saque da CPU
-está ligado a esse lifecycle adaptativo; levantamento e ataque continuam no fluxo convencional.
+saque descartam callbacks antigos e impedem dupla resolução. Saque, levantamento e ataque da CPU
+estão ligados a esse lifecycle adaptativo.
+
+Depois de um passe executado, o coordinator cria `OwnContactRead` somente com a bola já lançada e
+o elenco próprio atual. A leitura é combinada com o snapshot adversário atrasado para escolher a
+levantadora, comprometer corredor/tempo e preparar o ataque sem reler a defesa. O bind ocorre
+depois de o `TouchPlan` receber `planId`, `tacticalRevision` e atleta; mechanics apenas consome a
+identidade confirmada. Set alto, rápido e acelerado têm voos distintos; power, placed e tip têm
+realizações físicas distintas. Posse, plano ou ponto obsoleto revogam o compromisso, e fallbacks
+tipados preservam uma bola jogável sem gerar memória falsa.
+
+No headless, `StrategyTraceCollector` recebe o outbox comprometido e registra candidatas
+quantizadas, escolha, ticket, janela de dois draws e outcome terminal. O fechamento de cada batch
+exige cardinalidade igual às sequências comprometidas, zero outcome pendente e draws reais iguais
+ao budget. `HeadlessStochasticCheckpoint` reúne `RandomHub` e estratégia na fronteira de ponto;
+um fingerprint de placar, rotação, tick e epochs impede seu uso como rewind do estado físico.
+Restore é transacional e reverte RNG e estratégia se qualquer metade falhar. O browser de produção
+não instancia nem retém esse histórico de diagnóstico.
 
 ### Pipeline de controle 2.0
 
@@ -182,10 +204,9 @@ conta como troca; depois exige score 15% menor, aceita no máximo duas trocas e 
 finais. Ataque, levantamento e saque permanecem fora desse seletor. O alvo manual é a âncora da
 assistência, que corrige no máximo 0,65 m sem acumular ou mover diretamente a atleta.
 
-> O alvo do saque da CPU agora é escolhido por `strategy/OpponentBrain.ts` sobre as opções de
-> `CourtZones.ts`; `mechanics/serve.ts` apenas aplica variação física e executa a diretiva guardada.
-> Os alvos convencionais de levantamento e ataque permanecem em `mechanics/touch.ts` e ainda não
-> participam do lifecycle adaptativo 3C2.
+> Saque, levantamento e ataque da CPU são escolhidos por `strategy/OpponentBrain.ts` sobre opções
+> de `CourtZones.ts`. `mechanics/serve.ts` e `mechanics/touch.ts` aplicam qualidade, erro,
+> dispersão e trajetória às diretivas já comprometidas; não pontuam candidatas nem retargeteiam.
 
 ### Padrão a seguir (strangler, com TDD)
 

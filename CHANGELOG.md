@@ -28,6 +28,18 @@ Todas as mudanças notáveis do Pró Volei. Formato baseado em
   largada/ataque colocado/cortada, bloqueio rápido/penetrante e terceiro toque para a quadra rival.
 - Feedback compacto da ação no anel da atleta, snapshot DEV readonly e E2E determinístico da
   mesma gramática no teclado e no multitouch com joystick simultâneo.
+- Feedback de timing sincronizado, câmera broadcast com safe frame, envelopes determinísticos de
+  FOV/shake e modo reduced motion.
+- `RandomHub` com streams independentes, simulação headless CPU×CPU, `RallyJournal` v1 e
+  `TacticalTrace` reproduzíveis em 30/60/120 Hz.
+- `TeamBrain`/`TeamTacticsSystem` para recepção, transição, cobertura de ataque, defesa por
+  corredores e bloqueio simples/duplo coordenado das seis atletas.
+- `OpponentBrain` puro com percepção pública atrasada, memória curta e compromissos causais de
+  saque, levantamento e ataque para os dois lados no headless.
+- Execução estratégica de saques float/power, sets alto/rápido/acelerado e ataques
+  power/placed/tip, com fallbacks físicos seguros e sem retarget.
+- `StrategyTrace` canônico e `HeadlessStochasticCheckpoint` transacional para auditar candidatas,
+  outcomes, budget de RNG e restaurar RNG+estratégia sem rebobinar o `Match`.
 - Ferramental de qualidade: ESLint 10 (flat config) + Prettier 3, `.editorconfig`,
   `.gitattributes` (LF), `.nvmrc` (Node 22).
 - Testes com Vitest 4 e primeira suíte cobrindo os solvers balísticos (`math3d`).
@@ -45,6 +57,8 @@ Todas as mudanças notáveis do Pró Volei. Formato baseado em
 
 - Gameplay do teclado simplificado para setas + Espaço; touch agora alimenta diretamente o mesmo
   contrato semântico, com ownership e captura de ponteiro.
+- Em telas touch, portrait pausa a partida e pede rotação; landscape retoma o jogo com o máximo de
+  área útil e controles simultâneos.
 - `HumanController` deixou de consultar teclas/DOM; a direção do levantamento substitui A/W/D e
   cancelamentos de blur/pausa não fabricam release de ação.
 - `Match` delega a segmentação temporal a `MatchTimeline`; regras e física não dependem mais do FPS

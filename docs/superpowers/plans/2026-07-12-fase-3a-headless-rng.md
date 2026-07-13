@@ -1,5 +1,7 @@
 # Fase 3A — RNG determinístico e simulação headless
 
+**Status:** concluída e publicada; consolidada no fechamento do marco 3A–3C em 13/07/2026.
+
 > **Execução:** TDD, migração serial dos consumidores de aleatoriedade, contratos neutros antes do
 > runner, commits atômicos em `main`, revisão independente e publicação comprovada no Pages.
 

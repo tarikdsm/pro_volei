@@ -71,6 +71,18 @@ partida real resolveu `quick-set` por hold com carga `0.4667`, `tip` por tap e `
 em três tokens distintos; o rally continuou e a página não emitiu erros de console. A API remota
 de branches retornou exclusivamente `main`.
 
+### Publicação do marco 3A–3C e pausa
+
+As subfases 3A–3C entregaram simulação headless determinística, comportamento coletivo e decisões
+estratégicas de saque, levantamento e ataque. O commit funcional final `e33ab54` passou 92 arquivos
+de teste e 911 testes, build Vite e smoke Chromium local. O run `29244051320` repetiu qualidade,
+build e smoke,
+publicou o mesmo artefato no Pages e terminou verde.
+
+O playtest do build exercitou rally CPU×CPU com as famílias de set/ataque dos dois lados; emulação
+mobile confirmou pausa em portrait e retorno jogável em landscape. O desenvolvimento foi pausado
+depois da 3C, sem iniciar tuning 3D ou qualquer fase seguinte. O remoto continua somente `main`.
+
 ### Conclusão main-only da Fase 1D
 
 A capacidade local legada foi removida no SHA `dcba25b`. O run `29202163302` ficou verde e publicou

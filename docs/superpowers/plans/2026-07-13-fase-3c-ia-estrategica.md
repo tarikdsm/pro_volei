@@ -1,5 +1,8 @@
 # Fase 3C — OpponentBrain e escolhas táticas da CPU
 
+**Status:** concluída e publicada em 13/07/2026. O desenvolvimento foi pausado neste marco; a 3D
+e as fases seguintes não foram iniciadas.
+
 > **Execução:** TDD, domínio puro antes da integração, observação atrasada sem informação futura,
 > orçamento fixo de RNG, commits atômicos em `main`, revisão independente e publicação comprovada.
 
@@ -270,15 +273,54 @@ de execução existentes. A 3D fará tuning estatístico; a 3C entrega decisões
    potência/colocado/largada e resposta a uma formação alterada, sem retarget ou erro de console.
 5. Commits/push direto em `main`; acompanhar CI/Pages e repetir smoke público desktop/mobile.
 
+## Ajustes as-built aprovados
+
+- O cue mínimo ficou consolidado nos sinais procedurais que já fazem parte da própria execução:
+  toss e potência do saque, voo alto/rápido/acelerado do set e aproximação/trajetória
+  power/placed/tip. Não foi criado um segundo port que pudesse escrever rota ou duplicar o
+  lifecycle; o compromisso permanece imutável e legível antes do contato.
+- O sink do trace é injetado pelo `MatchStrategyBridge` concreto retido pelo runner headless. A
+  porta usada pelo `Match` permanece mínima e o browser instancia o bridge sem collector, portanto
+  não conserva histórico de diagnóstico.
+- A bateria da 3C fecha legalidade, variedade, budget, adaptação e terminalidade. Percentis de
+  fallback por dificuldade continuam como tuning informativo da 3D: fallbacks seguros não criam
+  decisões artificiais nem memória só para alimentar telemetria.
+
 ## Gate final
 
-- [ ] OpponentBrain puro usa somente observação permitida e nunca lê futuro/input/target privado.
-- [ ] Percepção atrasada e memória curta variam por dificuldade sem alterar física.
-- [ ] Saque, corredor/tempo do set e alvo/técnica do ataque são inteligentes e comprometidos.
-- [ ] Cada decisão aceita consome budget fixo; stale consome zero draw tardio.
-- [ ] Snapshot estratégico é transacional; checkpoint estocástico não promete rebobinar Match.
-- [ ] StrategyTrace é readonly, invariável a 30/60/120 Hz e separado do journal v1.
-- [ ] Fixtures provam famílias/variedade; batch demonstra adaptação e zero ilegal nos dois lados.
-- [ ] Testes, E2E, playtests e revisões independentes estão verdes.
-- [ ] CI, Pages e smokes públicos desktop/mobile estão verdes.
-- [ ] Remoto continua literalmente somente `main`.
+- [x] OpponentBrain puro usa somente observação permitida e nunca lê futuro/input/target privado.
+- [x] Percepção atrasada e memória curta variam por dificuldade sem alterar física.
+- [x] Saque, corredor/tempo do set e alvo/técnica do ataque são inteligentes e comprometidos.
+- [x] Cada decisão aceita consome budget fixo; stale consome zero draw tardio.
+- [x] Snapshot estratégico é transacional; checkpoint estocástico não promete rebobinar Match.
+- [x] StrategyTrace é readonly, invariável a 30/60/120 Hz e separado do journal v1.
+- [x] Fixtures provam famílias/variedade; batch demonstra adaptação e zero ilegal nos dois lados.
+- [x] Testes, E2E, playtests e revisões independentes estão verdes.
+- [x] CI, Pages e smokes públicos desktop/mobile estão verdes.
+- [x] Remoto continua literalmente somente `main`.
+
+## Resultado da execução
+
+- Entrega funcional em commits atômicos de `56ad639` a `e33ab54`: brain puro, percepção e memória,
+  saque causal, leitura própria pós-contato, lifecycle de set/ataque, execução mecânica das famílias,
+  trace estratégico e checkpoint RNG+estratégia.
+- `OpponentBrain` gera opções legais e espelhadas usando apenas DTO público atrasado. Cada commit
+  aceito consome exatamente dois draws no stream do próprio lado; stale/fallback não desloca RNG.
+- O runner headless exige outcome terminal, cardinalidade do trace igual às sequências e draws reais
+  iguais ao budget. Mesma seed, 30/60/120 Hz, batch contínuo e runs fatiados produzem journal e
+  traces idênticos; `run(2)` preserva os dois saques pré-rally.
+- Bateria fixa de 100 rallies: 522 decisões, ambos os lados, mais de seis opções distintas, zero
+  candidata ilegal e zero outcome pendente. A matriz informativa de 1.000 rallies/20 seeds terminou
+  497–503, sem violação tática.
+- Gate local final: 92 arquivos, 911 testes, typecheck, lint, Prettier e workflow verdes; cobertura
+  77,94% statements, 80,25% branches, 85,30% functions e 79,13% lines. Build Vite e smoke Chromium
+  do `dist` passaram.
+- Playtest de produção CPU×CPU observou 30 contatos e decisões de saque, set e ataque dos dois
+  lados, incluindo alto/rápido/acelerado e power/placed/tip. Portrait 390×844 pausou com pedido de
+  rotação; landscape 844×390 retomou com joystick, ação e pausa, sem erro de console. Permanece
+  apenas o warning de depreciação `PCFSoftShadowMap` do Three r185, classificado como baixo e fora
+  do escopo desta fase.
+- Revisões independentes de arquitetura, gameplay/IA, mobile/visual, integridade do checkpoint e
+  determinismo do trace encerraram com zero finding alto ou médio.
+- O run `29244051320` aprovou qualidade, build, smoke e deploy Pages do commit funcional final
+  `e33ab54`. O remoto permaneceu literalmente com apenas `main`.

@@ -2,6 +2,10 @@
 
 Guia de desenvolvimento. Para contexto de arquitetura, veja [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
+> **Pausa vigente:** Fases 1–2 e subfases 3A–3C estão concluídas; não há plano ativo. Não inicie
+> 3D ou fases seguintes sem nova autorização explícita; consulte o
+> [índice dos planos](docs/superpowers/plans/README.md).
+
 ## Pré-requisitos
 
 - **Node ≥ 20.19** (exigência do Vite 8). O repo fixa a versão em `.nvmrc` (Node 22).

@@ -7,6 +7,11 @@ referência para provar ganho e detectar regressão nas otimizações de perf (M
 > é ~10× mais lento que o hardware alvo e ruidoso entre execuções. Servem só para comparar
 > **antes/depois** de cada otimização — **não** viram threshold de FPS no `npm run check`/CI.
 
+O fechamento do marco de IA 3A–3C não regenerou este baseline gráfico: não houve passe de
+render/arte e uma medição nova sugeriria uma comparação que não foi feita. Performance visual
+permanece em fase futura, atualmente pausada; `baseline-latest.json` continua sendo a última
+medição reproduzível disponível.
+
 ## Como o harness mede
 
 O harness é o teste Playwright `tests/e2e/performance.spec.ts`. Ele:

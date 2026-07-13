@@ -1,5 +1,7 @@
 # Fase 3B — TeamBrain, formações e cobertura coletiva
 
+**Status:** concluída e publicada; consolidada no fechamento do marco 3A–3C em 13/07/2026.
+
 > **Execução:** TDD, planner puro antes da integração, um único writer tático por atleta,
 > commits atômicos em `main`, revisão independente e publicação comprovada no GitHub Pages.
 

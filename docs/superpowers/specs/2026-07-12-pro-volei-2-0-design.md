@@ -2,7 +2,17 @@
 
 **Data:** 2026-07-12
 
-**Status:** aprovado pelo proprietário para execução autônoma
+**Status:** aprovado; Fases 1–2 e subfases 3A–3C entregues; execução pausada antes da 3D
+
+> **Marco de 13/07/2026:** fundação/release engineering (1A–1D), control spine/game feel
+> (2A–2E) e IA coletiva (3A–3C) estão publicados e funcionais. A 3D e as Fases 4–7 abaixo continuam
+> parte do design aprovado, mas **não estão em execução** e não devem ser iniciadas sem nova
+> autorização explícita. Estado e evidências: [ROADMAP](../../ROADMAP.md) e
+> [índice dos planos](../plans/README.md).
+
+> A v1.1 publicada ainda usa o multiplicador legado `DIFFICULTIES.servePower`. Assim, o critério 6
+> da aceitação final continua pendente: a Fase 3C não adiciona vantagem física à estratégia, mas a
+> remoção do multiplicador herdado pertence ao tuning 3D, atualmente pausado.
 
 **Alvo:** GitHub Pages em desktop e celular
 
@@ -461,6 +471,9 @@ lista arquivos e Definition of Done antes da implementação. “Playtest real�
 build no navegador, completar ao menos um rally do fluxo alterado, inspecionar console e capturar
 estado/screenshot nos viewports afetados. Se uma fase revelar que o plano seguinte precisa mudar,
 o plano é atualizado antes de alterar código; não se improvisa sobre arquivos quentes.
+
+No marco atual, os itens 1, 2 e as subfases 3A–3C do item 3 estão concluídos. A pausa ocorre antes
+de 3D; portanto nenhuma atividade dos itens 4–7 foi iniciada como continuação desta entrega.
 
 ## 14. Critérios de aceitação da 2.0
 

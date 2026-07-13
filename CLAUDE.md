@@ -11,6 +11,9 @@ a versão 2.0 também pode usar assets locais otimizados e versionados.
 - **Alvos de publicação:** Web (atual) → Desktop/Steam (Tauri) → Mobile (Capacitor). Mesmo
   código web em todos; wrappers nativos entram depois. Ver [docs/ROADMAP.md](docs/ROADMAP.md).
 - **Multiplayer:** fora de escopo — foco em single-player vs CPU. Não introduzir backend/netcode.
+- **Marco atual:** Fases 1–2 e subfases 3A–3C da evolução 2.0 concluídas. O desenvolvimento está pausado depois da
+  Fase 3C; não iniciar 3D, arte/render, áudio/mobile, Copa ou release sem uma nova solicitação
+  explícita do proprietário. Estado canônico em [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Stack
 
@@ -88,6 +91,13 @@ src/
   `ActionControl` resolve a intenção semântica e a mantém até o contato. `planId` é o token do
   rally; saque usa token negativo monotônico. Toda técnica passa por `ActionIntent`; não volte a
   interpretar edges diretamente por modo nem medir carga com `dt`/tempo de DOM.
+- **IA coletiva 2.0 (marco 3A–3C concluído):** `TeamBrain` forma recepção, transição, cobertura,
+  defesa e bloqueio simples/duplo. `MatchStrategyCoordinator` liga o `Match` ao
+  `MatchStrategyBridge`; saque, levantamento e ataque da CPU usam observação pública atrasada,
+  memória curta, compromissos causais e streams `strategy.home`/`strategy.away` de dois draws por
+  decisão. O browser não retém trace; `HeadlessRallyRunner` registra `StrategyTrace` separado do
+  `RallyJournal` v1 e oferece checkpoint RNG+estratégia apenas na fronteira de ponto, sem rebobinar
+  o estado físico do `Match`.
 - **A Fase 1 (quebrar o `Match.ts`) está concluída:** a lógica do antigo módulo monolítico vive
   em `RallyState`, `rules/` (scoring, rotation, SetMatch), `mechanics/` (serve, touch, block,
   net), `control/HumanController` e `ai/AiController`, cada um sobre um contexto injetado

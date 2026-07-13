@@ -1,7 +1,8 @@
 # Deploy — Desktop / Steam
 
 Empacotar o jogo web como app nativo de PC (Windows/macOS/Linux) e publicar na Steam.
-Planejado para a **Fase 4** do [roadmap](../ROADMAP.md).
+Planejado para uma fase futura do [roadmap](../ROADMAP.md), atualmente pausada. Nenhum wrapper,
+integração Steamworks ou pipeline de loja foi iniciado no fechamento da Fase 3C.
 
 ## Escolha do wrapper: Tauri (recomendado)
 
@@ -41,7 +42,7 @@ em cada plataforma** antes de fechar a decisão. Se aparecer inconsistência de 
 ## Considerações
 
 - **Input:** já há teclado; adicionar **suporte a gamepad** (Gamepad API) é quase obrigatório
-  no PC/Steam. Encaixa na Fase 2.
+  no PC/Steam. Permanece requisito da futura entrega desktop, não da Fase 2 já encerrada.
 - **Tela cheia e resolução:** expor opção de fullscreen/resolução no menu de opções.
 - **Salvamento:** usar diretório de dados do app (via API do Tauri) em vez de `localStorage`
   quando fizer sentido para saves robustos.

@@ -7,6 +7,11 @@ torcida viva, juiz, câmera de transmissão dinâmica. Feito com Three.js + Type
 
 Funciona no desktop (teclado) e no **celular (controles de toque)** — melhor na horizontal.
 
+**Estado do desenvolvimento:** as Fases 1–2 e o marco de IA 3A–3C estão entregues. O jogo já possui
+controle unificado, simulação determinística, formações coletivas e IA estratégica completa para
+saque, levantamento e ataque. O desenvolvimento está **pausado após a Fase 3C**; nenhuma fase
+seguinte está em execução.
+
 O time da casa conta com **Elisa** (#1, rabo de cavalo castanho claro), **Heloisa**
 (#2, cabelo preto liso) e **Isabela** (#3, loira) — nomes estampados nas costas das camisas.
 
@@ -54,7 +59,8 @@ estão em
 
 **Joystick** (esquerda) move e mira · **botão 🏐** (direita) faz tudo: segure para
 carregar o saque, toque no momento da recepção, toque para pular no ataque/bloqueio ·
-o direcional também escolhe o ataque durante o levantamento · **⏸** pausa.
+o direcional também escolhe o ataque durante o levantamento · **⏸** pausa. Em portrait a partida
+pausa e pede para girar o aparelho; em landscape ela ocupa a tela e volta ao jogo.
 
 ### Controles no teclado
 
@@ -81,6 +87,13 @@ set point / vitória por 2 de vantagem · formatos: 1 set de 15 ou melhor de 3 a
 **Difícil** — CPU reage rápido, saca forte, bloqueia e defende muito. Cortadas fortes
 exigem ESPAÇO no tempo certo para defender ("DEFESAÇA!").
 
+A IA 2.0 observa somente informação pública atrasada conforme a dificuldade, mantém memória curta
+da partida e compromete jogadas sem retarget: saque float/potente, levantamentos alto/rápido/
+acelerado e ataques de potência/colocado/largada. A dificuldade não altera a física nem lê input
+ou alvo privado do jogador dentro da camada estratégica. A execução legada da v1.1 ainda varia
+reação, erro e potência de saque por dificuldade; remover esse multiplicador físico permanece meta
+do balanceamento final da 2.0.
+
 ## Arquitetura
 
 ```
@@ -89,7 +102,7 @@ src/
 ├── world/       quadra, ginásio, torcida instanciada (~1500), juiz
 ├── entities/    personagens humanoides procedurais, bola com rastro
 ├── systems/     diretor de câmera broadcast, partículas/confete
-├── game/        Team (rodízio) e Match (máquina de estados do rally + IA)
+├── game/        Match, regras, controle, simulação headless, TeamBrain e estratégia da CPU
 └── ui/          HUD (placar, medidor, banners) e menus
 ```
 
@@ -104,12 +117,14 @@ Detalhes em **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**. Plano de produto e
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Setup, fluxo de trabalho e estilo de código |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Arquitetura atual e refatoração-alvo |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Do protótipo ao produto (fases) |
+| [docs/superpowers/plans/README.md](docs/superpowers/plans/README.md) | Índice e estado de todos os planos |
+| [docs/codereviews/2026-07-13-fase-3-relatorio-final.md](docs/codereviews/2026-07-13-fase-3-relatorio-final.md) | Fechamento técnico do marco 3A–3C |
 | [docs/deployment/](docs/deployment/) | Publicar em Web · Desktop/Steam · Mobile |
 | [CHANGELOG.md](CHANGELOG.md) | Histórico de versões |
 
 ## Build de produção
 
 ```bash
-npm run build    # gera dist/ estático (~150 kB gzip)
+npm run build    # gera dist/ estático (~203 kB JS gzip no fechamento da Fase 3C)
 npm run preview  # serve o build
 ```

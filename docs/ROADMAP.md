@@ -4,10 +4,11 @@ Do protótipo jogável ao produto profissional. Ordenado por dependência, não 
 Escopo fixado: **single-player vs CPU** (sem multiplayer/online); publicar em **Web, Desktop/Steam
 e Mobile** a partir do mesmo código web.
 
-Estado atual: **v1.1.0** jogável e corrigida. **Design 2.0 aprovado** em
+Estado atual: **v1.1.0** jogável, com as **Fases 1–2 e subfases 3A–3C concluídas**.
+**Design 2.0 aprovado**, documentado em
 [`2026-07-12-pro-volei-2-0-design.md`](superpowers/specs/2026-07-12-pro-volei-2-0-design.md).
-A execução segue subfases publicáveis: Fase 1A políticas/docs; 1B gates; 1C deploy Actions; 1D
-remoção de `gh-pages`; depois controles, IA, arte/render, mobile/áudio, Copa e release 2.0.0.
+Por decisão do proprietário, o desenvolvimento está **pausado após a Fase 3C**. A 3D e todas as
+fases seguintes permanecem fora de execução até uma nova autorização explícita.
 
 ### Fundação 2.0 — estado das subfases
 
@@ -45,10 +46,27 @@ remoção de `gh-pages`; depois controles, IA, arte/render, mobile/áudio, Copa 
   automaticamente à quadra rival. O run `29210820681` publicou o SHA `e1a1b10` no deployment
   `5416656576`; o playtest público observou `quick-set` hold (carga 0,4667), `tip` tap e `high-set`
   tap em uma partida real, sem erros de console. O remoto continuou somente com `main`.
+- **Fase 2E — concluída:** feedback de timing sincronizado, câmera broadcast com safe frame,
+  envelopes de FOV/shake e reduced motion foram integrados ao controle de um botão. Testes, E2E,
+  playtests desktop/mobile, CI e Pages fecharam verdes sem alterar a física.
+- **Fase 3A — concluída:** `RandomHub` com streams independentes, simulação CPU×CPU headless,
+  `RallyJournal` versionado, watchdogs e determinismo em 30/60/120 Hz formam a base mensurável da
+  IA coletiva.
+- **Fase 3B — concluída:** `TeamBrain` e `TeamTacticsSystem` coordenam as seis atletas em recepção,
+  recomposição, transição, cobertura, defesa por corredores e bloqueio simples/duplo. A matriz de
+  1.000 rallies terminou com zero violações táticas; o run `29220550106` e Pages ficaram verdes.
+- **Fase 3C — concluída:** `OpponentBrain` usa observação pública atrasada e memória curta para
+  comprometer saque, levantamento e ataque. O lifecycle causal executa float/power, set
+  alto/rápido/acelerado e ataque power/placed/tip; trace e checkpoint estocástico comprovam
+  budget fixo, terminalidade e determinismo. O commit funcional final `e33ab54` passou 911 testes,
+  build, smoke e o run `29244051320`, com deploy Pages verde.
 
-### Controle e game feel 2.0 — próximas subfases
+### Marco atual — pausa após a IA coletiva
 
-- **Fase 2E:** feedback de timing, câmera e game feel sobre o novo controle.
+- **Entregue:** Fases 1A–1D, 2A–2E e 3A–3C.
+- **Pausado, não iniciado:** 3D (métricas e tuning final) e Fases 4–7 do design 2.0.
+- O índice canônico dos planos e suas evidências está em
+  [`superpowers/plans/README.md`](superpowers/plans/README.md).
 
 ---
 
@@ -94,9 +112,12 @@ Aprofundar o que já roda, agora sobre base limpa.
 - [ ] Persistência local (recordes, preferências) via `localStorage`
 - [ ] Acessibilidade: daltonismo, escala de UI, legendas de eventos
 
-### Fase 3 — Performance e arte
+### Fase legado 3 — Performance e arte
 
 Elevar qualidade percebida e garantir 60fps em mobile.
+
+> Esta seção pertence ao roadmap legado e **não** é o marco 3A–3C de IA coletiva recém-concluído. Seus
+> objetivos foram redistribuídos entre as Fases 4, 5 e 7 do design 2.0 e estão pausados.
 
 - [ ] Orçamento de performance por plataforma (draw calls, triângulos, texturas)
 - [ ] LODs / instancing revisado para a torcida; sombras adaptativas
