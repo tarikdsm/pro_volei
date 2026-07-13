@@ -42,7 +42,7 @@ import type {
   SimulationTelemetryPort,
 } from './simulation/SimulationTelemetry';
 import { TeamTacticsSystem } from './team/TeamTacticsSystem';
-import type { TeamPlan, TeamTacticsPhase } from './team/TeamTactics';
+import type { AthleteTacticalSnapshot, TeamPlan, TeamTacticsPhase } from './team/TeamTactics';
 
 export type { MatchHooks as Hooks, MatchStats } from './ports/MatchHooks';
 
@@ -199,6 +199,26 @@ export class Match {
 
   teamTacticsSnapshot(side: TeamSide): TeamPlan | null {
     return this.teamTactics.snapshot(side);
+  }
+
+  /** Estado físico observado pelo trace headless; separado das promessas do TeamBrain. */
+  teamTacticsAthletesSnapshot(side: TeamSide): readonly AthleteTacticalSnapshot[] {
+    const team = side === TeamSide.HOME ? this.home : this.away;
+    return Object.freeze(
+      team.slots.map((athleteId, slot) => {
+        const athlete = team.athletes[athleteId];
+        const base = team.slotPos(slot);
+        return Object.freeze({
+          athleteId,
+          slot,
+          row: slot <= 2 ? ('back' as const) : ('front' as const),
+          position: Object.freeze({ x: athlete.pos.x, z: athlete.pos.z }),
+          velocity: Object.freeze({ x: athlete.velocity.x, z: athlete.velocity.z }),
+          base: Object.freeze({ x: base.x, z: base.z }),
+          airborne: athlete.isAirborne,
+        });
+      }),
+    );
   }
 
   /** Snapshot readonly para o solver de apresentação; não permite mutar gameplay pela câmera. */

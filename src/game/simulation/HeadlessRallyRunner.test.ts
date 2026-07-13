@@ -10,6 +10,8 @@ describe('HeadlessRallyRunner', () => {
 
     expect(first.serializedJournal).toBe(replay.serializedJournal);
     expect(first.journalHash).toBe(replay.journalHash);
+    expect(first.serializedTacticalTrace).toBe(replay.serializedTacticalTrace);
+    expect(first.tacticalTraceHash).toBe(replay.tacticalTraceHash);
     expect(first).toMatchObject({
       winner: replay.winner,
       durationTicks: replay.durationTicks,
@@ -35,6 +37,8 @@ describe('HeadlessRallyRunner', () => {
 
     expect(sampled.serializedJournal).toBe(baseline.serializedJournal);
     expect(sampled.journalHash).toBe(baseline.journalHash);
+    expect(sampled.serializedTacticalTrace).toBe(baseline.serializedTacticalTrace);
+    expect(sampled.tacticalTraceHash).toBe(baseline.tacticalTraceHash);
   });
 
   it.each([30, 120] as const)(
@@ -44,6 +48,7 @@ describe('HeadlessRallyRunner', () => {
       const sampled = runHeadlessBatch({ seed: 0x1234_abcd, externalHz, rallies: 20 });
 
       expect(sampled.serializedJournal).toBe(baseline.serializedJournal);
+      expect(sampled.serializedTacticalTrace).toBe(baseline.serializedTacticalTrace);
       expect(sampled.rallies).toEqual(baseline.rallies);
     },
   );
@@ -59,6 +64,7 @@ describe('HeadlessRallyRunner', () => {
       const expectedNext = baseline.run(1);
       const sampledNext = sampled.run(1);
       expect(sampledNext.serializedJournal).toBe(expectedNext.serializedJournal);
+      expect(sampledNext.serializedTacticalTrace).toBe(expectedNext.serializedTacticalTrace);
       expect(sampledNext.rallies).toEqual(expectedNext.rallies);
     },
   );
@@ -97,8 +103,48 @@ describe('HeadlessRallyRunner', () => {
     ).toBe(true);
     expect(batch.journal.filter((entry) => entry.type === 'rally-end')).toHaveLength(100);
     expect(batch.totalTicks).toBeGreaterThan(0);
+    expect(batch.tacticalMetrics.violations).toBe(0);
+    expect(batch.tacticalMetrics.engagedAthletes).toEqual([6, 6]);
+    expect(batch.tacticalMetrics.phaseVisits.reception).toBeGreaterThan(0);
+    expect(batch.tacticalMetrics.phaseVisits['offense-transition']).toBeGreaterThan(0);
+    expect(batch.tacticalMetrics.phaseVisits['attack-coverage']).toBeGreaterThan(0);
+    expect(batch.tacticalMetrics.phaseVisits['block-defense']).toBeGreaterThan(0);
+    expect(batch.tacticalMetrics.singleBlocks + batch.tacticalMetrics.doubleBlocks).toBeGreaterThan(
+      0,
+    );
+    expect(batch.tacticalMetrics.arrivedAssignments).toBeGreaterThan(0);
+    expect(batch.tacticalMetrics.executedDoubleBlocks).toBeGreaterThan(0);
+    expect(new Set(batch.tacticalTrace.map((entry) => entry.rally)).size).toBe(100);
+    expect(batch.tacticalTrace.every((entry) => entry.rally >= 0 && entry.rally < 100)).toBe(true);
+    for (let rally = 0; rally < 100; rally++) {
+      expect(
+        batch.tacticalTrace.some((entry) => entry.rally === rally && entry.phase === 'hold'),
+      ).toBe(true);
+    }
     console.info(
       `HEADLESS_BATCH rallies=100 elapsedMs=${elapsedMs.toFixed(1)} ticks=${batch.totalTicks}`,
+    );
+  }, 30_000);
+
+  it('executa matriz informativa de 1.000 rallies sem violações táticas', () => {
+    const started = performance.now();
+    const points = [0, 0];
+    let doubleBlocks = 0;
+    let executedDoubleBlocks = 0;
+    for (let seed = 0; seed < 20; seed++) {
+      const batch = runHeadlessBatch({ seed: 0x3b00_0000 + seed, rallies: 50 });
+      expect(batch.tacticalMetrics.violations).toBe(0);
+      expect(batch.tacticalMetrics.engagedAthletes).toEqual([6, 6]);
+      points[0] += batch.points[0];
+      points[1] += batch.points[1];
+      doubleBlocks += batch.tacticalMetrics.doubleBlocks;
+      executedDoubleBlocks += batch.tacticalMetrics.executedDoubleBlocks;
+    }
+    const elapsedMs = performance.now() - started;
+
+    expect(points[0] + points[1]).toBe(1_000);
+    console.info(
+      `TACTICAL_MATRIX rallies=1000 points=${points.join(':')} doubleBlocks=${doubleBlocks} executedDoubleBlocks=${executedDoubleBlocks} elapsedMs=${elapsedMs.toFixed(1)}`,
     );
   }, 30_000);
 
@@ -180,6 +226,8 @@ describe('HeadlessRallyRunner', () => {
     const replay = restored.run(1);
     expect(replay.serializedJournal).toBe(expected.serializedJournal);
     expect(replay.journalHash).toBe(expected.journalHash);
+    expect(replay.serializedTacticalTrace).toBe(expected.serializedTacticalTrace);
+    expect(replay.tacticalTraceHash).toBe(expected.tacticalTraceHash);
   });
 
   it('mantém journal, serialização e hash na mesma fatia em runs repetidos', () => {
@@ -188,8 +236,11 @@ describe('HeadlessRallyRunner', () => {
 
     const second = runner.run(1);
     const envelope = JSON.parse(second.serializedJournal) as { events: unknown[] };
+    const tacticalEnvelope = JSON.parse(second.serializedTacticalTrace) as { entries: unknown[] };
 
     expect(envelope.events).toHaveLength(second.journal.length);
+    expect(tacticalEnvelope.entries).toHaveLength(second.tacticalTrace.length);
     expect(second.journal.every((entry) => entry.rally === 1)).toBe(true);
+    expect(second.tacticalTrace.every((entry) => entry.rally === 1)).toBe(true);
   });
 });

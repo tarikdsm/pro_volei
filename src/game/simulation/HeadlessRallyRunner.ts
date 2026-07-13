@@ -14,6 +14,11 @@ import type {
   SimulationTelemetryEvent,
   SimulationTelemetryPort,
 } from './SimulationTelemetry';
+import {
+  TacticalTraceCollector,
+  type TacticalTraceEntry,
+  type TacticalTraceMetrics,
+} from './TacticalTrace';
 
 export interface HeadlessRunnerOptions {
   readonly seed: number;
@@ -55,6 +60,10 @@ export interface HeadlessBatchResult {
   readonly journal: readonly Readonly<RallyJournalEntry>[];
   readonly serializedJournal: string;
   readonly journalHash: string;
+  readonly tacticalTrace: readonly Readonly<TacticalTraceEntry>[];
+  readonly serializedTacticalTrace: string;
+  readonly tacticalTraceHash: string;
+  readonly tacticalMetrics: Readonly<TacticalTraceMetrics>;
 }
 
 export interface HeadlessRallyResult extends HeadlessRallySummary {
@@ -62,6 +71,10 @@ export interface HeadlessRallyResult extends HeadlessRallySummary {
   readonly journal: readonly Readonly<RallyJournalEntry>[];
   readonly serializedJournal: string;
   readonly journalHash: string;
+  readonly tacticalTrace: readonly Readonly<TacticalTraceEntry>[];
+  readonly serializedTacticalTrace: string;
+  readonly tacticalTraceHash: string;
+  readonly tacticalMetrics: Readonly<TacticalTraceMetrics>;
 }
 
 export class HeadlessSimulationLimitError extends Error {
@@ -96,6 +109,7 @@ export class HeadlessRallyRunner {
   private readonly maxEventsPerRally: number;
   private readonly random: RandomHub;
   private readonly journal: RallyJournal;
+  private readonly tacticalTrace = new TacticalTraceCollector();
   private readonly events: Readonly<SimulationTelemetryEvent>[] = [];
   private readonly match: Match;
   private readonly fixed = new FixedStepRunner();
@@ -104,6 +118,7 @@ export class HeadlessRallyRunner {
   private pointCount = 0;
   private lastPointTick = 0;
   private eventsInRally = 0;
+  private traceRally = 0;
   private telemetryLimit: HeadlessSimulationLimitError | null = null;
 
   constructor(options: HeadlessRunnerOptions) {
@@ -141,9 +156,12 @@ export class HeadlessRallyRunner {
       throw new RangeError('rallies deve ser um inteiro positivo');
     }
     const firstPoint = this.pointCount;
+    this.traceRally = firstPoint;
     const targetPoints = firstPoint + rallies;
     const firstEvent = this.events.length;
     const firstJournalEntry = this.journal.entries.length;
+    this.tacticalTrace.flush();
+    const firstTacticalEntry = this.tacticalTrace.length;
     const firstTick = this.lastPointTick;
 
     while (this.pointCount < targetPoints) {
@@ -194,6 +212,12 @@ export class HeadlessRallyRunner {
     }
 
     const journalEntries = Object.freeze(this.journal.entries.slice(firstJournalEntry));
+    this.tacticalTrace.flush();
+    const tacticalEntries = Object.freeze(
+      this.tacticalTrace
+        .sliceFrom(firstTacticalEntry)
+        .filter((entry) => entry.rally >= firstPoint && entry.rally < targetPoints),
+    );
     return Object.freeze({
       seed: this.seed,
       rallies: Object.freeze(summaries),
@@ -208,6 +232,10 @@ export class HeadlessRallyRunner {
       journal: journalEntries,
       serializedJournal: this.journal.serialize(journalEntries),
       journalHash: this.journal.hash(journalEntries),
+      tacticalTrace: tacticalEntries,
+      serializedTacticalTrace: this.tacticalTrace.serialize(tacticalEntries),
+      tacticalTraceHash: this.tacticalTrace.hash(tacticalEntries),
+      tacticalMetrics: this.tacticalTrace.metrics(tacticalEntries),
     });
   }
 
@@ -230,6 +258,30 @@ export class HeadlessRallyRunner {
       simulationSeconds: this.logicalTick / 60,
     };
     this.match.update(ticket.dt, neutralFrame(logicalTicket));
+    const homePlan = this.match.teamTacticsSnapshot(TeamSide.HOME);
+    const awayPlan = this.match.teamTacticsSnapshot(TeamSide.AWAY);
+    const homeRally =
+      this.match.state === 'point' && homePlan?.phase === 'hold'
+        ? Math.max(0, this.traceRally - 1)
+        : this.traceRally;
+    const awayRally =
+      this.match.state === 'point' && awayPlan?.phase === 'hold'
+        ? Math.max(0, this.traceRally - 1)
+        : this.traceRally;
+    this.tacticalTrace.record(
+      this.logicalTick,
+      homeRally,
+      TeamSide.HOME,
+      homePlan,
+      this.match.teamTacticsAthletesSnapshot(TeamSide.HOME),
+    );
+    this.tacticalTrace.record(
+      this.logicalTick,
+      awayRally,
+      TeamSide.AWAY,
+      awayPlan,
+      this.match.teamTacticsAthletesSnapshot(TeamSide.AWAY),
+    );
     if (this.telemetryLimit) return;
 
     if (this.logicalTick - this.lastPointTick > this.maxTicksPerPoint) {
@@ -247,9 +299,13 @@ export class HeadlessRallyRunner {
   }
 
   private recordTelemetry(event: Readonly<SimulationTelemetryEvent>): void {
+    if (event.type === 'block') this.tacticalTrace.recordBlockContact(event.tick, event.side);
     this.events.push(event);
     this.journal.emit(event);
-    if (event.type === 'rally-start') this.eventsInRally = 0;
+    if (event.type === 'rally-start') {
+      this.eventsInRally = 0;
+      this.traceRally = this.pointCount;
+    }
     this.eventsInRally += 1;
     if (this.eventsInRally > this.maxEventsPerRally && !this.telemetryLimit) {
       this.telemetryLimit = new HeadlessSimulationLimitError('Rally excedeu o limite de eventos', {
@@ -261,6 +317,7 @@ export class HeadlessRallyRunner {
     if (event.type === 'rally-end') {
       this.pointCount += 1;
       this.lastPointTick = event.tick;
+      this.traceRally = this.pointCount;
     }
   }
 
@@ -369,6 +426,10 @@ export function runHeadlessRally(options: HeadlessRunnerOptions): HeadlessRallyR
     journal: batch.journal,
     serializedJournal: batch.serializedJournal,
     journalHash: batch.journalHash,
+    tacticalTrace: batch.tacticalTrace,
+    serializedTacticalTrace: batch.serializedTacticalTrace,
+    tacticalTraceHash: batch.tacticalTraceHash,
+    tacticalMetrics: batch.tacticalMetrics,
   });
 }
 
