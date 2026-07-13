@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { describe, expect, it, vi } from 'vitest';
 import { DIFFICULTIES, TeamSide } from '../../core/constants';
 import { RandomHub } from '../../core/random';
-import { RallyState } from '../RallyState';
+import { RallyState, type TouchPlan } from '../RallyState';
 import { Team } from '../Team';
 import type { MechanicsCtx } from '../mechanics/context';
 import { HeadlessBall } from '../simulation/HeadlessBall';
@@ -25,6 +25,12 @@ import type {
   ServeEpochToken,
   StrategicServeRealization,
 } from './StrategicServeSystem';
+import type { AttackDecisionDraft, BoundAttackCommitment } from './StrategicAttackTypes';
+import type {
+  BoundSetCommitment,
+  OffenseRallyRef,
+  SetDecisionDraft,
+} from './StrategicOffenseSystem';
 import type { StrategyDifficulty, StrategyMemorySnapshot } from './StrategyTypes';
 
 class RecordingPort implements MatchStrategyPort {
@@ -44,6 +50,16 @@ class RecordingPort implements MatchStrategyPort {
   readonly launches: StrategicServeRealization[] = [];
   readonly contacts: MatchStrategyBallContact[] = [];
   readonly points: MatchStrategyPoint[] = [];
+  readonly offenseEvents: string[] = [];
+  readonly offenseContacts: Parameters<MatchStrategyPort['observeOffenseContact']>[1][] = [];
+  prepareSetterId: number | null = null;
+  prepareAttackerId: number | null = null;
+  private possessionEpoch = 0;
+  private currentRally?: OffenseRallyRef;
+  private currentSetDraft?: SetDecisionDraft;
+  private boundSet?: BoundSetCommitment;
+  private currentAttackDraft?: AttackDecisionDraft;
+  private boundAttack?: BoundAttackCommitment;
 
   startMatch(): void {
     this.startMatchCalls++;
@@ -54,25 +70,153 @@ class RecordingPort implements MatchStrategyPort {
     this.startSetCalls++;
   }
 
-  beginOffenseRally: MatchStrategyPort['beginOffenseRally'] = () =>
-    Object.freeze({ matchEpoch: this.matchEpoch, rallyEpoch: ++this.rallyEpoch });
-  endOffenseRally: MatchStrategyPort['endOffenseRally'] = () => {};
-  observeOffenseContact: MatchStrategyPort['observeOffenseContact'] = () =>
-    Object.freeze({ status: 'stale' });
-  prepareOffenseSet: MatchStrategyPort['prepareOffenseSet'] = () =>
-    Object.freeze({ status: 'stale' });
-  bindOffenseSet: MatchStrategyPort['bindOffenseSet'] = () => Object.freeze({ status: 'stale' });
-  consumeOffenseSet: MatchStrategyPort['consumeOffenseSet'] = () =>
-    Object.freeze({ status: 'stale' });
-  prepareOffenseAttack: MatchStrategyPort['prepareOffenseAttack'] = () =>
-    Object.freeze({ status: 'stale' });
-  bindOffenseAttack: MatchStrategyPort['bindOffenseAttack'] = () =>
-    Object.freeze({ status: 'stale' });
-  consumeOffenseAttack: MatchStrategyPort['consumeOffenseAttack'] = () =>
-    Object.freeze({ status: 'stale' });
-  resolveOffenseBlock: MatchStrategyPort['resolveOffenseBlock'] = () => false;
-  resolveOffenseDefense: MatchStrategyPort['resolveOffenseDefense'] = () => false;
-  resolveOffensePoint: MatchStrategyPort['resolveOffensePoint'] = () => false;
+  beginOffenseRally: MatchStrategyPort['beginOffenseRally'] = () => {
+    this.offenseEvents.push('begin-rally');
+    return (this.currentRally = Object.freeze({
+      matchEpoch: this.matchEpoch,
+      rallyEpoch: ++this.rallyEpoch,
+    }));
+  };
+
+  endOffenseRally: MatchStrategyPort['endOffenseRally'] = () => {
+    this.offenseEvents.push('end-rally');
+  };
+
+  observeOffenseContact: MatchStrategyPort['observeOffenseContact'] = (
+    _rally,
+    source,
+    possessionTouches,
+  ) => {
+    this.offenseEvents.push(`observe-${source.kind}`);
+    this.offenseContacts.push(source);
+    if (possessionTouches === 1) this.possessionEpoch++;
+    return Object.freeze({
+      status: 'observed' as const,
+      contact: Object.freeze({
+        matchEpoch: this.matchEpoch,
+        rallyEpoch: this.currentRally?.rallyEpoch ?? 0,
+        possessionEpoch: this.possessionEpoch,
+        contactSequence: possessionTouches,
+        side: source.side,
+        tick: source.tick,
+      }),
+    });
+  };
+
+  prepareOffenseSet: MatchStrategyPort['prepareOffenseSet'] = (contact) => {
+    this.offenseEvents.push('prepare-set');
+    if (this.prepareSetterId === null) return Object.freeze({ status: 'stale' as const });
+    this.currentSetDraft = Object.freeze({
+      ref: contact,
+      setterAthleteId: this.prepareSetterId,
+      setterContact: Object.freeze({ x: 2, z: 0 }),
+      leadTicks: 40,
+      execution: Object.freeze({
+        mode: 'fallback-high' as const,
+        reason: 'perception-not-ready' as const,
+        optionId: 'set.high-left' as const,
+        family: 'high' as const,
+        target: Object.freeze({ x: 1, z: 2 }),
+        attackerAthleteId: this.prepareAttackerId ?? 3,
+      }),
+      plannedAttackerAthleteId: this.prepareAttackerId,
+      plannedAttack: null,
+    });
+    return Object.freeze({ status: 'prepared' as const, draft: this.currentSetDraft });
+  };
+
+  bindOffenseSet: MatchStrategyPort['bindOffenseSet'] = (ref, plan) => {
+    this.offenseEvents.push('bind-set');
+    if (!this.currentSetDraft || this.currentSetDraft.ref !== ref) {
+      return Object.freeze({ status: 'stale' as const });
+    }
+    this.boundSet = Object.freeze({
+      ...plan,
+      ref,
+      decisionId: null,
+      observationTick: null,
+      draft: this.currentSetDraft,
+    });
+    return Object.freeze({ status: 'bound' as const, commitment: this.boundSet });
+  };
+
+  consumeOffenseSet: MatchStrategyPort['consumeOffenseSet'] = (commitment, plan) => {
+    this.offenseEvents.push('consume-set');
+    if (
+      commitment !== this.boundSet ||
+      plan.planId !== commitment.planId ||
+      plan.tacticalRevision !== commitment.tacticalRevision ||
+      plan.athleteId !== commitment.athleteId
+    ) {
+      return Object.freeze({ status: 'stale' as const });
+    }
+    return Object.freeze({ status: 'consumed' as const, execution: commitment.draft.execution });
+  };
+
+  prepareOffenseAttack: MatchStrategyPort['prepareOffenseAttack'] = (contact) => {
+    this.offenseEvents.push('prepare-attack');
+    if (this.prepareAttackerId === null || !this.boundSet) {
+      return Object.freeze({ status: 'stale' as const });
+    }
+    this.currentAttackDraft = Object.freeze({
+      basis: 'executed-set' as const,
+      decisionContact: contact,
+      executedSetContact: contact,
+      originSetDecisionId: null,
+      originSetPlanId: this.boundSet.planId,
+      attackerAthleteId: this.prepareAttackerId,
+      leadTicks: 28,
+      deliveryEffectiveness: 0.8,
+      execution: Object.freeze({
+        mode: 'fallback-placed-seam' as const,
+        reason: 'perception-not-ready' as const,
+        optionId: 'attack.placed-seam' as const,
+        family: 'placed' as const,
+        target: Object.freeze({ x: -7, z: 0.5 }),
+      }),
+    });
+    return Object.freeze({ status: 'prepared' as const, draft: this.currentAttackDraft });
+  };
+
+  bindOffenseAttack: MatchStrategyPort['bindOffenseAttack'] = (draft, plan) => {
+    this.offenseEvents.push('bind-attack');
+    if (draft !== this.currentAttackDraft) return Object.freeze({ status: 'stale' as const });
+    this.boundAttack = Object.freeze({
+      ...plan,
+      draft,
+      decisionId: null,
+      observationTick: null,
+    });
+    return Object.freeze({ status: 'bound' as const, commitment: this.boundAttack });
+  };
+
+  consumeOffenseAttack: MatchStrategyPort['consumeOffenseAttack'] = (commitment, plan) => {
+    this.offenseEvents.push('consume-attack');
+    if (
+      commitment !== this.boundAttack ||
+      plan.planId !== commitment.planId ||
+      plan.tacticalRevision !== commitment.tacticalRevision ||
+      plan.athleteId !== commitment.athleteId
+    ) {
+      return Object.freeze({ status: 'stale' as const });
+    }
+    return Object.freeze({ status: 'consumed' as const, execution: commitment.draft.execution });
+  };
+
+  resolveOffenseBlock: MatchStrategyPort['resolveOffenseBlock'] = () => {
+    this.offenseEvents.push('resolve-block');
+    return true;
+  };
+
+  resolveOffenseDefense: MatchStrategyPort['resolveOffenseDefense'] = () => {
+    this.offenseEvents.push('resolve-defense');
+    return true;
+  };
+
+  resolveOffensePoint: MatchStrategyPort['resolveOffensePoint'] = () => {
+    this.offenseEvents.push('resolve-point');
+    return true;
+  };
 
   captureTick(source: MatchStrategyTickSource): void {
     this.captures.push(source);
@@ -237,6 +381,217 @@ function fixture() {
 }
 
 describe('MatchStrategyCoordinator', () => {
+  function cpuPlan(
+    sample: ReturnType<typeof fixture>,
+    kind: 'set' | 'spike',
+    athleteId: number,
+    planId: number,
+  ): TouchPlan {
+    return {
+      planId,
+      side: TeamSide.AWAY,
+      athlete: sample.away.athletes[athleteId],
+      contactIn: 0.8,
+      point: new THREE.Vector3(2, kind === 'set' ? 2.35 : 2.65, 0),
+      kind,
+      isHuman: false,
+      tacticalRevision: 7,
+      serveOutcomeToken: null,
+      done: false,
+    };
+  }
+
+  function prepareCpuSet(sample: ReturnType<typeof fixture>): TouchPlan {
+    sample.coordinator.startMatch();
+    sample.coordinator.beginRally();
+    sample.port.prepareSetterId = 4;
+    sample.port.prepareAttackerId = 3;
+    sample.rally.countTouch(TeamSide.AWAY);
+    sample.ball.launch(new THREE.Vector3(5, 1, 0), new THREE.Vector3(-4, 6, 0));
+    sample.coordinator.onBallContact({
+      side: TeamSide.AWAY,
+      kind: 'pass',
+      athleteId: 1,
+      outcomeToken: null,
+    });
+    const plan = cpuPlan(sample, 'set', 4, 21);
+    sample.coordinator.bindCpuPlan(plan);
+    return plan;
+  }
+
+  it('prepara levantadora CPU da leitura própria pós-contato e ignora o lado humano', () => {
+    const sample = fixture();
+    sample.mechanics.isHumanSide = (side) => side === TeamSide.HOME;
+    sample.coordinator.startMatch();
+    sample.coordinator.beginRally();
+    sample.port.prepareSetterId = 4;
+    sample.rally.countTouch(TeamSide.AWAY);
+    sample.ball.launch(new THREE.Vector3(5, 1, 0), new THREE.Vector3(-4, 6, 0));
+
+    sample.coordinator.onBallContact({
+      side: TeamSide.AWAY,
+      kind: 'pass',
+      athleteId: 1,
+      outcomeToken: null,
+    });
+
+    expect(sample.port.offenseEvents).toEqual(['begin-rally', 'observe-pass', 'prepare-set']);
+    expect(sample.coordinator.plannedCpuAthlete('set', TeamSide.AWAY)).toBe(4);
+    expect(sample.rally.setterHold).toBe(sample.away.athletes[4]);
+    expect(sample.port.offenseContacts[0].ownAthletes.map((athlete) => athlete.slot)).toEqual([
+      0, 1, 2, 3, 4, 5,
+    ]);
+
+    sample.rally.countTouch(TeamSide.HOME);
+    sample.coordinator.onBallContact({
+      side: TeamSide.HOME,
+      kind: 'pass',
+      athleteId: 1,
+      outcomeToken: null,
+    });
+    expect(sample.port.offenseContacts).toHaveLength(1);
+  });
+
+  it('vincula após a revisão tática e consome o set somente pela identidade exata', () => {
+    const sample = fixture();
+    const plan = prepareCpuSet(sample);
+
+    const command = sample.coordinator.consumeCpuTouch(plan);
+
+    expect(sample.port.offenseEvents.slice(-2)).toEqual(['bind-set', 'consume-set']);
+    expect(command).toMatchObject({
+      kind: 'set',
+      execution: { mode: 'fallback-high', target: { x: 1, z: 2 } },
+      attackerAthleteId: 3,
+    });
+    expect(sample.coordinator.consumeCpuTouch({ ...plan, tacticalRevision: 8 })).toBeNull();
+  });
+
+  it('recusa autoridade humana tardia e atleta de outro lado mesmo com flag CPU', () => {
+    const humanized = fixture();
+    const humanizedPlan = prepareCpuSet(humanized);
+    humanized.mechanics.isHumanSide = (side) => side === TeamSide.AWAY;
+
+    expect(humanized.coordinator.consumeCpuTouch(humanizedPlan)).toBeNull();
+
+    const crossed = fixture();
+    crossed.coordinator.startMatch();
+    crossed.coordinator.beginRally();
+    crossed.port.prepareSetterId = 4;
+    crossed.rally.countTouch(TeamSide.AWAY);
+    crossed.ball.launch(new THREE.Vector3(5, 1, 0), new THREE.Vector3(-4, 6, 0));
+    crossed.coordinator.onBallContact({
+      side: TeamSide.AWAY,
+      kind: 'pass',
+      athleteId: 1,
+      outcomeToken: null,
+    });
+    const crossSidePlan = {
+      ...cpuPlan(crossed, 'set', 4, 21),
+      athlete: crossed.home.athletes[4],
+    };
+
+    crossed.coordinator.bindCpuPlan(crossSidePlan);
+    expect(crossed.port.offenseEvents).not.toContain('bind-set');
+    expect(crossed.coordinator.consumeCpuTouch(crossSidePlan)).toBeNull();
+  });
+
+  it('prepara, vincula e consome ataque a partir do voo real do set', () => {
+    const sample = fixture();
+    const setPlan = prepareCpuSet(sample);
+    expect(sample.coordinator.consumeCpuTouch(setPlan)?.kind).toBe('set');
+    sample.rally.countTouch(TeamSide.AWAY);
+    sample.ball.launch(new THREE.Vector3(2, 2.35, 0), new THREE.Vector3(-1, 5, 0.4));
+
+    sample.coordinator.onBallContact({
+      side: TeamSide.AWAY,
+      kind: 'set',
+      athleteId: 4,
+      outcomeToken: null,
+    });
+
+    expect(sample.coordinator.plannedCpuAthlete('spike', TeamSide.AWAY)).toBe(3);
+    const attackPlan = cpuPlan(sample, 'spike', 3, 22);
+    sample.coordinator.bindCpuPlan(attackPlan);
+    expect(sample.coordinator.consumeCpuTouch(attackPlan)).toMatchObject({
+      kind: 'spike',
+      execution: { mode: 'fallback-placed-seam', target: { x: -7, z: 0.5 } },
+    });
+    expect(sample.port.offenseEvents.slice(-4)).toEqual([
+      'observe-set',
+      'prepare-attack',
+      'bind-attack',
+      'consume-attack',
+    ]);
+  });
+
+  it('resolve bloqueio sem observá-lo e resolve defesa antes da nova posse', () => {
+    const blocked = fixture();
+    const blockedSet = prepareCpuSet(blocked);
+    blocked.coordinator.consumeCpuTouch(blockedSet);
+    blocked.rally.countTouch(TeamSide.AWAY);
+    blocked.coordinator.onBallContact({
+      side: TeamSide.AWAY,
+      kind: 'set',
+      athleteId: 4,
+      outcomeToken: null,
+    });
+    const blockedAttack = cpuPlan(blocked, 'spike', 3, 22);
+    blocked.coordinator.bindCpuPlan(blockedAttack);
+    blocked.coordinator.consumeCpuTouch(blockedAttack);
+
+    blocked.coordinator.onBallContact({
+      side: TeamSide.HOME,
+      kind: 'block',
+      athleteId: 3,
+      outcomeToken: null,
+    });
+    expect(blocked.port.offenseEvents.at(-1)).toBe('resolve-block');
+    expect(blocked.port.offenseContacts).toHaveLength(2);
+
+    const defended = fixture();
+    const defendedSet = prepareCpuSet(defended);
+    defended.coordinator.consumeCpuTouch(defendedSet);
+    defended.rally.countTouch(TeamSide.AWAY);
+    defended.coordinator.onBallContact({
+      side: TeamSide.AWAY,
+      kind: 'set',
+      athleteId: 4,
+      outcomeToken: null,
+    });
+    const defendedAttack = cpuPlan(defended, 'spike', 3, 22);
+    defended.coordinator.bindCpuPlan(defendedAttack);
+    defended.coordinator.consumeCpuTouch(defendedAttack);
+    defended.rally.countTouch(TeamSide.HOME);
+    defended.ball.launch(new THREE.Vector3(-5, 1, 0), new THREE.Vector3(4, 6, 0));
+
+    defended.coordinator.onBallContact({
+      side: TeamSide.HOME,
+      kind: 'dig',
+      athleteId: 1,
+      outcomeToken: null,
+    });
+    const defense = defended.port.offenseEvents.lastIndexOf('resolve-defense');
+    const observation = defended.port.offenseEvents.lastIndexOf('observe-dig');
+    expect(defense).toBeGreaterThanOrEqual(0);
+    expect(observation).toBeGreaterThan(defense);
+  });
+
+  it('resolve o ataque no ponto antes de encerrar o rally ofensivo', () => {
+    const sample = fixture();
+    sample.coordinator.startMatch();
+    sample.coordinator.beginRally();
+
+    sample.coordinator.onPoint({
+      servingSide: TeamSide.AWAY,
+      winner: TeamSide.HOME,
+      ace: false,
+      cause: 'floor-in',
+    });
+
+    expect(sample.port.offenseEvents).toEqual(['begin-rally', 'resolve-point', 'end-rally']);
+  });
+
   it('captura somente o DTO público com phase e slots atuais', () => {
     const sample = fixture();
     sample.home.rotate();
