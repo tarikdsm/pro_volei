@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { BALL_RADIUS } from '../../core/constants';
-import { integrateBallistic, positionAt, timeToHeight } from '../../core/math3d';
+import { positionAt, timeToHeight } from '../../core/math3d';
 import type { MatchBallPort } from './BallSimulationPort';
+import { stepBallPhysics } from './BallPhysics';
 
 /** Bola lógica sem meshes, canvas, WebGL ou aleatoriedade visual. */
 export class HeadlessBall implements MatchBallPort {
@@ -31,14 +32,7 @@ export class HeadlessBall implements MatchBallPort {
   step(dt: number): void {
     if (!this.inFlight) return;
 
-    integrateBallistic(this.pos, this.vel, dt);
-    if (!this.bouncy || this.pos.y > BALL_RADIUS || this.vel.y >= 0) return;
-
-    this.pos.y = BALL_RADIUS;
-    this.vel.y = -this.vel.y * 0.55;
-    this.vel.x *= 0.82;
-    this.vel.z *= 0.82;
-    if (Math.abs(this.vel.y) < 0.8) this.vel.set(0, 0, 0);
+    stepBallPhysics(this, dt);
   }
 
   predictLanding(): { point: THREE.Vector3; time: number } {

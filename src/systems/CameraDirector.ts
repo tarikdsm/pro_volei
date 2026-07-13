@@ -1,19 +1,16 @@
 import * as THREE from 'three';
 import { dampV3, clamp } from '../core/math3d';
-import { CAMERA_FEEL, TeamSide, sideSign, TouchKind } from '../core/constants';
+import { CAMERA_FEEL, TeamSide, sideSign } from '../core/constants';
+import type { CamMode } from '../game/camera/CameraMode';
+export { camModeForTouch } from '../game/camera/CameraMode';
+export type { CamMode } from '../game/camera/CameraMode';
 import type { CameraGroundBasis } from '../core/input/CameraSpaceMapper';
 import type { MotionProfile } from './camera/MotionProfile';
 import type { BroadcastFrameSolution, CameraFrame, SafeFrame } from './camera/CameraFrame';
 import { solveBroadcastFrame } from './camera/solveBroadcastFrame';
 
-export type CamMode = 'menu' | 'serveHome' | 'serveAway' | 'rally' | 'spike' | 'point' | 'setEnd';
-
 // Enquadramento do próximo contato: dramático (close-up) na cortada, broadcast no resto.
 // Mantém a câmera em 'spike' só durante o ataque; passe/levantamento/defesa voltam a 'rally'.
-export function camModeForTouch(nextKind: TouchKind): CamMode {
-  return nextKind === 'spike' ? 'spike' : 'rally';
-}
-
 // Diretor de câmera estilo transmissão de TV: enquadramentos por momento de jogo,
 // transições amortecidas, cortes secos no saque, FOV punch e screen shake.
 export class CameraDirector {

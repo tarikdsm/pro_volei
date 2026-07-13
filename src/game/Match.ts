@@ -1,12 +1,7 @@
 import * as THREE from 'three';
 import { Ball } from '../entities/Ball';
-import { Team, Athlete } from './Team';
-import { AudioEngine } from '../core/AudioEngine';
-import { Effects } from '../systems/Effects';
-import { CameraDirector, camModeForTouch } from '../systems/CameraDirector';
-import { Crowd } from '../world/Crowd';
-import { Referee } from '../world/Referee';
-import { Arena } from '../world/Arena';
+import { Team, Athlete, type TeamFactory } from './Team';
+import { camModeForTouch } from './camera/CameraMode';
 import {
   CONTACT,
   PLAYER,
@@ -35,32 +30,12 @@ import { AiController } from './ai/AiController';
 import { resolvePoint, awardPoint, pushScore, endSet, ScoringCtx } from './rules/SetMatch';
 import { outOfAntennaWinner, isMatchOver } from './rules/scoring';
 import { MatchTimeline } from './simulation/MatchTimeline';
-import type { FeedbackPort } from './feedback/TimingFeedback';
 import type { CameraFrame, CameraPhase } from '../systems/camera/CameraFrame';
+import type { MatchHooks as Hooks, MatchStats } from './ports/MatchHooks';
+import type { CharFactory } from '../entities/PlayerCharacter';
+import type { MatchBallPort } from './simulation/BallSimulationPort';
 
-export interface MatchStats {
-  aces: number;
-  blocks: number;
-  longestRally: number;
-  points: [number, number];
-}
-
-export interface Hooks {
-  banner(text: string, sub?: string): void;
-  hint(text: string): void;
-  setScore(h: number, a: number, hs: number, as: number, setNum: number, serving: TeamSide): void;
-  serveMeter(visible: boolean, value?: number): void;
-  zoneHint(zone: number | null): void;
-  slowMo(scale: number, dur: number): void;
-  matchEnd(homeWon: boolean, stats: MatchStats, scoreline: string): void;
-  feedback: FeedbackPort;
-  audio: AudioEngine;
-  effects: Effects;
-  camera: CameraDirector;
-  crowd: Crowd;
-  referee: Referee;
-  arena: Arena;
-}
+export type { MatchHooks as Hooks, MatchStats } from './ports/MatchHooks';
 
 type MState = 'idle' | 'servePrep' | 'rally' | 'point' | 'setEnd' | 'matchEnd';
 
@@ -82,13 +57,16 @@ type MutableCameraFrame = {
 export interface MatchOptions {
   readonly random?: RandomHub;
   readonly humanSide?: TeamSide.HOME | null;
+  readonly ball?: MatchBallPort;
+  readonly charFactory?: CharFactory;
+  readonly teamFactory?: TeamFactory;
 }
 
 export class Match {
-  group = new THREE.Group();
-  ball = new Ball();
-  home = new Team(TeamSide.HOME);
-  away = new Team(TeamSide.AWAY);
+  readonly group = new THREE.Group();
+  readonly ball: MatchBallPort;
+  readonly home: Team;
+  readonly away: Team;
 
   state: MState = 'idle';
   private stateTime = 0;
@@ -107,7 +85,7 @@ export class Match {
   private rally = new RallyState();
 
   // controle humano (estado de interação + input por frame + marker)
-  private human = new HumanController();
+  private readonly human: HumanController;
   // decisões da IA (agendamento de aproximação/pulo, qualidade, saque)
   private ai = new AiController();
   private readonly randomHub: RandomHub;
@@ -133,6 +111,12 @@ export class Match {
     private hooks: Hooks,
     options: MatchOptions = {},
   ) {
+    const makeTeam = options.teamFactory ?? ((side, makeChar) => new Team(side, makeChar));
+    this.humanSide = options.humanSide === undefined ? TeamSide.HOME : options.humanSide;
+    this.human = new HumanController(this.humanSide !== null);
+    this.ball = options.ball ?? new Ball();
+    this.home = makeTeam(TeamSide.HOME, options.charFactory);
+    this.away = makeTeam(TeamSide.AWAY, options.charFactory);
     this.randomHub = options.random ?? new RandomHub(0);
     this.random = {
       rules: this.randomHub.stream('rules'),
@@ -140,7 +124,6 @@ export class Match {
       contact: this.randomHub.stream('contact'),
       control: this.randomHub.stream('control'),
     };
-    this.humanSide = options.humanSide === undefined ? TeamSide.HOME : options.humanSide;
     this.group.add(this.ball.group, this.home.group, this.away.group);
     this.group.add(this.human.marker);
     this.ball.hold(new THREE.Vector3(0, 1.2, 0));
@@ -154,8 +137,8 @@ export class Match {
       isRally: () => this.state === 'rally',
       advanceWorld: (seconds) => {
         this.stateTime += seconds;
-        this.home.update(seconds, this.humanSpeed());
-        this.away.update(seconds, PLAYER.aiSpeed * this.diff.moveSpeed);
+        this.home.update(seconds, this.speedFor(TeamSide.HOME));
+        this.away.update(seconds, this.speedFor(TeamSide.AWAY));
       },
       resolveContact: (plan) => this.attemptContact(plan),
       resolveNet: () => this.onNetTouch(),
@@ -281,7 +264,8 @@ export class Match {
     this.stateTime = 0;
     this.timeline.clearScheduled();
     this.rally.reset();
-    this.human.resetForServe(this.ctx);
+    if (this.humanSide === null) this.human.release();
+    else this.human.resetForServe(this.ctx);
     this.hooks.zoneHint(null);
     this.hooks.effects.showLanding(null);
     this.hooks.effects.showAim(null);
@@ -435,8 +419,8 @@ export class Match {
     this.present(1);
   }
 
-  private humanSpeed(): number {
-    return PLAYER.speed;
+  private speedFor(side: TeamSide): number {
+    return this.isHumanSide(side) ? PLAYER.speed : PLAYER.aiSpeed * this.diff.moveSpeed;
   }
 
   private attemptContact(plan: TouchPlan): void {

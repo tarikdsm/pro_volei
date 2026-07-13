@@ -6,7 +6,7 @@ import { TeamSide, Difficulty, TouchKind } from '../../core/constants';
 import type { BallSimulationPort } from '../simulation/BallSimulationPort';
 import { Team } from '../Team';
 import { RallyState } from '../RallyState';
-import type { Hooks, MatchStats } from '../Match';
+import type { MatchHooks as Hooks, MatchStats } from '../ports/MatchHooks';
 import type { ActionIntent } from '../control/ActionIntent';
 import type { RandomSource } from '../../core/random';
 

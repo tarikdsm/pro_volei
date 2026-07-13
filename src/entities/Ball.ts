@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import { BALL_RADIUS, COURT, TRAIL_MAX_POINTS } from '../core/constants';
-import { positionAt, timeToHeight, integrateBallistic, lerpAngle } from '../core/math3d';
+import { positionAt, timeToHeight, lerpAngle } from '../core/math3d';
 import { TrailBuffer } from './TrailBuffer';
 import type { MatchBallPort } from '../game/simulation/BallSimulationPort';
+import { stepBallPhysics } from '../game/simulation/BallPhysics';
 
 // Bola com gomos (textura canvas), rastro luminoso e sombra projetada no chão.
 export class Ball implements MatchBallPort {
@@ -86,16 +87,9 @@ export class Ball implements MatchBallPort {
 
   step(dt: number): void {
     if (this.inFlight) {
-      integrateBallistic(this.pos, this.vel, dt);
+      stepBallPhysics(this, dt);
       this.rotation.addScaledVector(this.spin, dt);
       // quicando após o ponto
-      if (this.bouncy && this.pos.y <= BALL_RADIUS && this.vel.y < 0) {
-        this.pos.y = BALL_RADIUS;
-        this.vel.y = -this.vel.y * 0.55;
-        this.vel.x *= 0.82;
-        this.vel.z *= 0.82;
-        if (Math.abs(this.vel.y) < 0.8) this.vel.set(0, 0, 0);
-      }
     }
   }
 

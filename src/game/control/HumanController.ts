@@ -25,6 +25,7 @@ import {
 } from '../feedback/TimingFeedback';
 
 export type CtlMode = 'none' | 'serve' | 'receive' | 'set' | 'attack' | 'block' | 'freeball';
+type ControlMarker = THREE.Object3D & { material?: THREE.Material | THREE.Material[] };
 
 const FIXED_HZ = 60;
 const CONTACT_CONTEXTS = new Set<ActionContext>(['receive', 'set', 'attack', 'freeball']);
@@ -46,19 +47,23 @@ export class HumanController {
 
   readonly aim = new THREE.Vector3(5.5, 0, 0);
   chosenZone = 0;
-  readonly marker: THREE.Mesh;
+  readonly marker: ControlMarker;
+  private readonly markerMaterial: THREE.MeshBasicMaterial | null;
 
-  constructor() {
-    this.marker = new THREE.Mesh(
-      new THREE.RingGeometry(0.42, 0.55, 24),
-      new THREE.MeshBasicMaterial({
+  constructor(withVisualMarker = true) {
+    if (withVisualMarker) {
+      this.markerMaterial = new THREE.MeshBasicMaterial({
         color: 0x40ff9f,
         transparent: true,
         opacity: 0.9,
         side: THREE.DoubleSide,
         depthWrite: false,
-      }),
-    );
+      });
+      this.marker = new THREE.Mesh(new THREE.RingGeometry(0.42, 0.55, 24), this.markerMaterial);
+    } else {
+      this.markerMaterial = null;
+      this.marker = new THREE.Group();
+    }
     this.marker.rotation.x = -Math.PI / 2;
     this.marker.visible = false;
   }
@@ -520,8 +525,8 @@ export class HumanController {
 
   /** Feedback compacto por forma/cor; não adiciona instrução textual ao gameplay. */
   private presentActionMarkerState(): void {
+    if (!this.markerMaterial) return;
     const snapshot = this.actionControl.snapshot();
-    const material = this.marker.material as THREE.MeshBasicMaterial;
     let color = 0x40ff9f;
     let scale = 1;
     let opacity = 0.9;
@@ -552,8 +557,8 @@ export class HumanController {
         break;
     }
 
-    material.color.setHex(color);
-    material.opacity = opacity;
+    this.markerMaterial.color.setHex(color);
+    this.markerMaterial.opacity = opacity;
     this.marker.scale.setScalar(scale);
   }
 }

@@ -2,10 +2,10 @@
 // contexto injetado. As decisões puras ficam em rules/scoring.ts; aqui é o "como" (banners,
 // áudio, câmera, rodízio, agendamento). Extraído de Match.ts (1.6).
 import { TeamSide, otherSide, sideSign } from '../../core/constants';
-import { Ball } from '../../entities/Ball';
+import type { BallSimulationPort } from '../simulation/BallSimulationPort';
 import { Team } from '../Team';
 import { RallyState } from '../RallyState';
-import type { Hooks, MatchStats } from '../Match';
+import type { MatchHooks as Hooks, MatchStats } from '../ports/MatchHooks';
 import {
   isSetOver,
   setWinner,
@@ -20,7 +20,7 @@ import {
 // A fatia do Match que o fluxo de pontuação precisa. `state` continua sendo do orquestrador: em vez
 // de setters crus, transições vêm por métodos de intenção (enterPoint/enterSetEnd/enterMatchEnd).
 export interface ScoringCtx {
-  ball: Ball;
+  ball: BallSimulationPort;
   rally: RallyState;
   hooks: Hooks;
   readonly score: [number, number]; // mutado in-place

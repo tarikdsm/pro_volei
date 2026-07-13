@@ -296,3 +296,5 @@ export class Team {
     for (const athlete of this.athletes) athlete.present(alpha);
   }
 }
+
+export type TeamFactory = (side: TeamSide, makeChar?: CharFactory) => Team;
