@@ -55,6 +55,8 @@ export interface TeamBrainFrame {
   readonly activeAthleteId: number | null;
   readonly contactPoint: TacticalPoint | null;
   readonly setterAthleteId: number | null;
+  readonly serverAthleteId?: number | null;
+  readonly serverPoint?: TacticalPoint | null;
   readonly nextTouchKind?: TouchKind | null;
 }
 

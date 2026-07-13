@@ -82,6 +82,24 @@ describe('TeamBrain', () => {
     );
   });
 
+  it('identifica a sacadora fora da linha de fundo sem mover as outras da base', () => {
+    const plan = new TeamBrain().plan(
+      frame(TeamSide.HOME, [0, 1, 2, 3, 4, 5], {
+        phase: 'serve-formation',
+        planId: -1,
+        serverAthleteId: 0,
+        serverPoint: { x: -9.7, z: 3.2 },
+      }),
+    );
+
+    expect(plan.assignments.find((assignment) => assignment.role === 'server')).toEqual({
+      athleteId: 0,
+      role: 'server',
+      target: { x: -9.7, z: 3.2 },
+    });
+    expect(plan.assignments.filter((assignment) => assignment.role === 'base')).toHaveLength(5);
+  });
+
   it('forma recepção com ativa reservada, setter liberada e três corredores', () => {
     const slots = [0, 1, 2, 3, 4, 5];
     const plan = new TeamBrain().plan(
@@ -185,9 +203,10 @@ describe('TeamBrain', () => {
 
   it('rejeita fase não implementada, metadados e geometria inválidos', () => {
     const valid = frame(TeamSide.HOME, [0, 1, 2, 3, 4, 5]);
-    expect(() => new TeamBrain().plan({ ...valid, phase: 'serve-formation' })).toThrow(
+    expect(() => new TeamBrain().plan({ ...valid, phase: 'offense-transition' })).toThrow(
       /não implementada/i,
     );
+    expect(() => new TeamBrain().plan({ ...valid, phase: 'serve-formation' })).toThrow(/exige/i);
     expect(() => new TeamBrain().plan({ ...valid, revision: Number.NaN })).toThrow(/revisão/i);
     expect(() => new TeamBrain().plan({ ...valid, planId: 0 })).toThrow(/planId/i);
     expect(() => new TeamBrain().plan({ ...valid, planId: -1 })).not.toThrow();

@@ -39,6 +39,8 @@ import type {
   SimulationTelemetryEvent,
   SimulationTelemetryPort,
 } from './simulation/SimulationTelemetry';
+import { TeamTacticsSystem } from './team/TeamTacticsSystem';
+import type { TeamPlan } from './team/TeamTactics';
 
 export type { MatchHooks as Hooks, MatchStats } from './ports/MatchHooks';
 
@@ -101,6 +103,8 @@ export class Match {
   private readonly telemetryOutbox: Readonly<SimulationTelemetryEvent>[] = [];
   private telemetryEnabled = true;
   private simulationTick = 0;
+  private readonly teamTactics = new TeamTacticsSystem();
+  private lastHumanSelectionRevision = 0;
 
   private stats: MatchStats = { aces: 0, blocks: 0, longestRally: 0, points: [0, 0] };
   private readonly cameraBall: MutableCameraPoint = { x: 0, y: 0, z: 0 };
@@ -161,6 +165,7 @@ export class Match {
 
   startMatch(diffIdx: number, fmtIdx: number): void {
     this.simulationTick = 0;
+    this.teamTactics.reset();
     this.diff = DIFFICULTIES[clamp(diffIdx, 0, DIFFICULTIES.length - 1)];
     this.format = MATCH_FORMATS[clamp(fmtIdx, 0, MATCH_FORMATS.length - 1)];
     this.score = [0, 0];
@@ -188,6 +193,10 @@ export class Match {
 
   actionSnapshot() {
     return this.human.actionSnapshot();
+  }
+
+  teamTacticsSnapshot(side: TeamSide): TeamPlan | null {
+    return this.teamTactics.snapshot(side);
   }
 
   /** Snapshot readonly para o solver de apresentação; não permite mutar gameplay pela câmera. */
@@ -258,9 +267,11 @@ export class Match {
       isHuman: true,
       done: false,
     };
+
     this.rally.plan = plan;
     this.ball.hold(new THREE.Vector3(plan.point.x, plan.point.y + 0.4, plan.point.z));
     this.human.onAssigned(this.ctx, plan);
+    this.coordinateReception(plan);
     this.hooks.camera.setMode('rally', { cut: true });
   }
 
@@ -291,6 +302,16 @@ export class Match {
     const spot =
       this.servingTeam === TeamSide.HOME ? SERVE_SPOT : { x: -SERVE_SPOT.x, z: -SERVE_SPOT.z };
     server.warpTo(spot.x, spot.z);
+    this.teamTactics.coordinate({
+      team,
+      phase: 'serve-formation',
+      serverAthleteId: server.index,
+      serverPoint: spot,
+    });
+    this.teamTactics.coordinate({
+      team: this.teamOf(otherSide(this.servingTeam)),
+      phase: 'recompose',
+    });
     this.ball.hold(
       new THREE.Vector3(spot.x + sideSign(otherSide(this.servingTeam)) * 0.25, 1.15, spot.z),
     );
@@ -360,6 +381,13 @@ export class Match {
       done: false,
     };
 
+    let humanReceptionAssigned = false;
+    if (isHuman && isReceptionTouch(nextKind)) {
+      this.human.onAssigned(this.ctx, this.rally.plan);
+      humanReceptionAssigned = true;
+    }
+    if (isReceptionTouch(nextKind)) this.coordinateReception(this.rally.plan);
+
     // Aproximação: a IA agenda o deslocamento e o pulo. No humano, ataque e levantamento mantêm
     // rotas táticas; recepção fica nas setas + assistência limitada do AutoSelector.
     if (isHuman) {
@@ -394,7 +422,7 @@ export class Match {
 
     // controle: humano assume seu lado; contra a cortada da IA, pode bloquear
     if (isHuman) {
-      this.human.onAssigned(this.ctx, this.rally.plan);
+      if (!humanReceptionAssigned) this.human.onAssigned(this.ctx, this.rally.plan);
     } else if (nextKind === 'spike' && this.isHumanSide(otherSide(landSide))) {
       const humanTeam = this.teamOf(otherSide(landSide));
       this.human.assignBlock(humanTeam.nearestFrontRowTo(cPoint.z), this.ctx);
@@ -424,6 +452,7 @@ export class Match {
     this.home.beginFixedStep();
     this.away.beginFixedStep();
     this.human.update(dt, frame, this.ctx);
+    this.syncHumanSelectionTactics();
     this.timeline.step(dt);
     this.ball.endFixedStep();
     this.flushTelemetry();
@@ -713,6 +742,8 @@ export class Match {
         this.state = 'point';
         this.stateTime = 0;
         this.timeline.clearScheduled();
+        this.teamTactics.hold(this.home);
+        this.teamTactics.hold(this.away);
       },
       enterSetEnd: () => {
         this.state = 'setEnd';
@@ -731,6 +762,29 @@ export class Match {
 
   private isHumanSide(side: TeamSide): boolean {
     return this.humanSide !== null && side === this.humanSide;
+  }
+
+  private coordinateReception(plan: TouchPlan): void {
+    const tactical = this.teamTactics.coordinate({
+      team: this.teamOf(plan.side),
+      phase: 'reception',
+      planId: plan.planId,
+      activeAthleteId: plan.athlete.index,
+      contactPoint: { x: plan.point.x, z: plan.point.z },
+      setterAthleteId: this.rally.setterHold?.index ?? null,
+    });
+    plan.tacticalRevision = tactical.revision;
+    if (plan.isHuman) {
+      this.lastHumanSelectionRevision = this.human.controlSnapshot().selectionRevision;
+    }
+  }
+
+  private syncHumanSelectionTactics(): void {
+    const control = this.human.controlSnapshot();
+    if (control.selectionRevision === this.lastHumanSelectionRevision) return;
+    this.lastHumanSelectionRevision = control.selectionRevision;
+    const plan = this.rally.plan;
+    if (plan?.isHuman && isReceptionTouch(plan.kind)) this.coordinateReception(plan);
   }
 
   private emitTelemetry(event: Readonly<SimulationEventDraft>): void {
@@ -758,4 +812,8 @@ export class Match {
   private after(t: number, fn: () => void): void {
     this.timeline.after(t, fn);
   }
+}
+
+function isReceptionTouch(kind: TouchKind): boolean {
+  return kind === 'pass' || kind === 'dig' || kind === 'freeball';
 }

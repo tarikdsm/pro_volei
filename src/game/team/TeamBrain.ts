@@ -66,6 +66,26 @@ export class TeamBrain {
           target: athlete.base,
         }));
         break;
+      case 'serve-formation': {
+        const serverId = frame.serverAthleteId ?? null;
+        const serverPoint = frame.serverPoint ?? null;
+        if (serverId === null || serverPoint === null) {
+          throw new Error('Formação de saque exige sacadora e posição de saque');
+        }
+        if (!athletes.some((athlete) => athlete.athleteId === serverId)) {
+          throw new Error('Sacadora não pertence ao time');
+        }
+        const localServerPoint = toLocalCourt(serverPoint, frame.side);
+        if (!Number.isFinite(localServerPoint.x) || !Number.isFinite(localServerPoint.z)) {
+          throw new Error('Posição de saque inválida');
+        }
+        assignments = athletes.map((athlete) => ({
+          athleteId: athlete.athleteId,
+          role: athlete.athleteId === serverId ? 'server' : 'base',
+          target: athlete.athleteId === serverId ? localServerPoint : athlete.base,
+        }));
+        break;
+      }
       case 'hold':
         assignments = athletes.map((athlete) => ({
           athleteId: athlete.athleteId,

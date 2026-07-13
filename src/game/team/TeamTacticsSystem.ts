@@ -25,6 +25,8 @@ export interface TeamCoordinationRequest {
   readonly activeAthleteId?: number | null;
   readonly contactPoint?: TacticalPoint | null;
   readonly setterAthleteId?: number | null;
+  readonly serverAthleteId?: number | null;
+  readonly serverPoint?: TacticalPoint | null;
   readonly reservedAthleteIds?: readonly number[];
 }
 
@@ -66,10 +68,15 @@ export class TeamTacticsSystem {
       activeAthleteId: request.activeAthleteId ?? null,
       contactPoint: request.contactPoint ?? null,
       setterAthleteId: request.setterAthleteId ?? null,
+      serverAthleteId: request.serverAthleteId ?? null,
+      serverPoint: request.serverPoint ?? null,
     };
     const plan = this.brains[team.side].plan(frame);
     const reserved = new Set(request.reservedAthleteIds ?? []);
     if (frame.activeAthleteId !== null) reserved.add(frame.activeAthleteId);
+    if (frame.serverAthleteId !== null && frame.serverAthleteId !== undefined) {
+      reserved.add(frame.serverAthleteId);
+    }
     const commands = plan.assignments
       .filter((assignment) => !reserved.has(assignment.athleteId))
       .map((assignment) => {
@@ -138,6 +145,9 @@ export class TeamTacticsSystem {
       request.planId ?? null,
       request.activeAthleteId ?? null,
       request.setterAthleteId ?? null,
+      request.serverAthleteId ?? null,
+      request.serverPoint?.x ?? null,
+      request.serverPoint?.z ?? null,
       point?.x ?? null,
       point?.z ?? null,
       request.team.slots,
