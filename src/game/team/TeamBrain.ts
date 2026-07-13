@@ -66,6 +66,13 @@ export class TeamBrain {
           target: athlete.base,
         }));
         break;
+      case 'hold':
+        assignments = athletes.map((athlete) => ({
+          athleteId: athlete.athleteId,
+          role: 'base',
+          target: athlete.position,
+        }));
+        break;
       case 'reception':
         assignments = this.planReception(frame, athletes);
         break;

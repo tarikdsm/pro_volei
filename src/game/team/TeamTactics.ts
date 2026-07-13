@@ -25,6 +25,7 @@ export type TeamTacticsPhase =
   | 'attack-coverage'
   | 'defense-read'
   | 'block-defense'
+  | 'hold'
   | 'recompose';
 
 export type TacticalRole =
