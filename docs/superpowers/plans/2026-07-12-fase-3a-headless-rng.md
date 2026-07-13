@@ -127,12 +127,27 @@ RandomHub ── rules / ai / contact / control
 
 ## Gate final
 
-- [ ] Golden vectors, streams, snapshot/restore e parser de seed estão estáveis.
-- [ ] Todo RNG de gameplay é explícito; apresentação não altera física/IA.
-- [ ] `humanSide: null` executa AI × AI usando as mesmas regras do browser.
-- [ ] HeadlessBall/Character/Hooks rodam sem DOM, canvas, WebGL, áudio ou timers wall-clock.
-- [ ] Um rally completo e batch de 100 rallies produzem métricas/journal determinísticos.
-- [ ] Mesma seed + inputs é idêntica; seeds diferentes divergem; 30/60/120 é invariável.
-- [ ] Checkpoint entre pontos reproduz o sufixo; mid-rally está explicitamente fora do escopo.
-- [ ] Testes, E2E, performance informativa, playtest, review, CI, Pages e smoke estão verdes.
-- [ ] Remoto continua literalmente somente `main`.
+- [x] Golden vectors, streams, snapshot/restore e parser de seed estão estáveis.
+- [x] Todo RNG de gameplay é explícito; apresentação não altera física/IA.
+- [x] `humanSide: null` executa AI × AI usando as mesmas regras do browser.
+- [x] HeadlessBall/Character/Hooks rodam sem DOM, canvas, WebGL, áudio ou timers wall-clock.
+- [x] Um rally completo e batch de 100 rallies produzem métricas/journal determinísticos.
+- [x] Mesma seed + inputs é idêntica; seeds diferentes divergem; 30/60/120 é invariável.
+- [x] Checkpoint entre pontos reproduz o sufixo; mid-rally está explicitamente fora do escopo.
+- [x] Testes, E2E, performance informativa, playtest, review, CI, Pages e smoke estão verdes.
+- [x] Remoto continua literalmente somente `main`.
+
+## Resultado de encerramento — 2026-07-12
+
+- RNG `xoshiro128**` versionado, quatro streams nomeados e guarda estática contra aleatoriedade
+  ambiental em `src/game/**`.
+- `Match` configurável com ports headless, AI × AI real e física da bola compartilhada entre os
+  adapters visual e lógico.
+- Journal `pro-volei-rally-journal-v1`, telemetria por outbox, métricas simétricas e checkpoint de
+  RNG somente na fronteira segura entre pontos.
+- Batch de referência: 100 rallies, 71.111 ticks, 52 × 48, hash `3ffc9230`, 316,3 ms localmente.
+- Gates locais: 72 arquivos de teste, 618 testes unitários/integrados, 15 E2E e build de produção.
+- Revisões independentes encerradas sem findings em RNG, ports headless, runner/journal e browser.
+- CI `29215756322` e deployment Pages `5417660432` verdes no SHA `c4fa0d6`.
+- Smoke público desktop/mobile: HTTP 200, seed `305441741`, journal debug disponível, partida em
+  `servePrep`, controles touch visíveis em paisagem e zero erro de console.
