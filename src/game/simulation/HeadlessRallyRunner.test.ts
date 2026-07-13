@@ -126,6 +126,8 @@ describe('HeadlessRallyRunner', () => {
     );
   }, 30_000);
 
+  // A matriz valida invariantes, não latência; sob coverage no runner compartilhado pode passar
+  // de 30 s após o lifecycle estratégico completo, sem indicar regressão funcional.
   it('executa matriz informativa de 1.000 rallies sem violações táticas', () => {
     const started = performance.now();
     const points = [0, 0];
@@ -146,7 +148,7 @@ describe('HeadlessRallyRunner', () => {
     console.info(
       `TACTICAL_MATRIX rallies=1000 points=${points.join(':')} doubleBlocks=${doubleBlocks} executedDoubleBlocks=${executedDoubleBlocks} elapsedMs=${elapsedMs.toFixed(1)}`,
     );
-  }, 30_000);
+  }, 60_000);
 
   it('falha com diagnóstico quando o watchdog de ticks é excedido', () => {
     const runner = new HeadlessRallyRunner({ seed: 1, maxTicksPerPoint: 1 });
