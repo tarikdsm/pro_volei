@@ -7,7 +7,59 @@ import {
   readActionSnapshot,
   readActionDown,
   readScreenAxis,
+  readSimulationClock,
 } from './gameHarness';
+
+test('portrait congela a simulação e landscape retoma automaticamente', async ({
+  page,
+}, testInfo) => {
+  const browserProblems = collectBrowserProblems(page);
+  await page.goto('/?touch=1&debug=1');
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.locator('#menu')).toBeVisible();
+  await expect(page.locator('#rotate-tip')).toBeHidden();
+  await page.getByRole('button', { name: 'JOGAR' }).click();
+
+  await expect(page.locator('#rotate-tip')).toBeVisible();
+  await expect(page.locator('#touch-controls')).toBeHidden();
+  await page.keyboard.down('ArrowRight');
+  await page.keyboard.down('Space');
+  const frozen = await readSimulationClock(page);
+  await page.waitForTimeout(350);
+
+  expect((await readSimulationClock(page)).tick).toBe(frozen.tick);
+  await expect(page.locator('#menu')).toBeHidden();
+
+  await page.setViewportSize({ width: 844, height: 390 });
+  await expect(page.locator('#rotate-tip')).toBeHidden();
+  await expect(page.locator('#touch-controls')).toBeVisible();
+  await expect
+    .poll(async () => (await readSimulationClock(page)).tick)
+    .toBeGreaterThan(frozen.tick);
+  await expect.poll(() => readActionDown(page)).toBe(false);
+  await expect.poll(async () => Math.hypot(...Object.values(await readScreenAxis(page)))).toBe(0);
+  await page.keyboard.up('ArrowRight');
+  await page.keyboard.up('Space');
+  await expect(page.locator('#menu')).toBeHidden();
+
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#menu')).toContainText('PAUSA');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.locator('#rotate-tip')).toBeHidden();
+  await expect(page.locator('#menu')).toContainText('PAUSA');
+  await page.keyboard.down('ArrowLeft');
+  await page.keyboard.down('Space');
+  await page.setViewportSize({ width: 844, height: 390 });
+  await expect(page.locator('#menu')).toContainText('PAUSA');
+  await page.getByRole('button', { name: 'CONTINUAR' }).click();
+  await expect.poll(() => readActionDown(page)).toBe(false);
+  await expect.poll(async () => Math.hypot(...Object.values(await readScreenAxis(page)))).toBe(0);
+  await page.keyboard.up('ArrowLeft');
+  await page.keyboard.up('Space');
+
+  await expectNoBrowserProblems(browserProblems, testInfo);
+});
 
 test('joystick e ação aceitam dois dedos reais e pausa não sintetiza teclado', async ({
   page,

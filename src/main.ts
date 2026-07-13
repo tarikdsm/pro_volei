@@ -175,8 +175,13 @@ function measureCameraSafeFrame(): Readonly<SafeFrame> {
 // aviso para jogar na horizontal
 const rotateTip = document.createElement('div');
 rotateTip.id = 'rotate-tip';
-rotateTip.textContent = '↻ Gire o celular — o jogo é melhor na horizontal';
+rotateTip.setAttribute('role', 'status');
+rotateTip.setAttribute('aria-live', 'polite');
+rotateTip.setAttribute('aria-hidden', 'true');
+rotateTip.textContent = '↻ Jogo pausado — gire o celular para continuar na horizontal';
 app.appendChild(rotateTip);
+const portraitQuery = matchMedia('(orientation: portrait)');
+let portraitBlocked = isTouch && portraitQuery.matches;
 
 // ---------- tempo de simulação ----------
 const slowMotionClock = new SlowMotionClock();
@@ -220,6 +225,7 @@ const match = new Match(
       // fim da partida: trava o estado em 'ended' para o Escape não abrir a pausa
       // sobre a tela de vitória (sobrescreveria o innerHTML e travaria a UI).
       appState = nextAppState(appState, 'matchEnded');
+      updateTouchOrientationPresentation();
       hud.show(false);
       touch?.show(false);
       menu.showVictory(homeWon, stats, scoreline);
@@ -268,12 +274,16 @@ menu.onStart = () => {
     });
   }
   match.startMatch(menu.difficulty, menu.format);
+  if (portraitBlocked) cancelGameplayInput('portrait');
+  updateTouchOrientationPresentation();
   markCameraLayoutDirty();
 };
 menu.onResume = () => {
   // botão CONTINUAR: o Menu já chamou hide(); aqui só destravamos o estado.
   match.snapPresentation();
   appState = nextAppState(appState, 'resume');
+  cancelGameplayInput(portraitBlocked ? 'portrait' : 'pause');
+  updateTouchOrientationPresentation();
   audio.uiClick();
   audio.resume(); // retoma o áudio caso o contexto tenha sido suspenso durante a pausa
   markCameraLayoutDirty();
@@ -285,15 +295,42 @@ function togglePause(): void {
   const previous = appState;
   appState = nextAppState(appState, 'togglePause');
   if (appState === 'paused') {
-    if (touch) touch.cancel('pause');
-    else input.cancel('pause');
-    match.cancelPendingAction('pause');
+    cancelGameplayInput('pause');
     menu.showPause();
   } else if (previous === 'paused') {
     match.snapPresentation();
     menu.hide();
     audio.resume();
   }
+  updateTouchOrientationPresentation();
+  markCameraLayoutDirty();
+}
+
+function cancelGameplayInput(reason: 'pause' | 'portrait'): void {
+  if (touch) touch.cancel(reason);
+  else input.cancel(reason);
+  match.cancelPendingAction(reason);
+}
+
+function updateTouchOrientationPresentation(): void {
+  const blockingGameplay = portraitBlocked && appState === 'playing';
+  document.body.classList.toggle('portrait-blocked', blockingGameplay);
+  rotateTip.setAttribute('aria-hidden', String(!blockingGameplay));
+}
+
+function syncTouchOrientation(): void {
+  const nextBlocked = isTouch && portraitQuery.matches;
+  if (nextBlocked === portraitBlocked) return;
+  portraitBlocked = nextBlocked;
+
+  if (appState === 'playing') {
+    cancelGameplayInput('portrait');
+    if (!nextBlocked) {
+      match.snapPresentation();
+      audio.resume();
+    }
+  }
+  updateTouchOrientationPresentation();
   markCameraLayoutDirty();
 }
 
@@ -313,6 +350,7 @@ window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
   director.camera.aspect = window.innerWidth / window.innerHeight;
   director.camera.updateProjectionMatrix();
+  syncTouchOrientation();
   markCameraLayoutDirty();
 });
 
@@ -333,7 +371,7 @@ function frame(now: number): void {
   lastPresentationNow = Math.max(lastPresentationNow, now);
 
   // só o estado 'playing' avança a partida; título/pausa/fim congelam o tempo de jogo
-  const active = appState === 'playing';
+  const active = appState === 'playing' && !portraitBlocked;
   const cameraBasis = director.inputBasis();
   const simulationFrame = fixedStepRunner.advance(now, {
     paused: !active,

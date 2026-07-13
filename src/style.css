@@ -327,8 +327,23 @@ body,
   pointer-events: none;
 }
 @media (orientation: portrait) {
-  body.touch #rotate-tip {
-    display: block;
+  body.touch.portrait-blocked #rotate-tip {
+    display: grid;
+    place-items: center;
+    inset: 0;
+    padding: max(32px, env(safe-area-inset-top, 0px)) 32px
+      max(32px, env(safe-area-inset-bottom, 0px));
+    background:
+      radial-gradient(circle at 50% 42%, rgba(35, 74, 112, 0.96), rgba(8, 18, 31, 0.985)), #08121f;
+    color: #f4f8ff;
+    font-size: clamp(18px, 5.5vw, 28px);
+    line-height: 1.35;
+    text-wrap: balance;
+    pointer-events: auto;
+  }
+
+  body.touch.portrait-blocked #touch-controls {
+    display: none !important;
   }
 }
 /* botões maiores no toque + HUD compacta entre os controles */
