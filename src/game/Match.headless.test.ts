@@ -38,6 +38,7 @@ function neutralFrame(tick: number): ControlFrame {
 class RecordingStrategy implements MatchStrategyPort {
   matchEpoch = 0;
   private serveEpoch = 0;
+  private rallyEpoch = 0;
   lastCaptureTick = 0;
   readonly captures: MatchStrategyTickSource[] = [];
   readonly begins: ServeEpochToken[] = [];
@@ -52,6 +53,26 @@ class RecordingStrategy implements MatchStrategyPort {
   }
 
   startSet(): void {}
+
+  beginOffenseRally: MatchStrategyPort['beginOffenseRally'] = () =>
+    Object.freeze({ matchEpoch: this.matchEpoch, rallyEpoch: ++this.rallyEpoch });
+  endOffenseRally: MatchStrategyPort['endOffenseRally'] = () => {};
+  observeOffenseContact: MatchStrategyPort['observeOffenseContact'] = () =>
+    Object.freeze({ status: 'stale' });
+  prepareOffenseSet: MatchStrategyPort['prepareOffenseSet'] = () =>
+    Object.freeze({ status: 'stale' });
+  bindOffenseSet: MatchStrategyPort['bindOffenseSet'] = () => Object.freeze({ status: 'stale' });
+  consumeOffenseSet: MatchStrategyPort['consumeOffenseSet'] = () =>
+    Object.freeze({ status: 'stale' });
+  prepareOffenseAttack: MatchStrategyPort['prepareOffenseAttack'] = () =>
+    Object.freeze({ status: 'stale' });
+  bindOffenseAttack: MatchStrategyPort['bindOffenseAttack'] = () =>
+    Object.freeze({ status: 'stale' });
+  consumeOffenseAttack: MatchStrategyPort['consumeOffenseAttack'] = () =>
+    Object.freeze({ status: 'stale' });
+  resolveOffenseBlock: MatchStrategyPort['resolveOffenseBlock'] = () => false;
+  resolveOffenseDefense: MatchStrategyPort['resolveOffenseDefense'] = () => false;
+  resolveOffensePoint: MatchStrategyPort['resolveOffensePoint'] = () => false;
 
   captureTick(source: MatchStrategyTickSource): void {
     this.lastCaptureTick = source.tick;

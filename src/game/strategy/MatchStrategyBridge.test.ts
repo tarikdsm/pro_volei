@@ -11,6 +11,7 @@ import {
   type MatchStrategyPort,
   type MatchStrategyTickSource,
 } from './MatchStrategyBridge';
+import { StrategicOffenseSystem } from './StrategicOffenseSystem';
 import type {
   ServeEpochToken,
   StrategicServeDirective,
@@ -113,6 +114,28 @@ function readyBridge(sink?: (event: StrategyOutboxEvent) => void) {
 }
 
 describe('MatchStrategyBridge perception and lifecycle', () => {
+  it('sincroniza e delega o lifecycle ofensivo sem expor o sistema interno', () => {
+    const reset = vi.spyOn(StrategicOffenseSystem.prototype, 'resetForMatch');
+    const begin = vi.spyOn(StrategicOffenseSystem.prototype, 'beginRally');
+    const end = vi.spyOn(StrategicOffenseSystem.prototype, 'endRally');
+    try {
+      const bridge: MatchStrategyPort = new MatchStrategyBridge(streams());
+      bridge.startMatch();
+
+      expect(reset).toHaveBeenCalledWith(1);
+      const rally = bridge.beginOffenseRally();
+      bridge.endOffenseRally(rally);
+
+      expect(begin).toHaveBeenCalledTimes(1);
+      expect(end).toHaveBeenCalledWith(rally);
+      expect(Object.keys(bridge)).not.toContain('offense');
+    } finally {
+      reset.mockRestore();
+      begin.mockRestore();
+      end.mockRestore();
+    }
+  });
+
   it('encaminha captura whitelisted pela fast path compacta do system', () => {
     const packed = vi.spyOn(OpponentStrategySystem.prototype, 'capturePackedFrame');
     const canonical = vi.spyOn(OpponentStrategySystem.prototype, 'captureCanonicalFrame');

@@ -20,6 +20,25 @@ import {
   type StrategicServeLaunchResult,
   type StrategicServeRealization,
 } from './StrategicServeSystem';
+import type {
+  AttackBindResult,
+  AttackConsumeResult,
+  AttackDecisionDraft,
+  AttackPrepareResult,
+  BoundAttackCommitment,
+} from './StrategicAttackTypes';
+import {
+  StrategicOffenseSystem,
+  type BoundSetCommitment,
+  type ObserveOffenseContactResult,
+  type OffenseContactRef,
+  type OffenseRallyRef,
+  type SetBindResult,
+  type SetConsumeResult,
+  type SetPlanIdentity,
+  type SetPrepareResult,
+} from './StrategicOffenseSystem';
+import type { OwnContactReadSource } from './OwnContactRead';
 import type { StrategyDifficulty, StrategyMemorySnapshot, StrategyPhase } from './StrategyTypes';
 
 export type MatchStrategyTickSource = Omit<StrategyObservationSource, 'ball'> &
@@ -72,6 +91,28 @@ export interface MatchStrategyPort {
     ref: ServeCommitmentRef,
     realization: StrategicServeRealization,
   ): StrategicServeLaunchResult;
+  beginOffenseRally(): OffenseRallyRef;
+  endOffenseRally(rally: OffenseRallyRef): void;
+  observeOffenseContact(
+    rally: OffenseRallyRef,
+    source: OwnContactReadSource,
+    possessionTouches: 1 | 2 | 3,
+  ): ObserveOffenseContactResult;
+  prepareOffenseSet(contact: OffenseContactRef, difficulty: StrategyDifficulty): SetPrepareResult;
+  bindOffenseSet(ref: OffenseContactRef, plan: SetPlanIdentity): SetBindResult;
+  consumeOffenseSet(commitment: BoundSetCommitment, plan: SetPlanIdentity): SetConsumeResult;
+  prepareOffenseAttack(
+    setContact: OffenseContactRef,
+    difficulty: StrategyDifficulty,
+  ): AttackPrepareResult;
+  bindOffenseAttack(draft: AttackDecisionDraft, plan: SetPlanIdentity): AttackBindResult;
+  consumeOffenseAttack(
+    commitment: BoundAttackCommitment,
+    plan: SetPlanIdentity,
+  ): AttackConsumeResult;
+  resolveOffenseBlock(commitment: BoundAttackCommitment): boolean;
+  resolveOffenseDefense(commitment: BoundAttackCommitment, effectiveness: number): boolean;
+  resolveOffensePoint(rally: OffenseRallyRef, winner: TeamSide): boolean;
   onBallContact(contact: MatchStrategyBallContact): boolean;
   onPoint(point: MatchStrategyPoint): boolean;
   memory(side: TeamSide): StrategyMemorySnapshot;
@@ -112,6 +153,7 @@ function contactTick(tick: number): number {
 export class MatchStrategyBridge implements MatchStrategyPort {
   readonly #strategy: OpponentStrategySystem;
   readonly #serves: StrategicServeSystem;
+  readonly #offense: StrategicOffenseSystem;
   readonly #observationPacker = new StrategyObservationPacker();
   #currentMatchEpoch = 0;
   #latestCapturedTick: number | null = null;
@@ -126,6 +168,7 @@ export class MatchStrategyBridge implements MatchStrategyPort {
   ) {
     this.#strategy = new OpponentStrategySystem({ streams, sink });
     this.#serves = new StrategicServeSystem(this.#strategy);
+    this.#offense = new StrategicOffenseSystem(this.#strategy);
   }
 
   get matchEpoch(): number {
@@ -137,6 +180,7 @@ export class MatchStrategyBridge implements MatchStrategyPort {
     if (!Number.isSafeInteger(nextEpoch)) throw new RangeError('matchEpoch excedeu o limite');
     this.#serves.startMatch();
     this.#currentMatchEpoch = nextEpoch;
+    this.#offense.resetForMatch(nextEpoch);
     this.#latestCapturedTick = null;
     this.#lastVisibleContactTick = null;
     this.#currentServe = undefined;
@@ -228,6 +272,64 @@ export class MatchStrategyBridge implements MatchStrategyPort {
       });
     }
     return result;
+  }
+
+  beginOffenseRally(): OffenseRallyRef {
+    return this.#offense.beginRally();
+  }
+
+  endOffenseRally(rally: OffenseRallyRef): void {
+    this.#offense.endRally(rally);
+  }
+
+  observeOffenseContact(
+    rally: OffenseRallyRef,
+    source: OwnContactReadSource,
+    possessionTouches: 1 | 2 | 3,
+  ): ObserveOffenseContactResult {
+    return this.#offense.observeContact(rally, source, possessionTouches);
+  }
+
+  prepareOffenseSet(contact: OffenseContactRef, difficulty: StrategyDifficulty): SetPrepareResult {
+    return this.#offense.prepareSet(contact, difficulty);
+  }
+
+  bindOffenseSet(ref: OffenseContactRef, plan: SetPlanIdentity): SetBindResult {
+    return this.#offense.bindSet(ref, plan);
+  }
+
+  consumeOffenseSet(commitment: BoundSetCommitment, plan: SetPlanIdentity): SetConsumeResult {
+    return this.#offense.consumeSet(commitment, plan);
+  }
+
+  prepareOffenseAttack(
+    setContact: OffenseContactRef,
+    difficulty: StrategyDifficulty,
+  ): AttackPrepareResult {
+    return this.#offense.prepareAttack(setContact, difficulty);
+  }
+
+  bindOffenseAttack(draft: AttackDecisionDraft, plan: SetPlanIdentity): AttackBindResult {
+    return this.#offense.bindAttack(draft, plan);
+  }
+
+  consumeOffenseAttack(
+    commitment: BoundAttackCommitment,
+    plan: SetPlanIdentity,
+  ): AttackConsumeResult {
+    return this.#offense.consumeAttack(commitment, plan);
+  }
+
+  resolveOffenseBlock(commitment: BoundAttackCommitment): boolean {
+    return this.#offense.resolveAttackBlock(commitment);
+  }
+
+  resolveOffenseDefense(commitment: BoundAttackCommitment, effectiveness: number): boolean {
+    return this.#offense.resolveAttackDefense(commitment, effectiveness);
+  }
+
+  resolveOffensePoint(rally: OffenseRallyRef, winner: TeamSide): boolean {
+    return this.#offense.resolveOffensePoint(rally, winner);
   }
 
   onBallContact(contact: MatchStrategyBallContact): boolean {

@@ -30,6 +30,7 @@ import type { StrategyDifficulty, StrategyMemorySnapshot } from './StrategyTypes
 class RecordingPort implements MatchStrategyPort {
   matchEpoch = 0;
   serveEpoch = 0;
+  rallyEpoch = 0;
   notReady = 0;
   contactResult = false;
   pointResult = false;
@@ -52,6 +53,26 @@ class RecordingPort implements MatchStrategyPort {
   startSet(): void {
     this.startSetCalls++;
   }
+
+  beginOffenseRally: MatchStrategyPort['beginOffenseRally'] = () =>
+    Object.freeze({ matchEpoch: this.matchEpoch, rallyEpoch: ++this.rallyEpoch });
+  endOffenseRally: MatchStrategyPort['endOffenseRally'] = () => {};
+  observeOffenseContact: MatchStrategyPort['observeOffenseContact'] = () =>
+    Object.freeze({ status: 'stale' });
+  prepareOffenseSet: MatchStrategyPort['prepareOffenseSet'] = () =>
+    Object.freeze({ status: 'stale' });
+  bindOffenseSet: MatchStrategyPort['bindOffenseSet'] = () => Object.freeze({ status: 'stale' });
+  consumeOffenseSet: MatchStrategyPort['consumeOffenseSet'] = () =>
+    Object.freeze({ status: 'stale' });
+  prepareOffenseAttack: MatchStrategyPort['prepareOffenseAttack'] = () =>
+    Object.freeze({ status: 'stale' });
+  bindOffenseAttack: MatchStrategyPort['bindOffenseAttack'] = () =>
+    Object.freeze({ status: 'stale' });
+  consumeOffenseAttack: MatchStrategyPort['consumeOffenseAttack'] = () =>
+    Object.freeze({ status: 'stale' });
+  resolveOffenseBlock: MatchStrategyPort['resolveOffenseBlock'] = () => false;
+  resolveOffenseDefense: MatchStrategyPort['resolveOffenseDefense'] = () => false;
+  resolveOffensePoint: MatchStrategyPort['resolveOffensePoint'] = () => false;
 
   captureTick(source: MatchStrategyTickSource): void {
     this.captures.push(source);
