@@ -181,6 +181,25 @@ export const STRATEGIC_SERVE_TUNING = {
   },
 } as const;
 
+/** Realização física das decisões de levantamento e ataque já comprometidas pela estratégia. */
+export const STRATEGIC_OFFENSE_REALIZATION = {
+  setDrawBudget: 2,
+  attackDrawBudget: 4,
+  setDispersion: { x: 0.22, z: 0.32 },
+  setApex: { quick: 0.42, accelerated: 0.9, high: 1.55 },
+  safety: { depth: 6, lateral: 2.8, apex: 2.2 },
+  attackDispersion: { power: 0.55, placed: 0.3, tip: 0.2 },
+  attackSpeed: { power: [18, 23], placed: [13, 17] } as const,
+  tipApex: 0.68,
+  error: {
+    netModeBelow: 0.5,
+    longDepth: [9.6, 11.2] as const,
+    lateral: 4.8,
+    netDepth: 0.3,
+    netHeight: 1,
+  },
+} as const;
+
 // Posições-base por slot de rodízio (para o lado HOME, x negativo).
 // Slots: 0..5 = posições 1(fundo-dir), 6(fundo-centro), 5(fundo-esq), 4(frente-esq), 3(frente-centro), 2(frente-dir)
 // Do ponto de vista de quem olha para a rede no lado HOME: +z é a direita.

@@ -1,18 +1,27 @@
 // Mecânica dos toques: despacho do toque e as três ações (passe, levantamento, cortada).
 // Funções livres sobre o MechanicsCtx, extraídas de Match.ts.
 import * as THREE from 'three';
-import { CONTACT, ATTACK_ZONES, TeamSide, otherSide, sideSign } from '../../core/constants';
+import {
+  CONTACT,
+  ATTACK_ZONES,
+  STRATEGIC_OFFENSE_REALIZATION,
+  TeamSide,
+  otherSide,
+  sideSign,
+} from '../../core/constants';
 import { ballisticArc, ballisticDrive, clamp, lerp } from '../../core/math3d';
 import { TouchPlan } from '../RallyState';
 import type { ActionIntent } from '../control/ActionIntent';
 import { resolveBlock } from './block';
 import type { MechanicsCtx } from './context';
+import type { CpuTouchExecution } from '../strategy/StrategicTouchExecution';
 
 export function executeTouch(
   ctx: MechanicsCtx,
   plan: TouchPlan,
   quality: number,
   intent?: ActionIntent,
+  cpuExecution?: CpuTouchExecution,
 ): void {
   const { athlete, kind, side } = plan;
   plan.done = true;
@@ -42,10 +51,16 @@ export function executeTouch(
       doFreeball(ctx, plan, quality, intent);
       break;
     case 'set':
-      doSet(ctx, plan, quality, intent);
+      doSet(ctx, plan, quality, intent, cpuExecution?.kind === 'set' ? cpuExecution : undefined);
       break;
     case 'spike':
-      doSpike(ctx, plan, quality, intent);
+      doSpike(
+        ctx,
+        plan,
+        quality,
+        intent,
+        cpuExecution?.kind === 'spike' ? cpuExecution : undefined,
+      );
       break;
     default:
       doPass(ctx, plan, quality);
@@ -114,13 +129,61 @@ function doPass(ctx: MechanicsCtx, plan: TouchPlan, q: number, intent?: ActionIn
   ctx.planNext('set');
 }
 
-function doSet(ctx: MechanicsCtx, plan: TouchPlan, q: number, intent?: ActionIntent): void {
+function doSet(
+  ctx: MechanicsCtx,
+  plan: TouchPlan,
+  q: number,
+  intent?: ActionIntent,
+  cpuExecution?: Extract<CpuTouchExecution, { kind: 'set' }>,
+): void {
   const { athlete, side } = plan;
   athlete.act('set', 0.55);
   ctx.hooks.audio.hitSoft();
 
   const team = ctx.teamOf(side);
   // zona de ataque: humano escolheu com A/W/D; IA escolhe aleatória
+  if (!plan.isHuman && cpuExecution) {
+    const noiseX = ctx.random.contact.range(-1, 1);
+    const noiseZ = ctx.random.contact.range(-1, 1);
+    ctx.rally.setterHold = null;
+    if (cpuExecution.execution.mode === 'safety-freeball') {
+      const tuning = STRATEGIC_OFFENSE_REALIZATION.safety;
+      const target = new THREE.Vector3(
+        sideSign(otherSide(side)) * (tuning.depth + noiseX * 0.35),
+        0,
+        noiseZ * tuning.lateral,
+      );
+      const { v0 } = ballisticArc(plan.point.clone(), target, tuning.apex);
+      ctx.ball.launch(plan.point.clone(), v0);
+      ctx.rally.lastKind = 'freeball';
+      ctx.rally.plannedAttacker = null;
+      emitContact(ctx, plan, 'freeball', q, target);
+      ctx.hooks.zoneHint(null);
+      ctx.planNext('pass');
+      return;
+    }
+
+    const spread = 1 - clamp(q, 0, 1);
+    const dispersion = STRATEGIC_OFFENSE_REALIZATION.setDispersion;
+    const contact = new THREE.Vector3(
+      cpuExecution.execution.target.x + noiseX * dispersion.x * spread,
+      CONTACT.spike,
+      clamp(cpuExecution.execution.target.z + noiseZ * dispersion.z * spread, -4.1, 4.1),
+    );
+    const attackerId = cpuExecution.attackerAthleteId;
+    ctx.rally.plannedAttacker =
+      attackerId === null
+        ? team.nearestFrontRowTo(contact.z, athlete)
+        : (team.athletes[attackerId] ?? team.nearestFrontRowTo(contact.z, athlete));
+    const apex = STRATEGIC_OFFENSE_REALIZATION.setApex[cpuExecution.execution.family];
+    const { v0 } = ballisticArc(plan.point.clone(), contact, apex + spread * 0.7);
+    ctx.ball.launch(plan.point.clone(), v0);
+    emitContact(ctx, plan, 'set', q, contact);
+    ctx.hooks.zoneHint(null);
+    ctx.planNext('spike');
+    return;
+  }
+
   const zoneIdx = plan.isHuman ? ctx.chosenZone : ctx.random.ai.pick([0, 1, 2]);
   const zoneZ = side === TeamSide.HOME ? ATTACK_ZONES[zoneIdx] : -ATTACK_ZONES[zoneIdx];
   const attacker = team.nearestFrontRowTo(zoneZ, athlete);
@@ -146,7 +209,13 @@ function doSet(ctx: MechanicsCtx, plan: TouchPlan, q: number, intent?: ActionInt
   ctx.planNext('spike');
 }
 
-function doSpike(ctx: MechanicsCtx, plan: TouchPlan, q: number, intent?: ActionIntent): void {
+function doSpike(
+  ctx: MechanicsCtx,
+  plan: TouchPlan,
+  q: number,
+  intent?: ActionIntent,
+  cpuExecution?: Extract<CpuTouchExecution, { kind: 'spike' }>,
+): void {
   const { athlete, side } = plan;
   athlete.act('spikeHit', 0.5);
   ctx.hooks.audio.hitHard();
@@ -158,9 +227,35 @@ function doSpike(ctx: MechanicsCtx, plan: TouchPlan, q: number, intent?: ActionI
   const enemy = otherSide(side);
   const s = sideSign(enemy);
   let target: THREE.Vector3;
+  let strategicNetMiss = false;
   const isAI = !plan.isHuman;
 
-  if (isAI && ctx.random.contact.chance(ctx.diff.attackError)) {
+  if (isAI && cpuExecution) {
+    const missed = ctx.random.contact.chance(ctx.diff.attackError);
+    const netError = ctx.random.contact.chance(STRATEGIC_OFFENSE_REALIZATION.error.netModeBelow);
+    const noiseX = ctx.random.contact.range(-1, 1);
+    const noiseZ = ctx.random.contact.range(-1, 1);
+    if (missed) {
+      const error = STRATEGIC_OFFENSE_REALIZATION.error;
+      strategicNetMiss = netError;
+      target = netError
+        ? new THREE.Vector3(s * error.netDepth, error.netHeight, noiseZ * 3)
+        : new THREE.Vector3(
+            s * lerp(error.longDepth[0], error.longDepth[1], (noiseX + 1) / 2),
+            0,
+            noiseZ * error.lateral,
+          );
+    } else {
+      const dispersion =
+        STRATEGIC_OFFENSE_REALIZATION.attackDispersion[cpuExecution.execution.family];
+      const spread = dispersion * (0.2 + (1 - clamp(q, 0, 1)) * 0.8);
+      target = new THREE.Vector3(
+        cpuExecution.execution.target.x + noiseX * spread,
+        0,
+        cpuExecution.execution.target.z + noiseZ * spread,
+      );
+    }
+  } else if (isAI && ctx.random.contact.chance(ctx.diff.attackError)) {
     target = ctx.random.contact.chance(0.5)
       ? new THREE.Vector3(
           s * ctx.random.contact.range(9.5, 11.5),
@@ -188,7 +283,17 @@ function doSpike(ctx: MechanicsCtx, plan: TouchPlan, q: number, intent?: ActionI
 
   const dist = Math.hypot(target.x - plan.point.x, target.z - plan.point.z);
   let v0: THREE.Vector3;
-  if (!isAI && intent?.technique === 'tip') {
+  if (isAI && cpuExecution && strategicNetMiss) {
+    const time = clamp(dist / 16, 0.18, 0.45);
+    v0 = ballisticDrive(plan.point.clone(), target, time).v0;
+  } else if (isAI && cpuExecution?.execution.family === 'tip') {
+    v0 = ballisticArc(plan.point.clone(), target, STRATEGIC_OFFENSE_REALIZATION.tipApex).v0;
+  } else if (isAI && cpuExecution && cpuExecution.execution.family !== 'tip') {
+    const speedRange = STRATEGIC_OFFENSE_REALIZATION.attackSpeed[cpuExecution.execution.family];
+    const speed = lerp(speedRange[0], speedRange[1], clamp(q, 0, 1));
+    const time = clamp(dist / speed, 0.3, 0.9);
+    v0 = ballisticDrive(plan.point.clone(), target, time).v0;
+  } else if (!isAI && intent?.technique === 'tip') {
     v0 = ballisticArc(plan.point.clone(), target, 0.65).v0;
   } else {
     const speed =

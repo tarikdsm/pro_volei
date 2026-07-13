@@ -46,6 +46,8 @@ class RecordingStrategy implements MatchStrategyPort {
   readonly launchTicks: number[] = [];
   readonly contacts: MatchStrategyBallContact[] = [];
   readonly points: MatchStrategyPoint[] = [];
+  readonly offenseRallies: number[] = [];
+  offenseEnds = 0;
   onCapture?: () => void;
 
   startMatch(): void {
@@ -54,9 +56,14 @@ class RecordingStrategy implements MatchStrategyPort {
 
   startSet(): void {}
 
-  beginOffenseRally: MatchStrategyPort['beginOffenseRally'] = () =>
-    Object.freeze({ matchEpoch: this.matchEpoch, rallyEpoch: ++this.rallyEpoch });
-  endOffenseRally: MatchStrategyPort['endOffenseRally'] = () => {};
+  beginOffenseRally: MatchStrategyPort['beginOffenseRally'] = () => {
+    const rallyEpoch = ++this.rallyEpoch;
+    this.offenseRallies.push(rallyEpoch);
+    return Object.freeze({ matchEpoch: this.matchEpoch, rallyEpoch });
+  };
+  endOffenseRally: MatchStrategyPort['endOffenseRally'] = () => {
+    this.offenseEnds++;
+  };
   observeOffenseContact: MatchStrategyPort['observeOffenseContact'] = () =>
     Object.freeze({ status: 'stale' });
   prepareOffenseSet: MatchStrategyPort['prepareOffenseSet'] = () =>
@@ -223,6 +230,7 @@ describe('Match headless AI × AI', () => {
       },
       ballAfter: { inFlight: true },
     });
+    expect(strategy.offenseRallies).toEqual([1]);
   });
 
   it('novo startMatch invalida o callback de saque anterior sem commit tardio', () => {
@@ -324,7 +332,13 @@ describe('Match headless AI × AI', () => {
 
     const withoutTelemetry = run(false);
     const failedTelemetry = run(true);
-    expect(withoutTelemetry.memory.outcomes).toHaveLength(1);
+    expect(
+      withoutTelemetry.memory.outcomes.filter((outcome) => outcome.kind === 'serve'),
+    ).toHaveLength(1);
+    expect(withoutTelemetry.memory.outcomes.some((outcome) => outcome.kind === 'set')).toBe(true);
+    expect(withoutTelemetry.memory.outcomes.some((outcome) => outcome.kind === 'attack')).toBe(
+      true,
+    );
     expect(failedTelemetry.memory).toEqual(withoutTelemetry.memory);
     expect(failedTelemetry.score).toEqual(withoutTelemetry.score);
     expect(failedTelemetry.random).toEqual(withoutTelemetry.random);

@@ -13,6 +13,8 @@ import type {
 } from '../control/ActionIntent';
 import { RandomHub } from '../../core/random';
 import { SequenceRandom } from '../../core/random/testing/SequenceRandom';
+import type { CpuTouchExecution } from '../strategy/StrategicTouchExecution';
+import { computeNetCrossing } from './net';
 
 function makeRandomStreams(seed = 1) {
   const hub = new RandomHub(seed);
@@ -67,6 +69,7 @@ function makeCtx(stalePos: THREE.Vector3): {
     },
   } as unknown as Athlete;
   const team = {
+    athletes: Array.from({ length: 6 }, () => athlete),
     setterSpot: () => ({ x: -0.95, z: 1.1 }),
     nearestTo: () => athlete,
     nearestFrontRowTo: () => athlete,
@@ -324,5 +327,172 @@ describe('executeTouch — ownership e orçamento de RNG', () => {
 
     expect(contact.draws).toBe(3);
     expect(drawsAtEmission).toEqual([3]);
+  });
+});
+
+describe('executeTouch — realização ofensiva estratégica da CPU', () => {
+  function cpuPlan(sample: ReturnType<typeof makeCtx>, kind: 'set' | 'spike'): TouchPlan {
+    const plan = makePlan(kind, sample.ctx.teamOf(TeamSide.AWAY).nearestTo(0, 0));
+    plan.side = TeamSide.AWAY;
+    plan.isHuman = false;
+    plan.point.set(3, kind === 'set' ? 2.25 : 3, 0);
+    return plan;
+  }
+
+  it('realiza set comprometido com dois draws físicos, zero draws de IA e family observável', () => {
+    const high = makeCtx(new THREE.Vector3());
+    const quick = makeCtx(new THREE.Vector3());
+    const highContact = SequenceRandom.fromFloats([0.25, 0.75]);
+    const quickContact = SequenceRandom.fromFloats([0.25, 0.75]);
+    const highAi = SequenceRandom.fromFloats([0.1]);
+    const quickAi = SequenceRandom.fromFloats([0.1]);
+    Object.assign(high.ctx.random, { contact: highContact, ai: highAi });
+    Object.assign(quick.ctx.random, { contact: quickContact, ai: quickAi });
+    const highCommand: CpuTouchExecution = Object.freeze({
+      kind: 'set',
+      attackerAthleteId: 2,
+      execution: Object.freeze({
+        mode: 'fallback-high',
+        reason: 'perception-not-ready',
+        optionId: 'set.high-left',
+        family: 'high',
+        target: Object.freeze({ x: 1, z: 2 }),
+        attackerAthleteId: 2,
+      }),
+    });
+    const quickCommand: CpuTouchExecution = Object.freeze({
+      kind: 'set',
+      attackerAthleteId: 2,
+      execution: Object.freeze({
+        mode: 'strategic',
+        decisionId: 'set:quick',
+        optionId: 'set.quick-center',
+        family: 'quick',
+        target: Object.freeze({ x: 1, z: 0 }),
+        observationTick: 10,
+      }),
+    });
+
+    executeTouch(high.ctx, cpuPlan(high, 'set'), 1, undefined, highCommand);
+    executeTouch(quick.ctx, cpuPlan(quick, 'set'), 1, undefined, quickCommand);
+
+    expect(highContact.draws).toBe(2);
+    expect(quickContact.draws).toBe(2);
+    expect(highAi.draws).toBe(0);
+    expect(quickAi.draws).toBe(0);
+    expect(high.ball.vel.y).toBeGreaterThan(quick.ball.vel.y);
+    expect(high.ball.vel.x).toBeLessThan(0);
+    expect(high.ball.vel.z).toBeGreaterThan(0);
+    expect(high.order).toEqual(['ball:launch', 'contact:set', 'plan:spike']);
+  });
+
+  it('safety-freeball cruza a rede, emite um contato e não agenda cortada', () => {
+    const sample = makeCtx(new THREE.Vector3());
+    const contact = SequenceRandom.fromFloats([0.25, 0.75]);
+    const ai = SequenceRandom.fromFloats([0.1]);
+    Object.assign(sample.ctx.random, { contact, ai });
+    const command: CpuTouchExecution = Object.freeze({
+      kind: 'set',
+      attackerAthleteId: null,
+      execution: Object.freeze({
+        mode: 'safety-freeball',
+        reason: 'no-attacker',
+      }),
+    });
+
+    executeTouch(sample.ctx, cpuPlan(sample, 'set'), 1, undefined, command);
+
+    expect(contact.draws).toBe(2);
+    expect(ai.draws).toBe(0);
+    expect(sample.ball.vel.x).toBeLessThan(0);
+    expect(sample.ctx.rally.lastKind).toBe('freeball');
+    expect(sample.domainContacts.map((event) => event.kind)).toEqual(['freeball']);
+    expect(sample.planned).toEqual(['pass']);
+  });
+
+  it.each([
+    ['power', 'attack.power-line-deep', 0],
+    ['placed', 'attack.placed-seam', 0.3],
+    ['tip', 'attack.tip-short-center', -0.4],
+  ] as const)(
+    'realiza ataque %s no target mundo com quatro draws e zero IA',
+    (family, optionId, z) => {
+      const sample = makeCtx(new THREE.Vector3());
+      const contact = SequenceRandom.fromFloats([0.9, 0.2, 0.5, 0.5]);
+      const ai = SequenceRandom.fromFloats([0.1]);
+      Object.assign(sample.ctx.random, { contact, ai });
+      const command: CpuTouchExecution = Object.freeze({
+        kind: 'spike',
+        execution: Object.freeze({
+          mode: 'strategic',
+          decisionId: `attack:${family}`,
+          optionId,
+          family,
+          target: Object.freeze({ x: -7, z }),
+          observationTick: 12,
+        }),
+      });
+
+      executeTouch(sample.ctx, cpuPlan(sample, 'spike'), 1, undefined, command);
+
+      expect(contact.draws).toBe(4);
+      expect(ai.draws).toBe(0);
+      expect(sample.ball.vel.x).toBeLessThan(0);
+      expect(Math.sign(sample.ball.vel.z)).toBe(Math.sign(z));
+      expect(sample.order.slice(0, 2)).toEqual(['ball:launch', 'contact:spike']);
+    },
+  );
+
+  it('mantém orçamento de quatro draws também quando o ataque estratégico erra', () => {
+    const sample = makeCtx(new THREE.Vector3());
+    const contact = SequenceRandom.fromFloats([0.01, 0.2, 0.5, 0.5]);
+    const ai = SequenceRandom.fromFloats([0.1]);
+    Object.assign(sample.ctx.random, { contact, ai });
+    Object.assign(sample.ctx.diff, { attackError: 1 });
+    const command: CpuTouchExecution = Object.freeze({
+      kind: 'spike',
+      execution: Object.freeze({
+        mode: 'fallback-placed-seam',
+        reason: 'fallback-set',
+        optionId: 'attack.placed-seam',
+        family: 'placed',
+        target: Object.freeze({ x: -7, z: 0 }),
+      }),
+    });
+
+    const plan = cpuPlan(sample, 'spike');
+    plan.point.x = 0.82;
+    executeTouch(sample.ctx, plan, 1, undefined, command);
+
+    expect(contact.draws).toBe(4);
+    expect(ai.draws).toBe(0);
+  });
+
+  it('erro de largada sorteado na rede realmente cruza abaixo da fita', () => {
+    const sample = makeCtx(new THREE.Vector3());
+    const contact = SequenceRandom.fromFloats([0.01, 0.2, 0.5, 0.5]);
+    Object.assign(sample.ctx.random, {
+      contact,
+      ai: SequenceRandom.fromFloats([0.1]),
+    });
+    Object.assign(sample.ctx.diff, { attackError: 1 });
+    const command: CpuTouchExecution = Object.freeze({
+      kind: 'spike',
+      execution: Object.freeze({
+        mode: 'strategic',
+        decisionId: 'attack:tip-net-error',
+        optionId: 'attack.tip-short-center',
+        family: 'tip',
+        target: Object.freeze({ x: -2.5, z: 0 }),
+        observationTick: 12,
+      }),
+    });
+
+    const plan = cpuPlan(sample, 'spike');
+    plan.point.x = 0.82;
+    executeTouch(sample.ctx, plan, 1, undefined, command);
+
+    expect(computeNetCrossing(sample.ball.pos, sample.ball.vel).kind).toBe('net');
+    expect(contact.draws).toBe(4);
   });
 });

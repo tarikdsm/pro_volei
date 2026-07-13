@@ -26,6 +26,7 @@ import { prepareBlock } from './mechanics/block';
 import { executeTouch } from './mechanics/touch';
 import { MechanicsCtx, type GameplayRandomStreams } from './mechanics/context';
 import { HumanController } from './control/HumanController';
+import type { ActionIntent } from './control/ActionIntent';
 import type { ControlFrame } from './control/ControlFrame';
 import type { InputCancelReason } from '../core/input/InputFrame';
 import { AiController } from './ai/AiController';
@@ -435,21 +436,29 @@ export class Match {
     if (this.rally.possessionTeam === landSide && this.rally.possessionTouches >= 3) return;
 
     const team = this.teamOf(landSide);
+    const isHuman = this.isHumanSide(landSide);
+    const strategicAthleteId =
+      !isHuman && (nextKind === 'set' || nextKind === 'spike')
+        ? this.strategyCoordinator.plannedCpuAthlete(nextKind, landSide)
+        : null;
+    const strategicAthlete =
+      strategicAthleteId === null ? null : (team.athletes[strategicAthleteId] ?? null);
     let athlete: Athlete;
     if (nextKind === 'set') {
       const sp = team.setterSpot();
       athlete =
+        strategicAthlete ??
         (this.rally.setterHold?.side === landSide ? this.rally.setterHold : null) ??
         team.nearestTo(sp.x, sp.z, this.rally.lastToucher ?? undefined);
     } else if (nextKind === 'spike') {
       athlete =
+        strategicAthlete ??
         (this.rally.plannedAttacker?.side === landSide ? this.rally.plannedAttacker : null) ??
         team.nearestFrontRowTo(cPoint.z, this.rally.lastToucher ?? undefined);
     } else {
       athlete = team.nearestTo(cPoint.x, cPoint.z, this.rally.excludedPasser(landSide));
     }
 
-    const isHuman = this.isHumanSide(landSide);
     this.rally.plan = {
       planId: this.rally.allocatePlanId(),
       side: landSide,
@@ -469,6 +478,7 @@ export class Match {
       humanReceptionAssigned = true;
     }
     this.coordinateTeamPlan(this.rally.plan);
+    this.strategyCoordinator.bindCpuPlan(this.rally.plan);
 
     // Aproximação: a IA agenda o deslocamento e o pulo. No humano, ataque e levantamento mantêm
     // rotas táticas; recepção fica nas setas + assistência limitada do AutoSelector.
@@ -603,7 +613,7 @@ export class Match {
         ? this.human.reachQuality(hard, medium, this.ctx)
         : this.ai.reachQuality(this.ctx, hard);
       if (isHuman && intent) this.emitTimingFeedback(plan, Math.max(0, q));
-      if (q >= 0) executeTouch(this.ctx, plan, q, intent ?? undefined);
+      if (q >= 0) this.executeConfirmedTouch(plan, q, intent ?? undefined);
       else a.act('dive', 0.8); // tentou e não conseguiu
     } else if (d <= CONTACT.lungeReach) {
       // peixinho!
@@ -613,7 +623,7 @@ export class Match {
         this.hooks.crowd.excite(0.6);
         const q = this.random.contact.range(0.08, 0.35);
         if (isHuman && intent) this.emitTimingFeedback(plan, q);
-        executeTouch(this.ctx, plan, q, intent ?? undefined);
+        this.executeConfirmedTouch(plan, q, intent ?? undefined);
       } else if (isHuman && intent) {
         this.emitTimingFeedback(plan, 0);
       }
@@ -633,7 +643,7 @@ export class Match {
     if (airborne && d <= 1.0) {
       const q = isHuman ? this.human.spikeQuality() : this.ai.spikeQuality(this.ctx);
       if (isHuman && intent) this.emitTimingFeedback(plan, q);
-      executeTouch(this.ctx, plan, q, intent ?? undefined);
+      this.executeConfirmedTouch(plan, q, intent ?? undefined);
     } else if (d <= CONTACT.lungeReach) {
       if (isHuman && intent) this.emitTimingFeedback(plan, 0);
       // não pulou/perdeu o tempo: bola de graça por cima (com risco de sair)
@@ -688,6 +698,11 @@ export class Match {
   private emitTimingFeedback(plan: TouchPlan, finalQuality: number): void {
     const event = this.human.takeTimingFeedback(plan.planId, finalQuality, plan.point);
     if (event) this.hooks.feedback.emit(event);
+  }
+
+  private executeConfirmedTouch(plan: TouchPlan, quality: number, intent?: ActionIntent): void {
+    const cpuExecution = this.strategyCoordinator.consumeCpuTouch(plan);
+    executeTouch(this.ctx, plan, quality, intent, cpuExecution ?? undefined);
   }
 
   /** Resolve o primeiro contato analítico com o piso no instante exato do tick. */
@@ -771,6 +786,7 @@ export class Match {
       after: (t, fn) => this.after(t, fn),
       planNext: (kind) => this.planNext(kind),
       startRally: () => {
+        this.strategyCoordinator.beginRally();
         this.state = 'rally';
         this.emitTelemetry({ type: 'rally-start', serving: this.servingTeam });
       },
