@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { TeamSide } from '../../core/constants';
 import { RandomHub } from '../../core/random';
 import { createHeadlessHooks } from './HeadlessHooks';
 import { HeadlessRallyRunner, runHeadlessBatch, runHeadlessRally } from './HeadlessRallyRunner';
@@ -12,6 +13,8 @@ describe('HeadlessRallyRunner', () => {
     expect(first.journalHash).toBe(replay.journalHash);
     expect(first.serializedTacticalTrace).toBe(replay.serializedTacticalTrace);
     expect(first.tacticalTraceHash).toBe(replay.tacticalTraceHash);
+    expect(first.serializedStrategyTrace).toBe(replay.serializedStrategyTrace);
+    expect(first.strategyTraceHash).toBe(replay.strategyTraceHash);
     expect(first).toMatchObject({
       winner: replay.winner,
       durationTicks: replay.durationTicks,
@@ -39,6 +42,8 @@ describe('HeadlessRallyRunner', () => {
     expect(sampled.journalHash).toBe(baseline.journalHash);
     expect(sampled.serializedTacticalTrace).toBe(baseline.serializedTacticalTrace);
     expect(sampled.tacticalTraceHash).toBe(baseline.tacticalTraceHash);
+    expect(sampled.serializedStrategyTrace).toBe(baseline.serializedStrategyTrace);
+    expect(sampled.strategyTraceHash).toBe(baseline.strategyTraceHash);
   });
 
   it.each([30, 120] as const)(
@@ -49,6 +54,7 @@ describe('HeadlessRallyRunner', () => {
 
       expect(sampled.serializedJournal).toBe(baseline.serializedJournal);
       expect(sampled.serializedTacticalTrace).toBe(baseline.serializedTacticalTrace);
+      expect(sampled.serializedStrategyTrace).toBe(baseline.serializedStrategyTrace);
       expect(sampled.rallies).toEqual(baseline.rallies);
     },
   );
@@ -65,13 +71,15 @@ describe('HeadlessRallyRunner', () => {
       const sampledNext = sampled.run(1);
       expect(sampledNext.serializedJournal).toBe(expectedNext.serializedJournal);
       expect(sampledNext.serializedTacticalTrace).toBe(expectedNext.serializedTacticalTrace);
+      expect(sampledNext.serializedStrategyTrace).toBe(expectedNext.serializedStrategyTrace);
       expect(sampledNext.rallies).toEqual(expectedNext.rallies);
     },
   );
 
   it('executa batch contínuo de 100 rallies com agregados simétricos', () => {
     const started = performance.now();
-    const batch = runHeadlessBatch({ seed: 0x2026_0712, rallies: 100 });
+    const runner = new HeadlessRallyRunner({ seed: 0x2026_0712 });
+    const batch = runner.run(100);
     const elapsedMs = performance.now() - started;
 
     expect(batch.rallies).toHaveLength(100);
@@ -114,6 +122,30 @@ describe('HeadlessRallyRunner', () => {
     );
     expect(batch.tacticalMetrics.arrivedAssignments).toBeGreaterThan(0);
     expect(batch.tacticalMetrics.executedDoubleBlocks).toBeGreaterThan(0);
+    expect(new Set(batch.strategyTrace.map((entry) => entry.side))).toEqual(new Set([0, 1]));
+    expect(new Set(batch.strategyTrace.map((entry) => entry.chosenOptionId)).size).toBeGreaterThan(
+      6,
+    );
+    expect(
+      batch.strategyTrace.every(
+        (entry) =>
+          entry.outcome !== null &&
+          entry.strategyDraws[1] - entry.strategyDraws[0] === 2 &&
+          entry.candidates.some((candidate) => candidate.optionId === entry.chosenOptionId),
+      ),
+    ).toBe(true);
+    const stochastic = runner.checkpointStochastic();
+    for (const [side, name] of [
+      [TeamSide.HOME, 'strategy.home'],
+      [TeamSide.AWAY, 'strategy.away'],
+    ] as const) {
+      const stream = stochastic.random.streams.find((entry) => entry.name === name);
+      expect(stream?.random.draws).toBe(stochastic.strategy.core.sequences[side] * 2);
+    }
+    expect(batch.strategyTrace).toHaveLength(
+      stochastic.strategy.core.sequences[TeamSide.HOME] +
+        stochastic.strategy.core.sequences[TeamSide.AWAY],
+    );
     expect(new Set(batch.tacticalTrace.map((entry) => entry.rally)).size).toBe(100);
     expect(batch.tacticalTrace.every((entry) => entry.rally >= 0 && entry.rally < 100)).toBe(true);
     for (let rally = 0; rally < 100; rally++) {
@@ -201,28 +233,48 @@ describe('HeadlessRallyRunner', () => {
     expect(cosmeticCalls).toBeGreaterThan(0);
   });
 
-  it('só permite checkpoint de RNG na fronteira de ponto', () => {
+  it('só permite checkpoint estocástico na fronteira de ponto', () => {
     const runner = new HeadlessRallyRunner({ seed: 5 });
 
-    expect(() => runner.checkpointRandom()).toThrow(/fronteira de ponto/);
+    expect(() => runner.checkpointStochastic()).toThrow(/fronteira de ponto/);
     runner.run(1);
-    const checkpoint = runner.checkpointRandom();
-    expect(() => runner.restoreRandom(checkpoint)).not.toThrow();
+    const checkpoint = runner.checkpointStochastic();
+    expect(() => runner.restoreStochastic(checkpoint)).not.toThrow();
+    expect(Object.isFrozen(checkpoint)).toBe(true);
+    expect(Object.isFrozen(checkpoint.fingerprint.homeSlots)).toBe(true);
   });
 
-  it('restaura o RNG na fronteira e reproduz byte a byte o rally seguinte', () => {
+  it('restaura RNG e estratégia e reproduz byte a byte o rally seguinte', () => {
     const control = new HeadlessRallyRunner({ seed: 5 });
     const restored = new HeadlessRallyRunner({ seed: 5 });
     control.run(1);
     restored.run(1);
-    const checkpoint = restored.checkpointRandom();
+    const checkpoint = control.checkpointStochastic();
+    const [homeMemory, awayMemory] = checkpoint.strategy.core.memories;
 
     const perturbation = new RandomHub(5);
+    perturbation.restore(checkpoint.random);
     for (const name of ['rules', 'ai', 'contact', 'control']) {
       perturbation.stream(name).nextUint32();
     }
-    restored.restoreRandom(perturbation.snapshot());
-    restored.restoreRandom(checkpoint);
+    const perturbed = {
+      ...checkpoint,
+      random: perturbation.snapshot(),
+      strategy: {
+        ...checkpoint.strategy,
+        core: {
+          ...checkpoint.strategy.core,
+          memories: [{ ...homeMemory, revision: homeMemory.revision + 1 }, awayMemory] as const,
+        },
+      },
+    };
+    restored.restoreStochastic(perturbed);
+    expect(restored.checkpointStochastic().random).toEqual(perturbed.random);
+    expect(restored.checkpointStochastic().random).not.toEqual(checkpoint.random);
+    expect(restored.checkpointStochastic().strategy).toEqual(perturbed.strategy);
+    expect(restored.checkpointStochastic().strategy).not.toEqual(checkpoint.strategy);
+    restored.restoreStochastic(checkpoint);
+    expect(restored.checkpointStochastic()).toEqual(checkpoint);
 
     const expected = control.run(1);
     const replay = restored.run(1);
@@ -230,6 +282,53 @@ describe('HeadlessRallyRunner', () => {
     expect(replay.journalHash).toBe(expected.journalHash);
     expect(replay.serializedTacticalTrace).toBe(expected.serializedTacticalTrace);
     expect(replay.tacticalTraceHash).toBe(expected.tacticalTraceHash);
+    expect(replay.serializedStrategyTrace).toBe(expected.serializedStrategyTrace);
+    expect(replay.strategyTraceHash).toBe(expected.strategyTraceHash);
+  });
+
+  it('rollback transacional preserva RNG e estratégia quando o checkpoint é inválido', () => {
+    const runner = new HeadlessRallyRunner({ seed: 0x3c_51 });
+    runner.run(1);
+    const before = runner.checkpointStochastic();
+    const malformed = structuredClone(before);
+    Object.assign(malformed.random, { streams: null });
+
+    expect(() => runner.restoreStochastic(malformed as never)).toThrow(
+      /checkpoint estocástico inválido/i,
+    );
+    expect(runner.checkpointStochastic()).toEqual(before);
+
+    const perturbation = new RandomHub(0x3c_51);
+    perturbation.restore(before.random);
+    perturbation.stream('rules').nextUint32();
+    const invalid = structuredClone(before);
+    const changedMemories = invalid.strategy.core.memories.map((memory, index) =>
+      index === 0 ? { ...memory, revision: memory.revision + 1 } : memory,
+    );
+    Object.assign(invalid, {
+      random: perturbation.snapshot(),
+      strategy: {
+        ...invalid.strategy,
+        core: { ...invalid.strategy.core, memories: changedMemories },
+        offense: { ...invalid.strategy.offense, version: 99 },
+      },
+    });
+
+    expect(() => runner.restoreStochastic(invalid as never)).toThrow(
+      /fronteira ofensivo inválido/i,
+    );
+    expect(runner.checkpointStochastic()).toEqual(before);
+  });
+
+  it('checkpoint antigo não rebobina o estado físico após outro ponto', () => {
+    const runner = new HeadlessRallyRunner({ seed: 0x3c_52 });
+    runner.run(1);
+    const stale = runner.checkpointStochastic();
+    runner.run(1);
+    const current = runner.checkpointStochastic();
+
+    expect(() => runner.restoreStochastic(stale)).toThrow(/fingerprint/i);
+    expect(runner.checkpointStochastic()).toEqual(current);
   });
 
   it('mantém journal, serialização e hash na mesma fatia em runs repetidos', () => {
@@ -239,10 +338,28 @@ describe('HeadlessRallyRunner', () => {
     const second = runner.run(1);
     const envelope = JSON.parse(second.serializedJournal) as { events: unknown[] };
     const tacticalEnvelope = JSON.parse(second.serializedTacticalTrace) as { entries: unknown[] };
+    const strategyEnvelope = JSON.parse(second.serializedStrategyTrace) as { entries: unknown[] };
 
     expect(envelope.events).toHaveLength(second.journal.length);
     expect(tacticalEnvelope.entries).toHaveLength(second.tacticalTrace.length);
+    expect(strategyEnvelope.entries).toHaveLength(second.strategyTrace.length);
     expect(second.journal.every((entry) => entry.rally === 1)).toBe(true);
     expect(second.tacticalTrace.every((entry) => entry.rally === 1)).toBe(true);
+    expect(second.strategyTrace.every((entry) => entry.rally === 1)).toBe(true);
+  });
+
+  it('run(2) equivale às duas fatias de run(1) sem perder o saque pré-rally', () => {
+    const continuous = new HeadlessRallyRunner({ seed: 0x3c_50 });
+    const sliced = new HeadlessRallyRunner({ seed: 0x3c_50 });
+
+    const together = continuous.run(2);
+    const first = sliced.run(1);
+    const second = sliced.run(1);
+
+    expect(together.strategyTrace).toEqual([...first.strategyTrace, ...second.strategyTrace]);
+    expect(together.strategyTrace.filter((entry) => entry.kind === 'serve')).toHaveLength(2);
+    expect(together.strategyTrace.every((entry) => entry.rally === 0 || entry.rally === 1)).toBe(
+      true,
+    );
   });
 });

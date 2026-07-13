@@ -5,6 +5,12 @@ import { FixedStepRunner, type FixedStepTicket } from '../../core/time/FixedStep
 import type { ControlFrame } from '../control/ControlFrame';
 import { Match } from '../Match';
 import type { MatchHooks } from '../ports/MatchHooks';
+import {
+  MATCH_STRATEGY_POINT_CHECKPOINT_VERSION,
+  MatchStrategyBridge,
+  type MatchStrategyPointCheckpoint,
+} from '../strategy/MatchStrategyBridge';
+import { StrategyTraceCollector, type StrategyTraceEntry } from '../strategy/StrategyTrace';
 import { createHeadlessCharacter } from './HeadlessCharacter';
 import { HeadlessBall } from './HeadlessBall';
 import { createHeadlessHooks } from './HeadlessHooks';
@@ -28,6 +34,29 @@ export interface HeadlessRunnerOptions {
   readonly maxTicksPerPoint?: number;
   readonly maxEventsPerRally?: number;
   readonly hooks?: MatchHooks;
+}
+
+export const HEADLESS_STOCHASTIC_CHECKPOINT_VERSION = 1 as const;
+
+export interface HeadlessStochasticFingerprint {
+  readonly matchEpoch: number;
+  readonly simulationTick: number;
+  readonly pointCount: number;
+  readonly difficulty: number;
+  readonly format: number;
+  readonly score: readonly [number, number];
+  readonly sets: readonly [number, number];
+  readonly setNumber: number;
+  readonly servingSide: TeamSide;
+  readonly homeSlots: readonly number[];
+  readonly awaySlots: readonly number[];
+}
+
+export interface HeadlessStochasticCheckpoint {
+  readonly version: typeof HEADLESS_STOCHASTIC_CHECKPOINT_VERSION;
+  readonly fingerprint: HeadlessStochasticFingerprint;
+  readonly random: Readonly<RandomHubSnapshot>;
+  readonly strategy: MatchStrategyPointCheckpoint;
 }
 
 export interface HeadlessRallySummary {
@@ -64,6 +93,9 @@ export interface HeadlessBatchResult {
   readonly serializedTacticalTrace: string;
   readonly tacticalTraceHash: string;
   readonly tacticalMetrics: Readonly<TacticalTraceMetrics>;
+  readonly strategyTrace: readonly Readonly<StrategyTraceEntry>[];
+  readonly serializedStrategyTrace: string;
+  readonly strategyTraceHash: string;
 }
 
 export interface HeadlessRallyResult extends HeadlessRallySummary {
@@ -75,6 +107,9 @@ export interface HeadlessRallyResult extends HeadlessRallySummary {
   readonly serializedTacticalTrace: string;
   readonly tacticalTraceHash: string;
   readonly tacticalMetrics: Readonly<TacticalTraceMetrics>;
+  readonly strategyTrace: readonly Readonly<StrategyTraceEntry>[];
+  readonly serializedStrategyTrace: string;
+  readonly strategyTraceHash: string;
 }
 
 export class HeadlessSimulationLimitError extends Error {
@@ -85,6 +120,10 @@ export class HeadlessSimulationLimitError extends Error {
     super(message);
     this.name = 'HeadlessSimulationLimitError';
   }
+}
+
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+  return value !== null && typeof value === 'object';
 }
 
 function neutralFrame(ticket: FixedStepTicket): ControlFrame {
@@ -110,8 +149,10 @@ export class HeadlessRallyRunner {
   private readonly random: RandomHub;
   private readonly journal: RallyJournal;
   private readonly tacticalTrace = new TacticalTraceCollector();
+  private readonly strategyTrace = new StrategyTraceCollector();
   private readonly events: Readonly<SimulationTelemetryEvent>[] = [];
   private readonly match: Match;
+  private readonly strategy: MatchStrategyBridge;
   private readonly fixed = new FixedStepRunner();
   private frame = 0;
   private logicalTick = 0;
@@ -140,12 +181,20 @@ export class HeadlessRallyRunner {
     const telemetry: SimulationTelemetryPort = {
       emit: (event) => this.recordTelemetry(event),
     };
+    this.strategy = new MatchStrategyBridge(
+      {
+        home: this.random.stream('strategy.home'),
+        away: this.random.stream('strategy.away'),
+      },
+      (event) => this.strategyTrace.record(event, this.pointCount),
+    );
     this.match = new Match(options.hooks ?? createHeadlessHooks(), {
       ball: new HeadlessBall(),
       charFactory: createHeadlessCharacter,
       humanSide: null,
       random: this.random,
       telemetry,
+      strategy: this.strategy,
     });
     this.match.startMatch(this.difficulty, this.format);
     this.fixed.advance(0, { onTick: () => undefined });
@@ -162,6 +211,7 @@ export class HeadlessRallyRunner {
     const firstJournalEntry = this.journal.entries.length;
     this.tacticalTrace.flush();
     const firstTacticalEntry = this.tacticalTrace.length;
+    const firstStrategyEntry = this.strategyTrace.length;
     const firstTick = this.lastPointTick;
 
     while (this.pointCount < targetPoints) {
@@ -218,6 +268,18 @@ export class HeadlessRallyRunner {
         .sliceFrom(firstTacticalEntry)
         .filter((entry) => entry.rally >= firstPoint && entry.rally < targetPoints),
     );
+    const strategyEntries = Object.freeze(
+      this.strategyTrace
+        .sliceFrom(firstStrategyEntry)
+        .filter((entry) => entry.rally >= firstPoint && entry.rally < targetPoints),
+    );
+    const pendingStrategy = strategyEntries.find((entry) => entry.outcome === null);
+    if (pendingStrategy) {
+      throw new Error(
+        `trace estratégico pendente na fronteira do ponto: ${pendingStrategy.decisionId}`,
+      );
+    }
+    this.validateStochasticCheckpoint(this.checkpointStochastic());
     return Object.freeze({
       seed: this.seed,
       rallies: Object.freeze(summaries),
@@ -236,17 +298,34 @@ export class HeadlessRallyRunner {
       serializedTacticalTrace: this.tacticalTrace.serialize(tacticalEntries),
       tacticalTraceHash: this.tacticalTrace.hash(tacticalEntries),
       tacticalMetrics: this.tacticalTrace.metrics(tacticalEntries),
+      strategyTrace: strategyEntries,
+      serializedStrategyTrace: this.strategyTrace.serialize(strategyEntries),
+      strategyTraceHash: this.strategyTrace.hash(strategyEntries),
     });
   }
 
-  checkpointRandom(): Readonly<RandomHubSnapshot> {
+  checkpointStochastic(): Readonly<HeadlessStochasticCheckpoint> {
     this.assertPointBoundary();
-    return this.random.snapshot();
+    return Object.freeze({
+      version: HEADLESS_STOCHASTIC_CHECKPOINT_VERSION,
+      fingerprint: this.stochasticFingerprint(),
+      random: this.random.snapshot(),
+      strategy: this.strategy.checkpointPoint(),
+    });
   }
 
-  restoreRandom(snapshot: RandomHubSnapshot): void {
+  restoreStochastic(checkpoint: HeadlessStochasticCheckpoint): void {
     this.assertPointBoundary();
-    this.random.restore(snapshot);
+    this.validateStochasticCheckpoint(checkpoint);
+    const before = this.checkpointStochastic();
+    try {
+      this.random.restore(checkpoint.random);
+      this.strategy.restorePoint(checkpoint.strategy);
+    } catch (error) {
+      this.random.restore(before.random);
+      this.strategy.restorePoint(before.strategy);
+      throw error;
+    }
   }
 
   private onTick(ticket: FixedStepTicket, targetPoints: number): void {
@@ -324,6 +403,91 @@ export class HeadlessRallyRunner {
   private assertPointBoundary(): void {
     if (this.events.at(-1)?.type !== 'rally-end' || this.match.state !== 'point') {
       throw new Error('checkpoint de RNG permitido somente na fronteira de ponto');
+    }
+  }
+
+  private stochasticFingerprint(): HeadlessStochasticFingerprint {
+    const tuple = (values: readonly [number, number]): readonly [number, number] =>
+      Object.freeze([values[0], values[1]]) as readonly [number, number];
+    return Object.freeze({
+      matchEpoch: this.strategy.matchEpoch,
+      simulationTick: this.lastPointTick,
+      pointCount: this.pointCount,
+      difficulty: this.difficulty,
+      format: this.format,
+      score: tuple(this.match.score),
+      sets: tuple(this.match.sets),
+      setNumber: this.match.setNumber,
+      servingSide: this.match.servingTeam,
+      homeSlots: Object.freeze([...this.match.home.slots]),
+      awaySlots: Object.freeze([...this.match.away.slots]),
+    });
+  }
+
+  private validateStochasticCheckpoint(checkpoint: HeadlessStochasticCheckpoint): void {
+    const random = checkpoint?.random as unknown;
+    const strategy = checkpoint?.strategy as unknown;
+    const core = isRecord(strategy) ? strategy.core : undefined;
+    if (
+      checkpoint === null ||
+      typeof checkpoint !== 'object' ||
+      checkpoint.version !== HEADLESS_STOCHASTIC_CHECKPOINT_VERSION ||
+      !isRecord(random) ||
+      !Array.isArray(random.streams) ||
+      !random.streams.every(
+        (entry) => isRecord(entry) && typeof entry.name === 'string' && isRecord(entry.random),
+      ) ||
+      !isRecord(strategy) ||
+      strategy.version !== MATCH_STRATEGY_POINT_CHECKPOINT_VERSION ||
+      !isRecord(core) ||
+      !Array.isArray(core.sequences) ||
+      core.sequences.length !== 2 ||
+      !core.sequences.every((sequence) => Number.isSafeInteger(sequence) && sequence >= 0) ||
+      !Array.isArray(core.perceptionFrames) ||
+      !Array.isArray(core.memories) ||
+      !Array.isArray(core.ownerships) ||
+      !Array.isArray(core.decisions) ||
+      !Array.isArray(core.outcomes) ||
+      !Array.isArray(core.outbox) ||
+      !isRecord(strategy.serve) ||
+      !isRecord(strategy.offense)
+    ) {
+      throw new RangeError('checkpoint estocástico inválido');
+    }
+    const currentFingerprint = this.stochasticFingerprint();
+    if (JSON.stringify(checkpoint.fingerprint) !== JSON.stringify(currentFingerprint)) {
+      throw new Error('fingerprint do checkpoint estocástico diverge do estado físico');
+    }
+    const currentRandom = this.random.snapshot();
+    const currentNames = currentRandom.streams.map((entry) => entry.name);
+    const savedNames = checkpoint.random.streams.map((entry) => entry.name);
+    if (JSON.stringify(savedNames) !== JSON.stringify(currentNames)) {
+      throw new RangeError('streams do checkpoint estocástico divergem dos handles ativos');
+    }
+    const probe = new RandomHub(this.seed);
+    try {
+      probe.restore(checkpoint.random);
+    } catch (error) {
+      throw new RangeError('checkpoint estocástico contém estado de RNG inválido', {
+        cause: error,
+      });
+    }
+    const drawCount = (name: string): number => {
+      const entry = checkpoint.random.streams.find((stream) => stream.name === name);
+      if (!entry) throw new RangeError(`stream ausente no checkpoint: ${name}`);
+      return entry.random.draws;
+    };
+    if (
+      drawCount('strategy.home') !== checkpoint.strategy.core.sequences[TeamSide.HOME] * 2 ||
+      drawCount('strategy.away') !== checkpoint.strategy.core.sequences[TeamSide.AWAY] * 2
+    ) {
+      throw new RangeError('draws estratégicos divergem das sequências comprometidas');
+    }
+    const committedDecisions =
+      checkpoint.strategy.core.sequences[TeamSide.HOME] +
+      checkpoint.strategy.core.sequences[TeamSide.AWAY];
+    if (this.strategyTrace.length !== committedDecisions) {
+      throw new Error('trace estratégico incompleto para as sequências comprometidas');
     }
   }
 
@@ -430,6 +594,9 @@ export function runHeadlessRally(options: HeadlessRunnerOptions): HeadlessRallyR
     serializedTacticalTrace: batch.serializedTacticalTrace,
     tacticalTraceHash: batch.tacticalTraceHash,
     tacticalMetrics: batch.tacticalMetrics,
+    strategyTrace: batch.strategyTrace,
+    serializedStrategyTrace: batch.serializedStrategyTrace,
+    strategyTraceHash: batch.strategyTraceHash,
   });
 }
 
