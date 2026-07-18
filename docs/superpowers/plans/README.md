@@ -24,6 +24,7 @@ subfase com plano detalhado antes de alterar produção.
 | [`2026-07-12-fase-3b-formacoes-cobertura.md`](2026-07-12-fase-3b-formacoes-cobertura.md) | concluído | Formações, transição, cobertura, defesa e bloqueio coletivo |
 | [`2026-07-13-fase-3c-ia-estrategica.md`](2026-07-13-fase-3c-ia-estrategica.md) | concluído | Saque, set e ataque estratégicos, memória, trace e checkpoint |
 | [`2026-07-18-fase-3d-metricas-tuning.md`](2026-07-18-fase-3d-metricas-tuning.md) | concluído | Formato 2.0 (11·11·7 com caps), métricas/baterias §4.3–§3.2 como gates, servePower removido, fixes de ataque da CPU e tuning do Normal |
+| [`2026-07-18-fase-4a-atleta-rig.md`](2026-07-18-fase-4a-atleta-rig.md) | em execução | Atleta com esqueleto/SkinnedMesh procedural em código como personagem padrão, dentro do orçamento |
 
 ## Retomada de desenvolvimento
 
