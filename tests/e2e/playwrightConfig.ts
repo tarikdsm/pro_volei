@@ -10,7 +10,9 @@ const SERVER_COMMAND: Record<TestServerMode, string> = {
 export function makePlaywrightConfig(mode: TestServerMode) {
   return defineConfig({
     testDir: './tests/e2e',
-    timeout: 45_000,
+    // Os E2E validam comportamento, não latência: no runner do CI o WebGL é software
+    // (SwiftShader) e a cena premium da 4D estourou os 45 s antigos sem regressão funcional.
+    timeout: 120_000,
     expect: {
       timeout: 7_500,
     },
