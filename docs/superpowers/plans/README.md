@@ -4,8 +4,8 @@ Fonte única para saber quais planos foram executados. Os arquivos individuais p
 ordem TDD e evidências do momento; caixas abertas em blueprints históricos não significam trabalho
 ativo. O estado de produto continua em [`docs/ROADMAP.md`](../../ROADMAP.md).
 
-**Marco atual — 13/07/2026:** Fases 1–2 e subfases 3A–3C entregues; desenvolvimento pausado antes da 3D. Não há
-plano ativo. A 3D e todas as fases seguintes aguardam nova autorização explícita do proprietário.
+**Marco atual — 18/07/2026:** Fases 1–2 e 3A–3C entregues. O proprietário autorizou a retomada:
+o plano ativo é a Fase 3D; as subfases 4A–4E estão autorizadas na sequência.
 
 | Plano | Estado | Resultado |
 |---|---|---|
@@ -22,11 +22,10 @@ plano ativo. A 3D e todas as fases seguintes aguardam nova autorização explíc
 | [`2026-07-12-fase-3a-headless-rng.md`](2026-07-12-fase-3a-headless-rng.md) | concluído | RNG por streams, simulação CPU×CPU e journal determinístico |
 | [`2026-07-12-fase-3b-formacoes-cobertura.md`](2026-07-12-fase-3b-formacoes-cobertura.md) | concluído | Formações, transição, cobertura, defesa e bloqueio coletivo |
 | [`2026-07-13-fase-3c-ia-estrategica.md`](2026-07-13-fase-3c-ia-estrategica.md) | concluído | Saque, set e ataque estratégicos, memória, trace e checkpoint |
+| [`2026-07-18-fase-3d-metricas-tuning.md`](2026-07-18-fase-3d-metricas-tuning.md) | em execução | Formato 2.0, métricas de balanceamento, remoção do servePower legado e tuning §4.3/§3.2 |
 
-## Pausa de desenvolvimento
+## Retomada de desenvolvimento
 
-- Não criar plano de 3D/4A nem iniciar código, assets, tuning ou empacotamento como continuação
-  automática.
-- Correções críticas da versão entregue podem ser tratadas somente mediante nova solicitação.
-- Ao retomar, primeiro reconciliar este índice, o roadmap e o design 2.0; depois escrever o plano
-  detalhado da próxima subfase autorizada antes de alterar produção.
+- Autorização explícita do proprietário em 18/07/2026 cobre a Fase 3D e as subfases 4A–4E, nesta
+  ordem, cada uma com plano detalhado antes de alterar produção.
+- Fases 5–7 do design 2.0 permanecem aguardando o término dessas etapas.

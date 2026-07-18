@@ -11,9 +11,9 @@ a versão 2.0 também pode usar assets locais otimizados e versionados.
 - **Alvos de publicação:** Web (atual) → Desktop/Steam (Tauri) → Mobile (Capacitor). Mesmo
   código web em todos; wrappers nativos entram depois. Ver [docs/ROADMAP.md](docs/ROADMAP.md).
 - **Multiplayer:** fora de escopo — foco em single-player vs CPU. Não introduzir backend/netcode.
-- **Marco atual:** Fases 1–2 e subfases 3A–3C da evolução 2.0 concluídas. O desenvolvimento está pausado depois da
-  Fase 3C; não iniciar 3D, arte/render, áudio/mobile, Copa ou release sem uma nova solicitação
-  explícita do proprietário. Estado canônico em [docs/ROADMAP.md](docs/ROADMAP.md).
+- **Marco atual:** Fases 1–2 e 3A–3C concluídas; **Fase 3D em execução** (métricas e tuning),
+  com 4A–4E autorizadas na sequência (18/07/2026). Áudio/mobile, Copa e release (Fases 5–7)
+  seguem aguardando autorização. Estado canônico em [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Stack
 

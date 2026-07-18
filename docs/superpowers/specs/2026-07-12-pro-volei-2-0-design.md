@@ -2,12 +2,13 @@
 
 **Data:** 2026-07-12
 
-**Status:** aprovado; Fases 1–2 e subfases 3A–3C entregues; execução pausada antes da 3D
+**Status:** aprovado; Fases 1–2 e 3A–3C entregues; 3D em execução desde 18/07/2026 (4A–4E
+autorizadas na sequência)
 
 > **Marco de 13/07/2026:** fundação/release engineering (1A–1D), control spine/game feel
-> (2A–2E) e IA coletiva (3A–3C) estão publicados e funcionais. A 3D e as Fases 4–7 abaixo continuam
-> parte do design aprovado, mas **não estão em execução** e não devem ser iniciadas sem nova
-> autorização explícita. Estado e evidências: [ROADMAP](../../ROADMAP.md) e
+> (2A–2E) e IA coletiva (3A–3C) estão publicados e funcionais. A 3D está em execução e as
+> subfases 4A–4E estão autorizadas na sequência (18/07/2026); as Fases 5–7 continuam aguardando.
+> Estado e evidências: [ROADMAP](../../ROADMAP.md) e
 > [índice dos planos](../plans/README.md).
 
 > A v1.1 publicada ainda usa o multiplicador legado `DIFFICULTIES.servePower`. Assim, o critério 6

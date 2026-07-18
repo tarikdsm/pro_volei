@@ -7,8 +7,9 @@ e Mobile** a partir do mesmo código web.
 Estado atual: **v1.1.0** jogável, com as **Fases 1–2 e subfases 3A–3C concluídas**.
 **Design 2.0 aprovado**, documentado em
 [`2026-07-12-pro-volei-2-0-design.md`](superpowers/specs/2026-07-12-pro-volei-2-0-design.md).
-Por decisão do proprietário, o desenvolvimento está **pausado após a Fase 3C**. A 3D e todas as
-fases seguintes permanecem fora de execução até uma nova autorização explícita.
+Em 18/07/2026 o proprietário autorizou explicitamente a retomada: a **Fase 3D está em execução**
+e, na sequência, as subfases 4A–4E (personagens e render). Fases 5–7 continuam aguardando a
+conclusão dessas etapas.
 
 ### Fundação 2.0 — estado das subfases
 
@@ -61,10 +62,12 @@ fases seguintes permanecem fora de execução até uma nova autorização explí
   budget fixo, terminalidade e determinismo. O commit funcional final `e33ab54` passou 911 testes,
   build, smoke e o run `29244051320`, com deploy Pages verde.
 
-### Marco atual — pausa após a IA coletiva
+### Marco atual — Fase 3D em execução
 
 - **Entregue:** Fases 1A–1D, 2A–2E e 3A–3C.
-- **Pausado, não iniciado:** 3D (métricas e tuning final) e Fases 4–7 do design 2.0.
+- **Em execução:** 3D (métricas e tuning das dificuldades), autorizada em 18/07/2026 junto com
+  4A–4E na sequência.
+- **Não iniciado:** Fases 4–7 do design 2.0 (4A–4E autorizadas; 5–7 aguardam).
 - O índice canônico dos planos e suas evidências está em
   [`superpowers/plans/README.md`](superpowers/plans/README.md).
 
