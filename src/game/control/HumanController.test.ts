@@ -213,7 +213,9 @@ describe('HumanController ActionControl 2D', () => {
       bufferedCtx.ctx,
     );
     buffered.updateMarker();
-    expect((buffered.marker.material as THREE.MeshBasicMaterial).color.getHex()).toBe(0xffc857);
+    // O anel agora é duplo (Group); ambos os aros compartilham o mesmo material de estado.
+    const bufferedRing = buffered.marker.children[0] as THREE.Mesh;
+    expect((bufferedRing.material as THREE.MeshBasicMaterial).color.getHex()).toBe(0xffc857);
     expect(buffered.marker.scale.x).toBeGreaterThan(1);
 
     const charging = new HumanController();
@@ -227,7 +229,8 @@ describe('HumanController ActionControl 2D', () => {
     );
     charging.update(1 / 60, makeFrame({ tick: 27, actionDown: true }), chargingCtx.ctx);
     charging.updateMarker();
-    expect((charging.marker.material as THREE.MeshBasicMaterial).color.getHex()).toBe(0xff7a45);
+    const chargingRing = charging.marker.children[0] as THREE.Mesh;
+    expect((chargingRing.material as THREE.MeshBasicMaterial).color.getHex()).toBe(0xff7a45);
     expect(charging.marker.scale.x).toBeGreaterThan(1.1);
   });
 

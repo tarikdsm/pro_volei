@@ -69,14 +69,21 @@ export class HumanController {
 
   constructor(withVisualMarker = true) {
     if (withVisualMarker) {
+      // Ciano-teal de alta luminância: distinto do taraflex coral também em protan/deutan
+      // (canal azul), com estado reforçado por escala — dupla codificação (§6.1).
       this.markerMaterial = new THREE.MeshBasicMaterial({
-        color: 0x40ff9f,
+        color: 0x5ff2e6,
         transparent: true,
         opacity: 0.9,
         side: THREE.DoubleSide,
         depthWrite: false,
       });
-      this.marker = new THREE.Mesh(new THREE.RingGeometry(0.42, 0.55, 24), this.markerMaterial);
+      // Forma própria (anel duplo): distinta do anel simples de queda e do losango de mira
+      // mesmo sem cor — codificação por forma real, não só espessura (§6.1).
+      const doubleRing = new THREE.Group();
+      doubleRing.add(new THREE.Mesh(new THREE.RingGeometry(0.5, 0.6, 32), this.markerMaterial));
+      doubleRing.add(new THREE.Mesh(new THREE.RingGeometry(0.34, 0.4, 32), this.markerMaterial));
+      this.marker = doubleRing;
     } else {
       this.markerMaterial = null;
       this.marker = new THREE.Group();
@@ -580,7 +587,7 @@ export class HumanController {
   private presentActionMarkerState(): void {
     if (!this.markerMaterial) return;
     const snapshot = this.actionControl.snapshot();
-    let color = 0x40ff9f;
+    let color = 0x5ff2e6;
     let scale = 1;
     let opacity = 0.9;
 
