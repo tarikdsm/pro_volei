@@ -1,11 +1,6 @@
 import * as THREE from 'three';
-import {
-  PlayerCharacter,
-  CharAction,
-  CharLook,
-  CharVisual,
-  CharFactory,
-} from '../entities/PlayerCharacter';
+import { CharAction, CharLook, CharVisual, CharFactory } from '../entities/PlayerCharacter';
+import { createRiggedCharacter } from '../entities/rig/RiggedCharacter';
 import { BASE_SLOTS, COLORS, PLAYER, TeamSide, SETTER_SPOT } from '../core/constants';
 import { initialSlots, rotateSlots } from './rules/rotation';
 import { lerp, lerpAngle } from '../core/math3d';
@@ -35,8 +30,8 @@ export class Athlete {
     public side: TeamSide,
     public index: number,
     look: CharLook,
-    // Fábrica injetável do visual; default preserva o comportamento do browser.
-    makeChar: CharFactory = (l) => new PlayerCharacter(l),
+    // Fábrica injetável do visual; default = atleta rigada 2.0 (Fase 4A).
+    makeChar: CharFactory = (l) => createRiggedCharacter(l),
   ) {
     this.char = makeChar(look);
   }
