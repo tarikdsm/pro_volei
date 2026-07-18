@@ -129,6 +129,7 @@ function applyQualityTier(tier: number): void {
 }
 applyQualityTier(quality.tier);
 let lastMatchStateForQuality = '';
+let lastActiveForQuality = false;
 
 const director = new CameraDirector(
   window.innerWidth / window.innerHeight,
@@ -418,6 +419,7 @@ function frame(now: number): void {
 
   // Tiers: amostra o frame em jogo e só avalia troca ao ENTRAR no estado de ponto (§10.1).
   if (active) {
+    if (!lastActiveForQuality) quality.resetWindow(); // início/retomada: descarta frames velhos
     quality.sampleFrame(visualDt);
     if (match.state === 'point' && lastMatchStateForQuality !== 'point') {
       const nextTier = quality.evaluateAtBreak();
@@ -425,6 +427,7 @@ function frame(now: number): void {
     }
     lastMatchStateForQuality = match.state;
   }
+  lastActiveForQuality = active;
 
   const simulatedDt = simulationFrame.steps / SIMULATION_TIMING.hz;
   crowd.update(active ? simulatedDt : visualDt * 0.2);

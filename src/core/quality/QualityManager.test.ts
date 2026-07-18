@@ -57,6 +57,16 @@ describe('QualityManager', () => {
     expect(feedAndEvaluate(manager, 0.05)).toBe(1);
   });
 
+  it('resetWindow descarta amostras e sequências acumuladas', () => {
+    const manager = new QualityManager(2);
+    feedAndEvaluate(manager, 0.05); // 1ª avaliação ruim (streak 1)
+    for (let i = 0; i < 200; i += 1) manager.sampleFrame(0.05);
+    manager.resetWindow();
+    expect(manager.evaluateAtBreak()).toBe(null); // sem amostras: neutra
+    expect(feedAndEvaluate(manager, 0.05)).toBe(null); // streak recomeçou do zero
+    expect(feedAndEvaluate(manager, 0.05)).toBe(1);
+  });
+
   it('avaliação sem amostras suficientes é neutra', () => {
     const manager = new QualityManager(1);
     manager.sampleFrame(0.05);

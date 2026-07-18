@@ -29,6 +29,14 @@ export class QualityManager {
     return this.currentTier;
   }
 
+  /** Zera a janela de amostras (início/retomada de partida): frames velhos não enviesam. */
+  resetWindow(): void {
+    this.sampleCount = 0;
+    this.cursor = 0;
+    this.downStreak = 0;
+    this.upStreak = 0;
+  }
+
   /** Registra a duração de um frame de apresentação (segundos). */
   sampleFrame(dtSeconds: number): void {
     if (!(dtSeconds > 0)) return;
