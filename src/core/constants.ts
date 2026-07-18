@@ -58,13 +58,17 @@ export function otherSide(side: TeamSide): TeamSide {
 
 export type TouchKind = 'serve' | 'pass' | 'set' | 'spike' | 'block' | 'freeball' | 'dig';
 
+/**
+ * Knobs de dificuldade da CPU. Critério 6 do design 2.0: dificuldade NÃO altera física —
+ * apenas latência de reação, consistência técnica (probabilidades de erro/qualidade) e
+ * decisão. Potência de saque vive em STRATEGIC_SERVE_TUNING.basePower, única para todos.
+ */
 export interface Difficulty {
   name: string;
   reactionDelay: number; // s até a IA reagir à trajetória
   passQuality: [number, number]; // faixa de qualidade de passe [min,max]
   attackError: number; // prob. de erro no ataque (rede/fora)
   serveError: number; // prob. de erro no saque
-  servePower: [number, number];
   blockChance: number; // prob. de tentar/acertar bloqueio
   digChance: number; // prob. de defender um ataque forte
 }
@@ -76,7 +80,6 @@ export const DIFFICULTIES: Difficulty[] = [
     passQuality: [0.3, 0.75],
     attackError: 0.3,
     serveError: 0.18,
-    servePower: [0.3, 0.55],
     blockChance: 0.22,
     digChance: 0.28,
   },
@@ -86,7 +89,6 @@ export const DIFFICULTIES: Difficulty[] = [
     passQuality: [0.5, 0.92],
     attackError: 0.13,
     serveError: 0.1,
-    servePower: [0.5, 0.8],
     blockChance: 0.45,
     digChance: 0.55,
   },
@@ -96,7 +98,6 @@ export const DIFFICULTIES: Difficulty[] = [
     passQuality: [0.7, 1.0],
     attackError: 0.05,
     serveError: 0.05,
-    servePower: [0.7, 0.98],
     blockChance: 0.65,
     digChance: 0.75,
   },
@@ -150,6 +151,7 @@ export const SERVE_TUNING = {
  */
 export const STRATEGIC_SERVE_TUNING = {
   drawBudget: 6,
+  basePower: [0.5, 0.8] as const, // faixa única (ex-Normal); dificuldade não altera física
   longErrorModeBelow: 0.5,
   longErrorDepth: [9.55, 10.85] as const,
   longErrorClearance: [0.3, 0.8] as const,

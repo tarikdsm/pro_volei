@@ -70,7 +70,11 @@ function realizeStrategicServe(
   const dzDraw = ctx.random.contact.nextFloat();
   const clearanceDraw = ctx.random.contact.nextFloat();
   const tuning = STRATEGIC_SERVE_TUNING.families[directive.family];
-  const basePower = lerp(ctx.diff.servePower[0], ctx.diff.servePower[1], powerDraw);
+  const basePower = lerp(
+    STRATEGIC_SERVE_TUNING.basePower[0],
+    STRATEGIC_SERVE_TUNING.basePower[1],
+    powerDraw,
+  );
   const power = clamp(basePower + tuning.powerBias, 0, 1);
   const dx = (dxDraw * 2 - 1) * tuning.dispersion.x;
   const dz = (dzDraw * 2 - 1) * tuning.dispersion.z;

@@ -49,7 +49,7 @@ function makeCtx(aiValues: readonly number[], contactValues: readonly number[]) 
     ball,
     rally: new RallyState(),
     servingTeam: TeamSide.HOME,
-    diff: { servePower: [0.5, 0.9], serveError: 0.25 },
+    diff: { serveError: 0.25 },
     random: {
       rules: hub.stream('rules'),
       ai,
@@ -319,38 +319,26 @@ describe('performStrategicServe - protocolo e realização física', () => {
     expect(deep.target.x - 7.2).toBeGreaterThan(short.target.x - 7.2);
   });
 
-  it('compõe dificuldade no power e altera tempo/velocidade com os mesmos draws', () => {
-    const results: Array<{
-      realization: StrategicServeRealization;
-      flightTime: number;
-      speed: number;
-    }> = [];
+  it('potência do saque é idêntica em todas as dificuldades com os mesmos draws', () => {
+    const results: StrategicServeRealization[] = [];
     for (const difficulty of DIFFICULTIES) {
       const sample = makeCtx([0.4], [0.5, 0.99, 0.5, 0.5, 0.5, 0.5]);
       sample.ctx.diff = difficulty;
-      let realization: StrategicServeRealization | undefined;
       performStrategicServe(sample.ctx, sample.server, directive('float-deep'), {
         guard: () => true,
         onLaunched: (_ref, value) => {
-          realization = value;
+          results.push(value);
           return true;
         },
       });
       runCallbacks(sample.scheduled);
-      const flight = sample.launches[1];
-      const flightTime = (realization!.target.x - flight.p0.x) / flight.v0.x;
-      results.push({ realization: realization!, flightTime, speed: flight.v0.length() });
       expect(sample.contact.draws).toBe(6);
       expect(sample.ai.draws).toBe(0);
     }
 
-    expect(results[0].realization.power).toBeLessThan(results[1].realization.power);
-    expect(results[1].realization.power).toBeLessThan(results[2].realization.power);
-    expect(results[0].realization.clearance).toBeGreaterThan(results[1].realization.clearance);
-    expect(results[1].realization.clearance).toBeGreaterThan(results[2].realization.clearance);
-    expect(results[0].flightTime).toBeGreaterThan(results[1].flightTime);
-    expect(results[1].flightTime).toBeGreaterThan(results[2].flightTime);
-    expect(results[0].speed).not.toBe(results[2].speed);
+    // Critério 6 do design 2.0: dificuldade não altera a física do saque.
+    expect(results[1]).toEqual(results[0]);
+    expect(results[2]).toEqual(results[0]);
   });
 
   it('compõe serveError da dificuldade mantendo o orçamento fixo', () => {
