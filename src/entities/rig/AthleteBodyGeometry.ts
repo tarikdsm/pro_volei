@@ -3,7 +3,7 @@
 // para poses/locomotion; pesos suaves podem evoluir na 4B sem mudar este contrato.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { ATHLETE_REST_POSE, type AthleteJointName } from './AthleteSkeleton';
+import { athleteRestPose, type AthleteJointName } from './AthleteSkeleton';
 
 export type BodyRegion = 'skin' | 'jersey' | 'shorts' | 'shoes' | 'hair';
 
@@ -12,8 +12,13 @@ export interface AthleteBodyPart {
   readonly geometry: THREE.BufferGeometry; // com skinIndex/skinWeight rígidos
 }
 
+export type AthleteHairstyle = 'short' | 'long' | 'ponytail' | 'bun' | 'braid';
+
 export interface AthleteBodyOptions {
-  readonly hairstyle: 'short' | 'long' | 'ponytail';
+  readonly hairstyle: AthleteHairstyle;
+  /** Escalas visuais (Fase 4C): altura em y, porte em x/z. Devem casar com o esqueleto. */
+  readonly heightScale?: number;
+  readonly buildScale?: number;
 }
 
 interface SegmentSpec {
@@ -53,7 +58,7 @@ function mirrored(
   ];
 }
 
-function bodySegments(hairstyle: AthleteBodyOptions['hairstyle']): SegmentSpec[] {
+function bodySegments(hairstyle: AthleteHairstyle): SegmentSpec[] {
   const specs: SegmentSpec[] = [
     // camisa: tronco + cintura + mangas curtas
     {
@@ -107,17 +112,44 @@ function bodySegments(hairstyle: AthleteBodyOptions['hairstyle']): SegmentSpec[]
       offset: [0, -0.02, -0.16],
       rotationX: -0.55,
     });
+  } else if (hairstyle === 'bun') {
+    specs.push({
+      region: 'hair',
+      bone: 'head',
+      geometry: sphere(0.05, 8, 6),
+      offset: [0, 0.08, -0.1],
+    });
+  } else if (hairstyle === 'braid') {
+    specs.push({
+      region: 'hair',
+      bone: 'head',
+      geometry: capsule(0.028, 0.3),
+      offset: [0, -0.08, -0.13],
+      rotationX: -0.25,
+    });
   }
   return specs;
 }
 
 /** Aplica transformações + atributos de skinning rígido a um segmento, no espaço de bind. */
-function prepareSegment(spec: SegmentSpec, boneIndex: number): THREE.BufferGeometry {
+function prepareSegment(
+  spec: SegmentSpec,
+  boneIndex: number,
+  rest: Readonly<Record<AthleteJointName, readonly [number, number, number]>>,
+  heightScale: number,
+  buildScale: number,
+): THREE.BufferGeometry {
   const geometry = spec.geometry;
   if (spec.scale) geometry.scale(spec.scale[0], spec.scale[1], spec.scale[2]);
   if (spec.rotationX) geometry.rotateX(spec.rotationX);
-  const rest = ATHLETE_REST_POSE[spec.bone];
-  geometry.translate(rest[0] + spec.offset[0], rest[1] + spec.offset[1], rest[2] + spec.offset[2]);
+  // Escala visual do corpo: porte em x/z, altura em y (casada com o esqueleto escalado).
+  geometry.scale(buildScale, heightScale, buildScale);
+  const bone = rest[spec.bone];
+  geometry.translate(
+    bone[0] + spec.offset[0] * buildScale,
+    bone[1] + spec.offset[1] * heightScale,
+    bone[2] + spec.offset[2],
+  );
   const count = geometry.getAttribute('position').count;
   const indices = new Uint16Array(count * 4);
   const weights = new Float32Array(count * 4);
@@ -135,9 +167,12 @@ export function buildAthleteBodyParts(
   boneIndex: Readonly<Record<AthleteJointName, number>>,
   options: AthleteBodyOptions,
 ): readonly AthleteBodyPart[] {
+  const heightScale = options.heightScale ?? 1;
+  const buildScale = options.buildScale ?? 1;
+  const rest = athleteRestPose(heightScale, buildScale);
   const byRegion = new Map<BodyRegion, THREE.BufferGeometry[]>();
   for (const spec of bodySegments(options.hairstyle)) {
-    const prepared = prepareSegment(spec, boneIndex[spec.bone]);
+    const prepared = prepareSegment(spec, boneIndex[spec.bone], rest, heightScale, buildScale);
     const list = byRegion.get(spec.region) ?? [];
     list.push(prepared);
     byRegion.set(spec.region, list);

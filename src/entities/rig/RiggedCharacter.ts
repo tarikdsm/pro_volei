@@ -82,8 +82,12 @@ export class RiggedCharacter implements CharVisual {
   private readonly tmpC = new THREE.Vector3();
   private readonly tmpQ = new THREE.Quaternion();
 
+  private readonly heightScale: number;
+
   constructor(look: CharLook, options: RiggedCharacterOptions = {}) {
-    this.rig = buildAthleteSkeleton();
+    this.heightScale = look.heightScale ?? 1;
+    const buildScale = look.buildScale ?? 1;
+    this.rig = buildAthleteSkeleton({ heightScale: this.heightScale, buildScale });
     this.phaseSeed = (look.number % 12) * 0.7;
 
     const materials: Record<BodyRegion, THREE.MeshStandardMaterial> = {
@@ -97,6 +101,8 @@ export class RiggedCharacter implements CharVisual {
     this.body.add(this.rig.rootBone);
     const parts = buildAthleteBodyParts(this.rig.boneIndex, {
       hairstyle: look.hairstyle ?? 'short',
+      heightScale: this.heightScale,
+      buildScale,
     });
     for (const part of parts) {
       const mesh = new THREE.SkinnedMesh(part.geometry, materials[part.region]);
@@ -260,7 +266,7 @@ export class RiggedCharacter implements CharVisual {
       upperArm.getWorldPosition(this.tmpA);
       shoulder.getWorldQuaternion(this.tmpQ).invert();
       this.tmpC.copy(this.tmpB).sub(this.tmpA).applyQuaternion(this.tmpQ);
-      return solveTwoBoneIK(this.tmpC, ARM_L1, ARM_L2);
+      return solveTwoBoneIK(this.tmpC, ARM_L1 * this.heightScale, ARM_L2 * this.heightScale);
     };
     return { weight, left: solve(-1), right: solve(1) };
   }
@@ -296,7 +302,7 @@ export class RiggedCharacter implements CharVisual {
       this.tmpC.copy(planted).sub(this.tmpA).applyQuaternion(this.tmpQ);
       // Joelho dobra para trás: espelha o alvo em z, resolve e desespelha os ângulos.
       this.tmpC.z = -this.tmpC.z;
-      return solveTwoBoneIK(this.tmpC, LEG_L1, LEG_L2);
+      return solveTwoBoneIK(this.tmpC, LEG_L1 * this.heightScale, LEG_L2 * this.heightScale);
     };
     return { left: solve(-1), right: solve(1) };
   }

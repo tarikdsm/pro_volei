@@ -37,6 +37,28 @@ describe('buildAthleteSkeleton', () => {
     expect(footRest.length()).toBeLessThan(1e-6);
   });
 
+  it('heightScale alonga o esqueleto preservando simetria e boneInverses', () => {
+    const rig = buildAthleteSkeleton({ heightScale: 1.06 });
+    rig.rootBone.updateMatrixWorld(true);
+    const world = (bone: THREE.Bone) => new THREE.Vector3().setFromMatrixPosition(bone.matrixWorld);
+    expect(world(rig.joints.head).y).toBeCloseTo(1.54 * 1.06, 2);
+    expect(world(rig.joints.thighL).x).toBeCloseTo(-world(rig.joints.thighR).x, 6);
+    // boneInverses acompanham a escala: inverso do head leva o rest escalado à origem.
+    const headRest = new THREE.Vector3(0, 1.54 * 1.06, 0).applyMatrix4(
+      rig.skeleton.boneInverses[rig.boneIndex.head],
+    );
+    expect(headRest.length()).toBeLessThan(1e-6);
+  });
+
+  it('buildScale alarga ombros e quadris', () => {
+    const wide = buildAthleteSkeleton({ buildScale: 1.1 });
+    const base = buildAthleteSkeleton();
+    expect(Math.abs(wide.joints.shoulderL.position.x)).toBeCloseTo(
+      Math.abs(base.joints.shoulderL.position.x) * 1.1,
+      6,
+    );
+  });
+
   it('duas construções são independentes (sem estado compartilhado)', () => {
     const a = buildAthleteSkeleton();
     const b = buildAthleteSkeleton();

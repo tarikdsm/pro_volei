@@ -32,8 +32,11 @@ export interface CharLook {
   number: number;
   /** nome impresso nas costas da camisa */
   name?: string;
-  hairstyle?: 'short' | 'long' | 'ponytail';
+  hairstyle?: 'short' | 'long' | 'ponytail' | 'bun' | 'braid';
   female?: boolean;
+  /** Escalas visuais do corpo (Fase 4C) — apresentação pura, não afetam física/alcance. */
+  heightScale?: number;
+  buildScale?: number;
 }
 
 // Superfície visual mínima que a lógica de Athlete/Team consome do personagem.

@@ -39,9 +39,35 @@ describe('buildAthleteBodyParts', () => {
     expect(triangles).toBeLessThanOrEqual(4500);
   });
 
-  it.each(['short', 'long', 'ponytail'] as const)('%s tem geometria de cabelo própria', (h) => {
-    const parts = buildAthleteBodyParts(rig.boneIndex, { hairstyle: h });
-    const hair = parts.find((part) => part.region === 'hair')!;
-    expect(hair.geometry.getAttribute('position').count).toBeGreaterThan(0);
+  it.each(['short', 'long', 'ponytail', 'bun', 'braid'] as const)(
+    '%s tem geometria de cabelo própria',
+    (h) => {
+      const parts = buildAthleteBodyParts(rig.boneIndex, { hairstyle: h });
+      const hair = parts.find((part) => part.region === 'hair')!;
+      expect(hair.geometry.getAttribute('position').count).toBeGreaterThan(0);
+    },
+  );
+
+  it('corpo alto e forte continua no orçamento e mais alto que o base', () => {
+    const tall = buildAthleteBodyParts(rig.boneIndex, {
+      hairstyle: 'short',
+      heightScale: 1.06,
+      buildScale: 1.1,
+    });
+    const triangles = tall.reduce((sum, part) => {
+      const index = part.geometry.getIndex();
+      const count = index ? index.count : part.geometry.getAttribute('position').count;
+      return sum + count / 3;
+    }, 0);
+    expect(triangles).toBeLessThanOrEqual(4500);
+    const maxY = (parts: typeof tall) =>
+      Math.max(
+        ...parts.map((part) => {
+          part.geometry.computeBoundingBox();
+          return part.geometry.boundingBox!.max.y;
+        }),
+      );
+    const base = buildAthleteBodyParts(rig.boneIndex, { hairstyle: 'short' });
+    expect(maxY(tall)).toBeGreaterThan(maxY(base) * 1.03);
   });
 });

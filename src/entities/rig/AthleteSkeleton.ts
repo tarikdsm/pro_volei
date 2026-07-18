@@ -57,24 +57,36 @@ const BONE_TABLE: readonly {
   { name: 'footR', parent: 'shinR', position: [0, -0.44, 0.04] },
 ];
 
+/** Escalas visuais do corpo (Fase 4C): altura em y e largura/porte em x. Só apresentação. */
+export interface AthleteBuildOptions {
+  readonly heightScale?: number; // faixa recomendada [0,94, 1,06]
+  readonly buildScale?: number; // faixa recomendada [0,92, 1,10]
+}
+
 /** Posição de MUNDO de cada osso no rest pose (soma da cadeia de pais), para o bind da malha. */
-export const ATHLETE_REST_POSE: Readonly<
-  Record<AthleteJointName, readonly [number, number, number]>
-> = (() => {
+export function athleteRestPose(
+  heightScale = 1,
+  buildScale = 1,
+): Readonly<Record<AthleteJointName, readonly [number, number, number]>> {
   const world = {} as Record<AthleteJointName, readonly [number, number, number]>;
   for (const entry of BONE_TABLE) {
     const base: readonly [number, number, number] = entry.parent ? world[entry.parent] : [0, 0, 0];
     world[entry.name] = [
-      base[0] + entry.position[0],
-      base[1] + entry.position[1],
+      base[0] + entry.position[0] * buildScale,
+      base[1] + entry.position[1] * heightScale,
       base[2] + entry.position[2],
     ];
   }
   return Object.freeze(world);
-})();
+}
+
+/** Rest pose padrão (escala 1), mantido para compatibilidade. */
+export const ATHLETE_REST_POSE = athleteRestPose();
 
 /** Constrói um esqueleto novo e independente (sem estado compartilhado entre chamadas). */
-export function buildAthleteSkeleton(): AthleteSkeletonRig {
+export function buildAthleteSkeleton(options: AthleteBuildOptions = {}): AthleteSkeletonRig {
+  const heightScale = options.heightScale ?? 1;
+  const buildScale = options.buildScale ?? 1;
   const joints = {} as Record<AthleteJointName, THREE.Bone>;
   const boneIndex = {} as Record<AthleteJointName, number>;
   const bones: THREE.Bone[] = [];
@@ -82,7 +94,11 @@ export function buildAthleteSkeleton(): AthleteSkeletonRig {
   BONE_TABLE.forEach((entry, index) => {
     const bone = new THREE.Bone();
     bone.name = entry.name;
-    bone.position.set(entry.position[0], entry.position[1], entry.position[2]);
+    bone.position.set(
+      entry.position[0] * buildScale,
+      entry.position[1] * heightScale,
+      entry.position[2],
+    );
     if (entry.parent) joints[entry.parent].add(bone);
     joints[entry.name] = bone;
     boneIndex[entry.name] = index;
