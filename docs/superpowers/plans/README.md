@@ -27,6 +27,7 @@ subfase com plano detalhado antes de alterar produção.
 | [`2026-07-18-fase-4a-atleta-rig.md`](2026-07-18-fase-4a-atleta-rig.md) | concluído | Atleta rigada procedural como padrão: 19 ossos, 5 SkinnedMesh/atleta, poses portadas, draw calls 515→235 |
 | [`2026-07-18-fase-4b-locomotion-ik.md`](2026-07-18-fase-4b-locomotion-ik.md) | concluído | Locomoção direcional, IK de dois ossos, foot planting ≤0,15 m e mãos ao contato ≤0,12 m |
 | [`2026-07-18-fase-4c-elenco.md`](2026-07-18-fase-4c-elenco.md) | concluído | Corpo parametrizado, elenco nomeado 6+6, galeria `?gallery` e aceite §5.3 aprovado em duas revisões |
+| [`2026-07-18-fase-4d-arena-premium.md`](2026-07-18-fase-4d-arena-premium.md) | em execução | Paleta navy/teal/coral, iluminação de TV, materiais premium e anel de seleção daltônico-legível |
 
 ## Retomada de desenvolvimento
 
