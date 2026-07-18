@@ -26,6 +26,7 @@ subfase com plano detalhado antes de alterar produção.
 | [`2026-07-18-fase-3d-metricas-tuning.md`](2026-07-18-fase-3d-metricas-tuning.md) | concluído | Formato 2.0 (11·11·7 com caps), métricas/baterias §4.3–§3.2 como gates, servePower removido, fixes de ataque da CPU e tuning do Normal |
 | [`2026-07-18-fase-4a-atleta-rig.md`](2026-07-18-fase-4a-atleta-rig.md) | concluído | Atleta rigada procedural como padrão: 19 ossos, 5 SkinnedMesh/atleta, poses portadas, draw calls 515→235 |
 | [`2026-07-18-fase-4b-locomotion-ik.md`](2026-07-18-fase-4b-locomotion-ik.md) | concluído | Locomoção direcional, IK de dois ossos, foot planting ≤0,15 m e mãos ao contato ≤0,12 m |
+| [`2026-07-18-fase-4c-elenco.md`](2026-07-18-fase-4c-elenco.md) | em execução | Corpo parametrizado, elenco nomeado 6+6, galeria determinística e aceite visual em 3 viewports |
 
 ## Retomada de desenvolvimento
 
