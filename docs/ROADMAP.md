@@ -98,6 +98,20 @@ continuam aguardando a conclusão dessas etapas.
   screenshots da 4A/4B, sem mudança na 4C). 976 testes verdes; o commit funcional `89e83ad`
   passou `npm run check` e o run `29661585073` publicou o deploy Pages verde com smoke
   público limpo.
+- **Fase 4D — concluída:** identidade de transmissão premium (§6.1): paleta navy/teal/coral
+  centralizada em `COLORS` (quadra coral, zona livre teal, arena azul-marinho), iluminação de
+  TV com contra-luz fria sem sombra extra, taraflex com brilho, e anel da atleta controlada em
+  ciano de alta luminância com **anel duplo** (codificação por forma real + escala, legível em
+  protan/deutan). A primeira revisão independente reprovou pela torcida arco-íris contrastando
+  mais que a quadra; a correção silenciou a torcida com tintas dessaturadas da identidade,
+  aprofundou o carmim AWAY e a re-revisão aprovou. Draw calls em rally 230–246 (≤ 250);
+  pendências baixas registradas para 4E/5C (pico de partículas no ponto, toast mobile, amarelo
+  do chip AUTO e um frame de bola em voo sobre a torcida nova como evidência complementar, a
+  capturar no playtest da 4E). **Incidente registrado:** o push funcional `9047b04` ficou
+  vermelho no run `29663453829` — o smoke de produção estourou o timeout de 45 s no WebGL de
+  software do runner (sem regressão funcional; local em ~29 s); o Pages não promoveu o SHA
+  vermelho. O commit corretivo `1841a9d` (timeout de E2E para 120 s) passou no run
+  `29663703758`, promovendo a 4D com smoke público limpo.
 
 ### Marco atual — IA coletiva 2.0 completa; personagens e render a seguir
 

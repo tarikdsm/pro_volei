@@ -59,6 +59,10 @@ Todas as mudanças notáveis do Pró Volei. Formato baseado em
   penteado — incluindo coque e trança novos —, pele e cabelo), Elisa/Heloisa/Isabela
   preservadas e o time vermelho deixou de ser genérico; galeria determinística DEV-only
   (`?gallery`) para aceite visual do elenco.
+- Arena premium (§6.1): paleta navy/teal/coral centralizada em `COLORS` (quadra coral, zona
+  livre teal, arquibancada azul-marinho, torcida com tintas silenciadas da identidade),
+  contra-luz fria de transmissão, taraflex com brilho e anel duplo ciano da atleta controlada
+  (dupla codificação forma+cor, legível para daltonismo).
 - Ferramental de qualidade: ESLint 10 (flat config) + Prettier 3, `.editorconfig`,
   `.gitattributes` (LF), `.nvmrc` (Node 22).
 - Testes com Vitest 4 e primeira suíte cobrindo os solvers balísticos (`math3d`).
