@@ -2,6 +2,7 @@
 // Diferença deliberada: o balanço do idle usa um relógio acumulado por dt (determinístico),
 // não performance.now() — apresentação avança somente pelo dt recebido (pausa/slow-mo corretos).
 import type { CharAction } from '../PlayerCharacter';
+import type { LocomotionState } from './locomotion';
 
 /** Convenção: valor positivo = membro à frente/para cima (+z do modelo). */
 export interface AthletePose {
@@ -20,6 +21,11 @@ export interface AthletePose {
   rKneeX: number;
   hips: number;
   knees: number;
+  /** Balanço lateral das coxas (rad) — passada lateral da locomoção direcional. */
+  lHipZ: number;
+  rHipZ: number;
+  /** Inclinação lateral do tronco (rad) na corrida lateral. */
+  spineRoll: number;
   /** Salto extra da comemoração aplicado ao body (soma ao jumpY). */
   bounceY: number;
 }
@@ -41,8 +47,48 @@ function defaultPose(): AthletePose {
     rKneeX: 0,
     hips: 0.12,
     knees: -0.2,
+    lHipZ: 0,
+    rHipZ: 0,
+    spineRoll: 0,
     bounceY: 0,
   };
+}
+
+/**
+ * Pose de locomoção direcional (substitui o par idle/run binário quando nenhuma ação de
+ * gameplay está ativa): passada orientada por strideYaw, ajuste curto e freada.
+ */
+export function locomotionPose(state: LocomotionState, runPhase: number): AthletePose {
+  const p = defaultPose();
+  if (state.mode === 'idle') return poseFor('idle', 0, runPhase, runPhase, 0);
+  if (state.mode === 'brake') {
+    p.torsoPitch = -0.18;
+    p.hips = 0.5;
+    p.knees = -0.9;
+    p.lShX = 0.9;
+    p.rShX = 0.9;
+    p.lElX = -0.4;
+    p.rElX = -0.4;
+    return p;
+  }
+  const amplitude = state.mode === 'adjust' ? 0.35 : 1;
+  const s = Math.sin(runPhase);
+  const c = Math.cos(runPhase);
+  const along = Math.cos(state.strideYaw); // componente frontal da passada
+  const side = Math.sin(state.strideYaw); // componente lateral (esquerda positiva)
+  p.torsoPitch = (0.1 + 0.2 * Math.abs(along)) * amplitude + state.lean * along;
+  p.spineRoll = -state.lean * side;
+  p.lHipX = s * 0.7 * amplitude * along;
+  p.rHipX = -s * 0.7 * amplitude * along;
+  p.lHipZ = s * 0.55 * amplitude * side;
+  p.rHipZ = -s * 0.55 * amplitude * side;
+  p.lKneeX = -0.4 - Math.max(0, c) * 0.7 * amplitude;
+  p.rKneeX = -0.4 - Math.max(0, -c) * 0.7 * amplitude;
+  p.lShX = -s * 0.8 * amplitude * along + 0.2;
+  p.rShX = s * 0.8 * amplitude * along + 0.2;
+  p.lElX = -0.7;
+  p.rElX = -0.7;
+  return p;
 }
 
 function ease01(t: number): number {

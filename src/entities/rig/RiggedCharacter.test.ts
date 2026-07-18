@@ -82,6 +82,80 @@ describe('RiggedCharacter', () => {
     expect(Math.abs(armOf(spike) - armOf(idle))).toBeGreaterThan(0.5);
   });
 
+  it('corrida lateral pedala as pernas para o lado (≠ corrida frontal)', () => {
+    const frontal = new RiggedCharacter(LOOK, { decalTexture: null });
+    const lateral = new RiggedCharacter(LOOK, { decalTexture: null });
+    frontal.setAction('run');
+    lateral.setAction('run');
+    let maxFrontZ = 0;
+    let maxLateralZ = 0;
+    for (let i = 0; i < 60; i += 1) {
+      frontal.setPlanarMotion(3, 0, false);
+      lateral.setPlanarMotion(0, 3, false);
+      frontal.update(1 / 60);
+      lateral.update(1 / 60);
+      const zOf = (char: RiggedCharacter) => {
+        let z = 0;
+        char.root.traverse((object) => {
+          if ((object as THREE.Bone).isBone && object.name === 'thighL') z = object.rotation.z;
+        });
+        return Math.abs(z);
+      };
+      maxFrontZ = Math.max(maxFrontZ, zOf(frontal));
+      maxLateralZ = Math.max(maxLateralZ, zOf(lateral));
+    }
+    expect(maxLateralZ).toBeGreaterThan(0.1);
+    expect(maxFrontZ).toBeLessThan(0.02);
+  });
+
+  it('foot planting: pé plantado desliza no máximo 0,15 m quando o root se move', () => {
+    const char = new RiggedCharacter(LOOK, { decalTexture: null });
+    char.setAction('idle');
+    for (let i = 0; i < 30; i += 1) {
+      char.setPlanarMotion(0, 0, false);
+      char.update(1 / 60);
+    }
+    char.root.updateMatrixWorld(true);
+    const before = new THREE.Vector3();
+    char.root.traverse((object) => {
+      if ((object as THREE.Bone).isBone && object.name === 'footL') {
+        object.getWorldPosition(before);
+      }
+    });
+
+    char.root.position.x += 0.2; // desloca o root sem passada (dentro do raio de replante)
+    for (let i = 0; i < 20; i += 1) {
+      char.setPlanarMotion(0, 0, false);
+      char.update(1 / 60);
+    }
+    char.root.updateMatrixWorld(true);
+    const after = new THREE.Vector3();
+    char.root.traverse((object) => {
+      if ((object as THREE.Bone).isBone && object.name === 'footL') {
+        object.getWorldPosition(after);
+      }
+    });
+    expect(after.distanceTo(before)).toBeLessThanOrEqual(0.15);
+  });
+
+  it('setContactAim leva a mão a ≤ 0,12 m do alvo alcançável na manchete', () => {
+    const char = new RiggedCharacter(LOOK, { decalTexture: null });
+    char.setAction('bump');
+    const aim = new THREE.Vector3(0, 1.2, 0.3); // à frente do peito, ao alcance dos braços
+    for (let i = 0; i < 60; i += 1) {
+      char.setContactAim(aim.x, aim.y, aim.z, 0);
+      char.update(1 / 60);
+    }
+    char.root.updateMatrixWorld(true);
+    const hand = new THREE.Vector3();
+    char.root.traverse((object) => {
+      if ((object as THREE.Bone).isBone && object.name === 'handL') {
+        object.getWorldPosition(hand);
+      }
+    });
+    expect(hand.distanceTo(aim)).toBeLessThanOrEqual(0.12);
+  });
+
   it('avança somente pelo dt recebido: dt zero não altera a pose', () => {
     const char = new RiggedCharacter(LOOK, { decalTexture: null });
     char.setAction('run');
