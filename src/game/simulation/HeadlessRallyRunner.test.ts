@@ -1,8 +1,33 @@
 import { describe, expect, it, vi } from 'vitest';
-import { TeamSide } from '../../core/constants';
+import { TeamSide, otherSide } from '../../core/constants';
 import { RandomHub } from '../../core/random';
 import { createHeadlessHooks } from './HeadlessHooks';
 import { HeadlessRallyRunner, runHeadlessBatch, runHeadlessRally } from './HeadlessRallyRunner';
+
+it('resume side-outs, classe do ponto e zonas de ataque por rally', () => {
+  const batch = runHeadlessBatch({ seed: 0x3d00_00aa, rallies: 12 });
+  const sideOuts: [number, number] = [0, 0];
+  const unforced: [number, number] = [0, 0];
+  const zoneTotals = [
+    [0, 0, 0],
+    [0, 0, 0],
+  ];
+  for (const rally of batch.rallies) {
+    expect(typeof rally.sideOut).toBe('boolean');
+    expect(rally.sideOut).toBe(rally.winner !== rally.serving);
+    expect(['decisive', 'unforced']).toContain(rally.pointClass);
+    if (rally.sideOut) sideOuts[rally.winner] += 1;
+    if (rally.pointClass === 'unforced') unforced[otherSide(rally.winner)] += 1;
+    for (const side of [0, 1]) {
+      const zones = rally.attackZones[side];
+      expect(zones[0] + zones[1] + zones[2]).toBe(rally.attacks[side]);
+      for (let zone = 0; zone < 3; zone += 1) zoneTotals[side][zone] += zones[zone];
+    }
+  }
+  expect(batch.sideOuts).toEqual(sideOuts);
+  expect(batch.unforcedErrors).toEqual(unforced);
+  expect(batch.attackZoneTotals).toEqual(zoneTotals);
+});
 
 describe('HeadlessRallyRunner', () => {
   it('produz o mesmo journal byte a byte para a mesma seed', () => {

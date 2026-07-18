@@ -1,4 +1,5 @@
-import { DIFFICULTIES, MATCH_FORMATS, TeamSide } from '../../core/constants';
+import { DIFFICULTIES, MATCH_FORMATS, TeamSide, otherSide } from '../../core/constants';
+import { attackZoneIndex, classifyPoint, type PointClass, type RallyTouch } from './BalanceMetrics';
 import type { RandomHubSnapshot } from '../../core/random';
 import { RandomHub } from '../../core/random';
 import { FixedStepRunner, type FixedStepTicket } from '../../core/time/FixedStepRunner';
@@ -73,6 +74,10 @@ export interface HeadlessRallySummary {
   readonly ace: boolean;
   readonly cause: PointCause;
   readonly score: readonly [number, number];
+  readonly sideOut: boolean; // vencedor foi quem recebia o saque
+  readonly pointClass: PointClass;
+  /** Ataques por zona [esq, centro, dir] no referencial da atacante, por lado [HOME, AWAY]. */
+  readonly attackZones: readonly (readonly [number, number, number])[];
 }
 
 export interface HeadlessBatchResult {
@@ -85,6 +90,9 @@ export interface HeadlessBatchResult {
   readonly attacks: readonly [number, number];
   readonly attackPoints: readonly [number, number];
   readonly errors: readonly [number, number];
+  readonly sideOuts: readonly [number, number];
+  readonly unforcedErrors: readonly [number, number];
+  readonly attackZoneTotals: readonly (readonly [number, number, number])[];
   readonly totalTicks: number;
   readonly journal: readonly Readonly<RallyJournalEntry>[];
   readonly serializedJournal: string;
@@ -246,6 +254,12 @@ export class HeadlessRallyRunner {
     const attacks: [number, number] = [0, 0];
     const attackPoints: [number, number] = [0, 0];
     const errors: [number, number] = [0, 0];
+    const sideOuts: [number, number] = [0, 0];
+    const unforcedErrors: [number, number] = [0, 0];
+    const attackZoneTotals: [number, number, number][] = [
+      [0, 0, 0],
+      [0, 0, 0],
+    ];
     for (const summary of summaries) {
       points[summary.winner] += 1;
       if (summary.ace) aces[summary.winner] += 1;
@@ -259,6 +273,13 @@ export class HeadlessRallyRunner {
       attackPoints[1] += summary.attackPoints[1];
       errors[0] += summary.errors[0];
       errors[1] += summary.errors[1];
+      if (summary.sideOut) sideOuts[summary.winner] += 1;
+      if (summary.pointClass === 'unforced') unforcedErrors[otherSide(summary.winner)] += 1;
+      for (const side of [0, 1] as const) {
+        for (let zone = 0; zone < 3; zone += 1) {
+          attackZoneTotals[side][zone] += summary.attackZones[side][zone];
+        }
+      }
     }
 
     const journalEntries = Object.freeze(this.journal.entries.slice(firstJournalEntry));
@@ -290,6 +311,13 @@ export class HeadlessRallyRunner {
       attacks: Object.freeze(attacks),
       attackPoints: Object.freeze(attackPoints),
       errors: Object.freeze(errors),
+      sideOuts: Object.freeze(sideOuts),
+      unforcedErrors: Object.freeze(unforcedErrors),
+      attackZoneTotals: Object.freeze(
+        attackZoneTotals.map(
+          (zones) => Object.freeze([...zones]) as unknown as readonly [number, number, number],
+        ),
+      ),
       totalTicks: this.lastPointTick - firstTick,
       journal: journalEntries,
       serializedJournal: this.journal.serialize(journalEntries),
@@ -520,6 +548,11 @@ function summarizeRallies(
   let blocks: [number, number] = [0, 0];
   let blockTouches: [number, number] = [0, 0];
   let attacks: [number, number] = [0, 0];
+  let touches: RallyTouch[] = [];
+  let attackZones: [[number, number, number], [number, number, number]] = [
+    [0, 0, 0],
+    [0, 0, 0],
+  ];
   let point: Extract<SimulationTelemetryEvent, { type: 'point' }> | null = null;
 
   for (const event of events) {
@@ -529,13 +562,23 @@ function summarizeRallies(
       blocks = [0, 0];
       blockTouches = [0, 0];
       attacks = [0, 0];
+      touches = [];
+      attackZones = [
+        [0, 0, 0],
+        [0, 0, 0],
+      ];
       point = null;
     } else if (event.type === 'contact') {
       contacts += 1;
-      if (event.kind === 'spike') attacks[event.side] += 1;
+      touches.push({ side: event.side, kind: event.kind });
+      if (event.kind === 'spike') {
+        attacks[event.side] += 1;
+        attackZones[event.side][attackZoneIndex(event.side, event.point.z)] += 1;
+      }
     } else if (event.type === 'block') {
       blockTouches[event.side] += 1;
       if (event.outcome === 'stuff') blocks[event.side] += 1;
+      touches.push({ side: event.side, kind: 'block-touch' });
     } else if (event.type === 'point') {
       point = event;
     } else if (event.type === 'rally-end' && rallyStart && point) {
@@ -558,6 +601,14 @@ function summarizeRallies(
               ? point.lastTouchSide
               : null;
       if (errorSide !== null) errors[errorSide] = 1;
+      const pointClass = classifyPoint({
+        cause: point.cause,
+        ace: point.ace,
+        winner: point.winner,
+        lastTouchSide: point.lastTouchSide,
+        lastKind: point.lastKind,
+        touches,
+      });
       summaries.push(
         Object.freeze({
           winner: event.winner,
@@ -573,6 +624,12 @@ function summarizeRallies(
           ace: point.ace,
           cause: point.cause,
           score: Object.freeze([...point.score]) as unknown as readonly [number, number],
+          sideOut: event.winner !== rallyStart.serving,
+          pointClass,
+          attackZones: Object.freeze([
+            Object.freeze([...attackZones[0]]) as unknown as readonly [number, number, number],
+            Object.freeze([...attackZones[1]]) as unknown as readonly [number, number, number],
+          ]),
         }),
       );
       rallyStart = null;
