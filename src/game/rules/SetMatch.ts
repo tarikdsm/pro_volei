@@ -1,7 +1,7 @@
 // Fluxo de ponto → set → partida: orquestração (placar + apresentação + transições) sobre um
 // contexto injetado. As decisões puras ficam em rules/scoring.ts; aqui é o "como" (banners,
 // áudio, câmera, rodízio, agendamento). Extraído de Match.ts (1.6).
-import { TeamSide, otherSide, sideSign } from '../../core/constants';
+import { TeamSide, otherSide, sideSign, type SetScoringFormat } from '../../core/constants';
 import type { BallSimulationPort } from '../simulation/BallSimulationPort';
 import { Team } from '../Team';
 import { RallyState } from '../RallyState';
@@ -13,6 +13,7 @@ import {
   setWinner,
   isMatchOver,
   setPointLeader,
+  setTargets,
   isAce,
   resolveRallyOutcome,
   isDecidingSet,
@@ -37,7 +38,7 @@ export interface ScoringCtx {
   readonly score: [number, number]; // mutado in-place
   readonly sets: [number, number]; // mutado in-place
   readonly stats: MatchStats; // mutado in-place
-  readonly format: { sets: number; pointsPerSet: number };
+  readonly format: SetScoringFormat;
   servingTeam: TeamSide; // leitura + escrita (troca de saque)
   setNumber: number; // leitura + escrita (próximo set)
   firstServerOfSet: TeamSide; // leitura + escrita (quem sacou primeiro no set atual — base da alternância)
@@ -127,17 +128,17 @@ export function awardPoint(
   }
   pushScore(ctx);
 
-  // fim de set?
-  const target = ctx.format.pointsPerSet;
+  // fim de set? (alvo e cap do set corrente — set decisivo usa alvos próprios)
+  const { target, cap } = setTargets(ctx.format, ctx.setNumber);
   const [h, a] = ctx.score;
-  const setOver = isSetOver(h, a, target);
+  const setOver = isSetOver(h, a, target, cap);
   ctx.after(2.6, () => {
     if (setOver) endSet(ctx, setWinner(h, a));
     else ctx.beginServePrep();
   });
 
   // set point / match point aviso
-  const spLeader = setPointLeader(h, a, target);
+  const spLeader = setPointLeader(h, a, target, cap);
   if (spLeader !== null) {
     ctx.after(1.4, () =>
       ctx.hooks.banner(spLeader === TeamSide.HOME ? 'SET POINT — VOCÊ!' : 'SET POINT — CPU', ''),

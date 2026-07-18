@@ -42,7 +42,13 @@ function makeCtx(o: CtxOpts): ScoringCtx {
     score: [0, 0],
     sets: o.sets,
     stats,
-    format: { sets: o.formatSets ?? 3, pointsPerSet: 25 },
+    format: {
+      sets: o.formatSets ?? 3,
+      pointsPerSet: 25,
+      decidingPoints: 25,
+      cap: null,
+      decidingCap: null,
+    },
     servingTeam: o.servingTeam,
     setNumber: o.setNumber,
     firstServerOfSet: o.firstServerOfSet,
@@ -131,6 +137,9 @@ interface FakeOpts {
   firstServerOfSet?: TeamSide;
   formatSets?: number;
   pointsPerSet?: number;
+  decidingPoints?: number;
+  cap?: number | null;
+  decidingCap?: number | null;
   isRally?: () => boolean;
   ballPos?: { x: number; z: number };
   lastTouchTeam?: TeamSide | null;
@@ -200,7 +209,13 @@ function makeFake(o: FakeOpts = {}) {
     score: o.score ?? [0, 0],
     sets: o.sets ?? [0, 0],
     stats: { aces: 0, blocks: 0, longestRally: 0, points: [0, 0] },
-    format: { sets: o.formatSets ?? 1, pointsPerSet: o.pointsPerSet ?? 15 },
+    format: {
+      sets: o.formatSets ?? 1,
+      pointsPerSet: o.pointsPerSet ?? 15,
+      decidingPoints: o.decidingPoints ?? o.pointsPerSet ?? 15,
+      cap: o.cap ?? null,
+      decidingCap: o.decidingCap ?? null,
+    },
     servingTeam: o.servingTeam ?? TeamSide.HOME,
     setNumber: o.setNumber ?? 1,
     firstServerOfSet: o.firstServerOfSet ?? TeamSide.HOME,
@@ -312,6 +327,41 @@ describe('awardPoint — placar, saque e rodízio', () => {
     flush();
     expect(ctx.sets[TeamSide.HOME]).toBe(1);
     expect(beginServePrep).not.toHaveBeenCalled();
+  });
+
+  it('cap 15 fecha o set em 15-14 sem exigir 2 de vantagem (formato 2.0)', () => {
+    const { ctx, flush } = makeFake({
+      servingTeam: TeamSide.HOME,
+      score: [14, 14],
+      formatSets: 3,
+      pointsPerSet: 11,
+      decidingPoints: 7,
+      cap: 15,
+      decidingCap: 11,
+    });
+    awardPoint(ctx, TeamSide.HOME, 'ponto'); // 15 × 14 → fecha pelo cap
+    flush();
+    expect(ctx.sets[TeamSide.HOME]).toBe(1); // endSet ocorreu mesmo sem 2 de vantagem
+    expect(ctx.setNumber).toBe(2); // partida segue para o próximo set
+    expect(ctx.score).toEqual([0, 0]);
+  });
+
+  it('set decisivo do formato 2.0 usa alvo 7 com cap 11', () => {
+    const { ctx, flush, enterMatchEnd } = makeFake({
+      servingTeam: TeamSide.HOME,
+      score: [6, 4],
+      setNumber: 3,
+      sets: [1, 1],
+      formatSets: 3,
+      pointsPerSet: 11,
+      decidingPoints: 7,
+      cap: 15,
+      decidingCap: 11,
+    });
+    awardPoint(ctx, TeamSide.HOME, 'ponto'); // 7 × 4 fecha por alvo com 2 de vantagem
+    flush();
+    expect(ctx.sets[TeamSide.HOME]).toBe(2);
+    expect(enterMatchEnd).toHaveBeenCalledTimes(1);
   });
 
   it('deuce não fecha o set: segue o jogo com beginServePrep', () => {
