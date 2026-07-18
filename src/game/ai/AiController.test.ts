@@ -123,9 +123,61 @@ describe('AiController.updateScheduledJumps — lifecycle do bloqueador agendado
   });
 });
 
+describe('AiController.resolveScheduledJumps — pulo do ataque condicionado à distância', () => {
+  function spikeFixture(pos: { x: number; z: number }) {
+    const calls = { act: 0, jump: 0 };
+    const athlete = {
+      pos: { x: pos.x, y: 0, z: pos.z },
+      act: () => {
+        calls.act++;
+      },
+      jump: () => {
+        calls.jump++;
+      },
+    } as unknown as Athlete;
+    const rally = new RallyState();
+    const plan = {
+      athlete,
+      kind: 'spike',
+      point: { x: 0.9, z: 3.0 },
+      jumpScheduledIn: 0.05,
+    } as unknown as TouchPlan;
+    rally.plan = plan;
+    return { calls, rally, plan };
+  }
+
+  it('não pula com a atacante longe do ponto; mantém o agendamento para reavaliar', () => {
+    const f = spikeFixture({ x: 1.8, z: 1.0 }); // d ≈ 2,2 m do ponto de contato
+    new AiController().updateScheduledJumps(0.06, makeCtx(f.rally));
+
+    expect(f.calls.jump).toBe(0);
+    expect(f.plan.jumpScheduledIn).toBeDefined(); // reavalia nos próximos ticks
+  });
+
+  it('pula quando a atacante está perto do ponto', () => {
+    const f = spikeFixture({ x: 1.6, z: 3.0 }); // d ≈ 0,7 m
+    new AiController().updateScheduledJumps(0.06, makeCtx(f.rally));
+
+    expect(f.calls.jump).toBe(1);
+    expect(f.plan.jumpScheduledIn).toBeUndefined();
+  });
+
+  it('pulo adiado dispara assim que a atacante entra no raio', () => {
+    const f = spikeFixture({ x: 1.8, z: 1.0 });
+    const ai = new AiController();
+    ai.updateScheduledJumps(0.06, makeCtx(f.rally));
+    expect(f.calls.jump).toBe(0);
+
+    f.plan.athlete.pos.z = 2.8; // chegou ao raio de pulo
+    ai.updateScheduledJumps(0.016, makeCtx(f.rally));
+    expect(f.calls.jump).toBe(1);
+  });
+});
+
 describe('AiController.scheduleApproach — ownership do plano', () => {
   function approachFixture() {
     const callbacks: Array<() => void> = [];
+    const delays: number[] = [];
     const moves: Array<[number, number]> = [];
     const athlete = {
       moveTo: (x: number, z: number) => moves.push([x, z]),
@@ -134,7 +186,10 @@ describe('AiController.scheduleApproach — ownership do plano', () => {
     const ctx = {
       rally,
       diff: { reactionDelay: 0.2 },
-      after: (_seconds: number, callback: () => void) => callbacks.push(callback),
+      after: (seconds: number, callback: () => void) => {
+        delays.push(seconds);
+        callbacks.push(callback);
+      },
     } as unknown as MechanicsCtx;
     const plan = {
       planId: 70,
@@ -145,8 +200,25 @@ describe('AiController.scheduleApproach — ownership do plano', () => {
       contactIn: 1,
       tacticalRevision: 1,
     } as unknown as TouchPlan;
-    return { callbacks, moves, athlete, rally, ctx, plan };
+    return { callbacks, delays, moves, athlete, rally, ctx, plan };
   }
+
+  it('recepção/defesa reage com o reactionDelay da dificuldade', () => {
+    const fixture = approachFixture();
+    fixture.rally.plan = fixture.plan;
+    new AiController().scheduleApproach(fixture.ctx, fixture.plan);
+
+    expect(fixture.delays).toEqual([0.2]);
+  });
+
+  it('aproximação da cortada é imediata: jogada própria já comprometida não tem percepção', () => {
+    const fixture = approachFixture();
+    (fixture.plan as { kind: string }).kind = 'spike';
+    fixture.rally.plan = fixture.plan;
+    new AiController().scheduleApproach(fixture.ctx, fixture.plan);
+
+    expect(fixture.delays).toEqual([0]);
+  });
 
   it('executa a aproximação enquanto plano e atleta ainda são atuais', () => {
     const fixture = approachFixture();

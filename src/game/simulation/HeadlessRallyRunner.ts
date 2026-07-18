@@ -77,7 +77,10 @@ export interface HeadlessRallySummary {
   readonly score: readonly [number, number];
   readonly sideOut: boolean; // vencedor foi quem recebia o saque
   readonly pointClass: PointClass;
-  /** Ataques por zona [esq, centro, dir] no referencial da atacante, por lado [HOME, AWAY]. */
+  /**
+   * Ataques do lado [HOME, AWAY] por corredor de destino [esq, centro, dir] na quadra que
+   * recebe, no referencial de quem defende (§4.3: "nenhuma zona recebe mais de 45%").
+   */
   readonly attackZones: readonly (readonly [number, number, number])[];
 }
 
@@ -661,7 +664,9 @@ function summarizeRallies(
       touches.push({ side: event.side, kind: event.kind });
       if (event.kind === 'spike') {
         attacks[event.side] += 1;
-        attackZones[event.side][attackZoneIndex(event.side, event.point.z)] += 1;
+        // Zona que RECEBE o ataque (§4.3): corredor do alvo na quadra defendida,
+        // classificado na perspectiva de quem defende.
+        attackZones[event.side][attackZoneIndex(otherSide(event.side), event.target.z)] += 1;
       }
     } else if (event.type === 'block') {
       blockTouches[event.side] += 1;

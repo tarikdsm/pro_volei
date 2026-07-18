@@ -1340,6 +1340,28 @@ git commit -m "feat(ia): baterias de balanceamento e tuning do Normal na faixa 2
 
 ---
 
+### Task 9b (emenda 18/07): pulo de ataque condicionado à distância
+
+**Contexto:** a bateria §4.3 revelou que 26% dos pontos eram levantamentos caindo sem ataque.
+Diagnóstico sistemático (instrumentação em `attemptSpikeContact` + `scheduleApproach`): a
+atacante comprometida parte a ~3 m do pin, o pulo agendado dispara incondicionalmente 0,26 s
+antes do contato e, no ar, a velocidade cai a 25% (`Team.ts:78`) — ela congela a ~2 m do ponto e
+`attemptSpikeContact` com `d > lungeReach` não faz nada. Nenhuma constante resolve; a correção é
+mecânica e mínima.
+
+**Files:**
+- Modify: `src/core/constants.ts` (novo bloco `AI_ATTACK`)
+- Modify: `src/game/ai/AiController.ts` (`scheduleApproach` usa a constante; `resolveScheduledJumps`
+  só pula com a atleta a até `jumpMaxDistance` do ponto; longe, continua correndo e o resgate
+  freeball existente assume no contato)
+- Test: `src/game/ai/AiController.test.ts`
+
+- [ ] Teste que falha: pulo agendado expirado NÃO dispara com a atleta longe; dispara quando perto.
+- [ ] Implementação mínima + suíte inteira verde.
+- [ ] Commit: `fix(ia): atacante so pula perto do ponto de contato`.
+
+---
+
 ### Task 10: Gates finais, playtest real, docs de conclusão e push
 
 **Files:**

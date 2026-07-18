@@ -46,11 +46,14 @@ export function classifyPoint(input: PointClassificationInput): PointClass {
   return 'unforced';
 }
 
-/** Zona de origem do ataque no referencial da atacante: 0 = esquerda, 1 = centro, 2 = direita. */
+/**
+ * Corredor (0 = esquerda, 1 = centro, 2 = direita) de uma coordenada z no referencial do lado
+ * indicado. Usado com o lado que DEFENDE para classificar a zona que recebe o ataque (§4.3).
+ */
 export function attackZoneIndex(side: TeamSide, contactZ: number): 0 | 1 | 2 {
-  const attackerZ = side === TeamSide.HOME ? contactZ : -contactZ;
+  const localZ = side === TeamSide.HOME ? contactZ : -contactZ;
   const half = (ATTACK_ZONES[2] - ATTACK_ZONES[1]) / 2;
-  return attackerZ < -half ? 0 : attackerZ > half ? 2 : 1;
+  return localZ < -half ? 0 : localZ > half ? 2 : 1;
 }
 
 /** Percentil p ∈ [0,1] com interpolação linear entre vizinhos; lança em lista vazia. */

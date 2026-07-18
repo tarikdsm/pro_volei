@@ -25,9 +25,21 @@ const UINT32_SCALE = 0x1_0000_0000;
 
 export const STRATEGY_PROFILES = [
   { exploration: 0.25, temperature: 0.35, cap: 0.5 },
-  { exploration: 0.12, temperature: 0.22, cap: 0.6 },
+  { exploration: 0.18, temperature: 0.3, cap: 0.55 },
   { exploration: 0.06, temperature: 0.15, cap: 0.7 },
 ] as const;
+
+/**
+ * Janela de legalidade do quick-center. `arrivalSlack` permite que a central chegue um pouco
+ * DEPOIS do toque da levantadora: o voo curto do quick cobre a diferença, como no vôlei real.
+ */
+const QUICK_WINDOW = Object.freeze({
+  minEta: 0.1,
+  maxEta: 1.35,
+  minHeight: 0.8,
+  maxHeight: 4,
+  arrivalSlack: 0.2,
+});
 
 const MEMORY_DEPTH = [2, 5, 6] as const;
 const MEMORY_RECENCY_WEIGHTS = [1, 0.72, 0.52, 0.37, 0.27, 0.19] as const;
@@ -590,11 +602,11 @@ export class OpponentBrain {
           : Number.POSITIVE_INFINITY;
       const quickLegal =
         ballRead.reachable &&
-        ballRead.eta >= 0.1 &&
-        ballRead.eta <= 1.35 &&
-        ballRead.predictedHeight >= 0.8 &&
-        ballRead.predictedHeight <= 4 &&
-        centralEta <= ballRead.eta;
+        ballRead.eta >= QUICK_WINDOW.minEta &&
+        ballRead.eta <= QUICK_WINDOW.maxEta &&
+        ballRead.predictedHeight >= QUICK_WINDOW.minHeight &&
+        ballRead.predictedHeight <= QUICK_WINDOW.maxHeight &&
+        centralEta <= ballRead.eta + QUICK_WINDOW.arrivalSlack;
       if (!quickLegal)
         options = Object.freeze(options.filter((option) => option.family !== 'quick'));
     }

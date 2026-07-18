@@ -85,12 +85,12 @@ export const DIFFICULTIES: Difficulty[] = [
   },
   {
     name: 'Normal',
-    reactionDelay: 0.24,
+    reactionDelay: 0.16,
     passQuality: [0.5, 0.92],
-    attackError: 0.13,
-    serveError: 0.1,
+    attackError: 0.08,
+    serveError: 0.06,
     blockChance: 0.45,
-    digChance: 0.55,
+    digChance: 0.38,
   },
   {
     name: 'Difícil',
@@ -269,6 +269,15 @@ export const PLAYER = {
   blockJumpVel: 4.6,
   height: 1.88,
 };
+
+/**
+ * Ataque da IA (ai/AiController.ts). No ar a velocidade cai a 25% (Team.ts); pular longe do
+ * ponto de contato congelava a aproximação e deixava o levantamento cair sem disputa.
+ */
+export const AI_ATTACK = {
+  jumpLeadSeconds: 0.26, // antecedência do pulo em relação ao contato no ápice
+  jumpMaxDistance: 1.25, // distância máx. (m) ao ponto de contato para deixar o chão
+} as const;
 
 export const AUTO_SELECTOR = {
   switchAdvantage: 0.15,

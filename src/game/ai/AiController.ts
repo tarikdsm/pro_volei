@@ -1,6 +1,6 @@
 // Decisões da IA: agendamento de aproximação/pulo e rolagens de qualidade, parametrizadas por
 // ctx.diff. Sem estado próprio. A seleção de alvo da IA fica em mechanics/ (touch/serve).
-import { PLAYER, sideSign } from '../../core/constants';
+import { AI_ATTACK, PLAYER, sideSign } from '../../core/constants';
 import { TouchPlan } from '../RallyState';
 import type { MechanicsCtx } from '../mechanics/context';
 
@@ -11,9 +11,11 @@ export class AiController {
     const delay = ctx.diff.reactionDelay;
     const tacticalRevision = plan.tacticalRevision ?? 0;
     if (kind === 'spike') {
-      // atacante corre para trás do ponto de contato; o pulo leva até ele
+      // Atacante corre para trás do ponto de contato; o pulo leva até ele. A aproximação é
+      // imediata: a jogada da própria equipe já foi comprometida pela estratégia — o
+      // reactionDelay modela percepção do adversário, não da execução do próprio plano.
       const backoff = sideSign(side) * 0.85;
-      ctx.after(delay, () => {
+      ctx.after(0, () => {
         if (
           ctx.rally.plan !== plan ||
           ctx.rally.plan.athlete !== athlete ||
@@ -22,7 +24,7 @@ export class AiController {
           return;
         athlete.moveTo(point.x + backoff * 0.9, point.z);
       });
-      plan.jumpScheduledIn = contactIn - 0.26; // IA pula para contato no ápice
+      plan.jumpScheduledIn = contactIn - AI_ATTACK.jumpLeadSeconds; // IA pula para contato no ápice
     } else {
       ctx.after(delay, () => {
         if (
@@ -55,9 +57,15 @@ export class AiController {
   resolveScheduledJumps(ctx: MechanicsCtx): void {
     const plan = ctx.rally.plan;
     if (plan?.jumpScheduledIn !== undefined && plan.jumpScheduledIn <= 0) {
-      plan.athlete.act('spikeWindup', 0.4);
-      plan.athlete.jump(PLAYER.jumpVel);
-      plan.jumpScheduledIn = undefined;
+      const d = Math.hypot(plan.athlete.pos.x - plan.point.x, plan.athlete.pos.z - plan.point.z);
+      // Longe do ponto, não deixa o chão: no ar a velocidade cai a 25% e a aproximação congela.
+      // O agendamento expirado permanece e é reavaliado por tick; se a atacante nunca chegar,
+      // o resgate freeball do contato assume em vez de a bola cair sem disputa.
+      if (d <= AI_ATTACK.jumpMaxDistance) {
+        plan.athlete.act('spikeWindup', 0.4);
+        plan.athlete.jump(PLAYER.jumpVel);
+        plan.jumpScheduledIn = undefined;
+      }
     }
     // não remove a entrada ao pular: marca `jumped` para o pulo disparar uma única vez e
     // a pertinência à lista continuar valendo "bloqueador comprometido" por todo o ataque

@@ -282,13 +282,13 @@ describe('OpponentBrain', () => {
     expect(proposal.chosen.optionId).toBe('serve.float-short.left');
   });
 
-  it('aplica limiar inclusivo e caps 50/60/70 com redistribuição proporcional', () => {
+  it('aplica limiar inclusivo e caps 50/55/70 com redistribuição proporcional', () => {
     expect(strategyProbabilitiesForScores([1, 0.78, 0.779], 'serve', 0)[2]).toBe(0);
-    expect(STRATEGY_PROFILES.map((profile) => profile.cap)).toEqual([0.5, 0.6, 0.7]);
+    expect(STRATEGY_PROFILES.map((profile) => profile.cap)).toEqual([0.5, 0.55, 0.7]);
 
     for (const [difficulty, cap] of [
       [0, 0.5],
-      [1, 0.6],
+      [1, 0.55],
       [2, 0.7],
     ] as const) {
       const probabilities = strategyProbabilitiesForScores([1, 0.78], 'serve', difficulty);
@@ -507,7 +507,10 @@ describe('OpponentBrain', () => {
 
     expect(quickExists(withCentral(-6.5, 5.6))).toBe(true);
     expect(quickExists(withCentral(-6.5, -5.6))).toBe(false);
-    expect(quickExists(withCentral(-7.5, 0, -1.5))).toBe(false);
+    expect(quickExists(withCentral(-8.5, 0, -1.5))).toBe(false);
+    // Folga de chegada: a central pode chegar um pouco DEPOIS do toque da levantadora —
+    // o voo do quick cobre a diferença (QUICK_WINDOW.arrivalSlack).
+    expect(quickExists(withCentral(-6.9, 0))).toBe(true);
     const airborne = withCentral(-6.5, 5.6);
     expect(
       quickExists(
