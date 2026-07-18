@@ -57,6 +57,22 @@ const BONE_TABLE: readonly {
   { name: 'footR', parent: 'shinR', position: [0, -0.44, 0.04] },
 ];
 
+/** Posição de MUNDO de cada osso no rest pose (soma da cadeia de pais), para o bind da malha. */
+export const ATHLETE_REST_POSE: Readonly<
+  Record<AthleteJointName, readonly [number, number, number]>
+> = (() => {
+  const world = {} as Record<AthleteJointName, readonly [number, number, number]>;
+  for (const entry of BONE_TABLE) {
+    const base: readonly [number, number, number] = entry.parent ? world[entry.parent] : [0, 0, 0];
+    world[entry.name] = [
+      base[0] + entry.position[0],
+      base[1] + entry.position[1],
+      base[2] + entry.position[2],
+    ];
+  }
+  return Object.freeze(world);
+})();
+
 /** Constrói um esqueleto novo e independente (sem estado compartilhado entre chamadas). */
 export function buildAthleteSkeleton(): AthleteSkeletonRig {
   const joints = {} as Record<AthleteJointName, THREE.Bone>;
