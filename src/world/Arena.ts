@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { COLORS, COURT } from '../core/constants';
 
 // Ginásio: arquibancadas em 4 lados, iluminação de arena, placar suspenso, banners.
@@ -39,41 +40,45 @@ export class Arena {
       { axis: 'x' as const, sign: -1, len: 22, dist: startDist.short },
     ];
 
+    // Degraus mesclados por material (4E): 48 meshes viravam 48 draw calls estáticos; as
+    // transforms são cozidas na geometria e sobram 2 meshes (um por material).
+    const stepGeos: THREE.BufferGeometry[] = [];
+    const faceGeos: THREE.BufferGeometry[] = [];
     for (const s of sides) {
-      const stand = new THREE.Group();
+      const rotY =
+        s.axis === 'z' ? (s.sign > 0 ? 0 : Math.PI) : s.sign > 0 ? Math.PI / 2 : -Math.PI / 2;
+      const position =
+        s.axis === 'z'
+          ? new THREE.Vector3(0, 0, s.sign * s.dist)
+          : new THREE.Vector3(s.sign * s.dist, 0, 0);
+      const matrix = new THREE.Matrix4().makeRotationY(rotY).setPosition(position);
       for (let r = 0; r < rows; r++) {
-        const step = new THREE.Mesh(
-          new THREE.BoxGeometry(s.len, stepH, stepD),
-          r % 2 ? stepMat : faceMat,
-        );
-        step.position.set(0, r * stepH + stepH / 2, r * stepD + stepD / 2);
-        step.receiveShadow = true;
-        stand.add(step);
+        const geo = new THREE.BoxGeometry(s.len, stepH, stepD);
+        geo.translate(0, r * stepH + stepH / 2, r * stepD + stepD / 2);
+        geo.applyMatrix4(matrix);
+        (r % 2 ? stepGeos : faceGeos).push(geo);
       }
-      if (s.axis === 'z') {
-        stand.position.set(0, 0, s.sign * s.dist);
-        stand.rotation.y = s.sign > 0 ? Math.PI : 0;
-        if (s.sign > 0) stand.rotation.y = 0; // plane faces court
-        // orientar degraus subindo para longe da quadra
-        stand.rotation.y = s.sign > 0 ? 0 : Math.PI;
-      } else {
-        stand.position.set(s.sign * s.dist, 0, 0);
-        stand.rotation.y = s.sign > 0 ? Math.PI / 2 : -Math.PI / 2;
-      }
-      this.group.add(stand);
 
       // registra info p/ Crowd: origem = 1ª fileira, right ao longo do comprimento, up = subida
-      const q = stand.quaternion;
+      const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), rotY);
       const right = new THREE.Vector3(1, 0, 0).applyQuaternion(q);
       const back = new THREE.Vector3(0, 0, 1).applyQuaternion(q);
-      const origin = stand.position.clone();
       this.standsInfo.push({
-        origin,
+        origin: position.clone(),
         right,
         up: new THREE.Vector3(back.x * stepD, stepH, back.z * stepD),
         rows,
         cols: Math.floor(s.len / 0.75) - 2,
       });
+    }
+    for (const [geos, material] of [
+      [stepGeos, stepMat],
+      [faceGeos, faceMat],
+    ] as const) {
+      const merged = new THREE.Mesh(mergeGeometries(geos), material);
+      merged.receiveShadow = true;
+      this.group.add(merged);
+      for (const geo of geos) geo.dispose();
     }
 
     // paredes do ginásio
