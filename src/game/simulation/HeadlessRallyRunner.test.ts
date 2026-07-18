@@ -1,8 +1,45 @@
 import { describe, expect, it, vi } from 'vitest';
 import { TeamSide, otherSide } from '../../core/constants';
 import { RandomHub } from '../../core/random';
+import { isSetOver } from '../rules/scoring';
 import { createHeadlessHooks } from './HeadlessHooks';
-import { HeadlessRallyRunner, runHeadlessBatch, runHeadlessRally } from './HeadlessRallyRunner';
+import {
+  HeadlessRallyRunner,
+  runHeadlessBatch,
+  runHeadlessMatches,
+  runHeadlessRally,
+} from './HeadlessRallyRunner';
+
+describe('runMatches', () => {
+  it('roda uma partida completa 2.0 e resume sets, placar e duração', { timeout: 60_000 }, () => {
+    const result = runHeadlessMatches({ seed: 0x3d20_0001, matches: 1 });
+    expect(result.matches).toHaveLength(1);
+    const match = result.matches[0];
+    expect(match.sets[match.winner]).toBe(2);
+    expect(match.setScores.length).toBeGreaterThanOrEqual(2);
+    expect(match.setScores.length).toBeLessThanOrEqual(3);
+    match.setScores.forEach(([h, a], index) => {
+      const deciding = index === 2;
+      expect(isSetOver(h, a, deciding ? 7 : 11, deciding ? 11 : 15)).toBe(true);
+    });
+    expect(match.points[0] + match.points[1]).toBe(match.rallies);
+    expect(match.durationTicks).toBeGreaterThan(0);
+    expect(match.durationSeconds).toBeCloseTo(match.durationTicks / 60, 10);
+    expect(result.totalTicks).toBeGreaterThanOrEqual(match.durationTicks);
+  });
+
+  it('é determinístico por seed', { timeout: 120_000 }, () => {
+    const first = runHeadlessMatches({ seed: 0x3d20_0002, matches: 2 });
+    const second = runHeadlessMatches({ seed: 0x3d20_0002, matches: 2 });
+    expect(second.matches).toEqual(first.matches);
+  });
+
+  it('recusa começar no meio de uma partida', { timeout: 60_000 }, () => {
+    const runner = new HeadlessRallyRunner({ seed: 0x3d20_0003 });
+    runner.run(1);
+    expect(() => runner.runMatches(1)).toThrow(/fronteira de partida/);
+  });
+});
 
 it('resume side-outs, classe do ponto e zonas de ataque por rally', () => {
   const batch = runHeadlessBatch({ seed: 0x3d00_00aa, rallies: 12 });

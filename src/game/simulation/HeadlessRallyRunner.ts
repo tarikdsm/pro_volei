@@ -6,6 +6,7 @@ import { FixedStepRunner, type FixedStepTicket } from '../../core/time/FixedStep
 import type { ControlFrame } from '../control/ControlFrame';
 import { Match } from '../Match';
 import type { MatchHooks } from '../ports/MatchHooks';
+import { setWinner } from '../rules/scoring';
 import {
   MATCH_STRATEGY_POINT_CHECKPOINT_VERSION,
   MatchStrategyBridge,
@@ -120,6 +121,22 @@ export interface HeadlessRallyResult extends HeadlessRallySummary {
   readonly strategyTraceHash: string;
 }
 
+export interface HeadlessMatchSummary {
+  readonly winner: TeamSide;
+  readonly sets: readonly [number, number];
+  readonly setScores: readonly (readonly [number, number])[];
+  readonly points: readonly [number, number];
+  readonly rallies: number;
+  readonly durationTicks: number;
+  readonly durationSeconds: number;
+}
+
+export interface HeadlessMatchBatchResult {
+  readonly seed: number;
+  readonly matches: readonly Readonly<HeadlessMatchSummary>[];
+  readonly totalTicks: number;
+}
+
 export class HeadlessSimulationLimitError extends Error {
   constructor(
     message: string,
@@ -169,6 +186,14 @@ export class HeadlessRallyRunner {
   private eventsInRally = 0;
   private traceRally = 0;
   private telemetryLimit: HeadlessSimulationLimitError | null = null;
+  private matchStartTick = 0;
+  private matchStartPoint = 0;
+  private readonly matchBoundaries: {
+    tick: number;
+    point: number;
+    startTick: number;
+    startPoint: number;
+  }[] = [];
 
   constructor(options: HeadlessRunnerOptions) {
     this.seed = options.seed;
@@ -332,6 +357,49 @@ export class HeadlessRallyRunner {
     });
   }
 
+  /** Roda partidas completas AI×AI no formato configurado; exige fronteira de partida. */
+  runMatches(matches: number): HeadlessMatchBatchResult {
+    if (!Number.isInteger(matches) || matches <= 0) {
+      throw new RangeError('matches deve ser um inteiro positivo');
+    }
+    if (this.pointCount !== (this.matchBoundaries.at(-1)?.point ?? 0)) {
+      throw new Error('runMatches exige fronteira de partida (não misture com run() no meio)');
+    }
+    const firstBoundary = this.matchBoundaries.length;
+    const targetMatches = firstBoundary + matches;
+    const firstEvent = this.events.length;
+    const firstPoint = this.pointCount;
+    while (this.matchBoundaries.length < targetMatches) {
+      this.frame += 1;
+      const nowMs = (this.frame * 1_000) / this.externalHz;
+      this.fixed.advance(nowMs, {
+        onTick: (ticket) => this.onTick(ticket, Number.POSITIVE_INFINITY, targetMatches),
+        onDiscard: (discard) => {
+          throw new HeadlessSimulationLimitError('FixedStepRunner descartou tempo', {
+            reason: discard.reason,
+            tick: this.lastPointTick,
+            seed: this.seed,
+          });
+        },
+      });
+      if (this.telemetryLimit) throw this.telemetryLimit;
+    }
+    const summaries = summarizeRallies(this.events.slice(firstEvent));
+    const boundaries = this.matchBoundaries.slice(firstBoundary);
+    const matchesOut = boundaries.map((boundary) => {
+      const rallies = summaries.slice(
+        boundary.startPoint - firstPoint,
+        boundary.point - firstPoint,
+      );
+      return summarizeMatch(rallies, boundary.tick - boundary.startTick);
+    });
+    return Object.freeze({
+      seed: this.seed,
+      matches: Object.freeze(matchesOut),
+      totalTicks: boundaries.at(-1)!.tick - boundaries[0].startTick,
+    });
+  }
+
   checkpointStochastic(): Readonly<HeadlessStochasticCheckpoint> {
     this.assertPointBoundary();
     return Object.freeze({
@@ -356,7 +424,11 @@ export class HeadlessRallyRunner {
     }
   }
 
-  private onTick(ticket: FixedStepTicket, targetPoints: number): void {
+  private onTick(
+    ticket: FixedStepTicket,
+    targetPoints: number,
+    targetMatches = Number.POSITIVE_INFINITY,
+  ): void {
     if (this.pointCount >= targetPoints) return;
     this.logicalTick += 1;
     const logicalTicket = {
@@ -400,8 +472,24 @@ export class HeadlessRallyRunner {
       });
     }
 
-    if (this.match.state === 'matchEnd' && this.pointCount < targetPoints) {
-      this.match.startMatch(this.difficulty, this.format);
+    if (this.match.state === 'matchEnd') {
+      // Fronteira de partida: registra uma vez por época e reinicia se ainda há trabalho.
+      if (this.matchBoundaries.at(-1)?.point !== this.pointCount) {
+        this.matchBoundaries.push({
+          tick: this.logicalTick,
+          point: this.pointCount,
+          startTick: this.matchStartTick,
+          startPoint: this.matchStartPoint,
+        });
+      }
+      const needMore =
+        (Number.isFinite(targetPoints) && this.pointCount < targetPoints) ||
+        (Number.isFinite(targetMatches) && this.matchBoundaries.length < targetMatches);
+      if (needMore) {
+        this.match.startMatch(this.difficulty, this.format);
+        this.matchStartTick = this.logicalTick;
+        this.matchStartPoint = this.pointCount;
+      }
     }
   }
 
@@ -637,6 +725,43 @@ function summarizeRallies(
     }
   }
   return summaries;
+}
+
+/** Resume uma partida a partir dos rallies dela: sets detectados pelo reset do placar. */
+function summarizeMatch(
+  rallies: readonly Readonly<HeadlessRallySummary>[],
+  durationTicks: number,
+): Readonly<HeadlessMatchSummary> {
+  const setScores: [number, number][] = [];
+  let last: readonly [number, number] | null = null;
+  for (const rally of rallies) {
+    if (last && rally.score[0] + rally.score[1] <= last[0] + last[1]) {
+      setScores.push([last[0], last[1]]);
+    }
+    last = rally.score;
+  }
+  if (last) setScores.push([last[0], last[1]]);
+  const sets: [number, number] = [0, 0];
+  for (const [h, a] of setScores) sets[setWinner(h, a)] += 1;
+  const points: [number, number] = [0, 0];
+  for (const rally of rallies) points[rally.winner] += 1;
+  return Object.freeze({
+    winner: sets[0] > sets[1] ? TeamSide.HOME : TeamSide.AWAY,
+    sets: Object.freeze(sets) as unknown as readonly [number, number],
+    setScores: Object.freeze(
+      setScores.map((score) => Object.freeze([...score]) as unknown as readonly [number, number]),
+    ),
+    points: Object.freeze(points) as unknown as readonly [number, number],
+    rallies: rallies.length,
+    durationTicks,
+    durationSeconds: durationTicks / 60,
+  });
+}
+
+export function runHeadlessMatches(
+  options: HeadlessRunnerOptions & { readonly matches: number },
+): HeadlessMatchBatchResult {
+  return new HeadlessRallyRunner(options).runMatches(options.matches);
 }
 
 export function runHeadlessRally(options: HeadlessRunnerOptions): HeadlessRallyResult {
