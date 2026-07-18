@@ -447,7 +447,8 @@ function ease01(t: number): number {
 }
 
 // Estampa da camisa: número (frente) ou nome + número (costas).
-function makeJerseyTexture(n: number, name?: string): THREE.CanvasTexture {
+// Exportada para o RiggedCharacter (Fase 4A) reutilizar o mesmo decal no browser.
+export function makeJerseyTexture(n: number, name?: string): THREE.CanvasTexture {
   const canvas = document.createElement('canvas');
   canvas.width = 256;
   canvas.height = 256;
