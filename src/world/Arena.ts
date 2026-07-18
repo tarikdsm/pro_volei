@@ -13,6 +13,7 @@ export class Arena {
   }[] = [];
   private scoreCanvas!: HTMLCanvasElement;
   private scoreTex!: THREE.CanvasTexture;
+  private keyLight!: THREE.DirectionalLight;
 
   constructor(private lowSpec = false) {
     this.buildStands();
@@ -134,6 +135,7 @@ export class Arena {
 
     // principal com sombras
     const key = new THREE.DirectionalLight(0xfff4e0, 1.9);
+    this.keyLight = key;
     key.position.set(12, 24, 10);
     key.castShadow = true;
     const shadowRes = this.lowSpec ? 1024 : 2048;
@@ -173,6 +175,15 @@ export class Arena {
   }
 
   // Placar 3D suspenso no centro — atualizado via canvas
+  /** Redimensiona o shadow map da key light em runtime (tiers de qualidade, 4E). */
+  setShadowResolution(resolution: number): void {
+    const shadow = this.keyLight.shadow;
+    if (shadow.mapSize.x === resolution) return;
+    shadow.mapSize.set(resolution, resolution);
+    shadow.map?.dispose();
+    shadow.map = null;
+  }
+
   private buildScoreboard(): void {
     this.scoreCanvas = document.createElement('canvas');
     this.scoreCanvas.width = 512;

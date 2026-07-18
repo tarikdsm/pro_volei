@@ -44,6 +44,22 @@ describe('Effects — upload de buffer sob demanda (B11)', () => {
     expect(pts.geometry.drawRange.count).toBe(5);
   });
 
+  it('particleScale reduz burst e confete no tier baixo (mínimo de 1)', () => {
+    const effects = new Effects();
+    const pts = getPoints(effects);
+    effects.particleScale = 0.5;
+    effects.burst(new THREE.Vector3(0, 1, 0), 0xffffff, 10, 4);
+    effects.update(0.016);
+    expect(pts.geometry.drawRange.count).toBe(5);
+
+    const confettiEffects = new Effects();
+    const confettiPts = getPoints(confettiEffects);
+    confettiEffects.particleScale = 0.5;
+    confettiEffects.confetti(0);
+    confettiEffects.update(0.016);
+    expect(confettiPts.geometry.drawRange.count).toBe(80); // 160 × 0,5
+  });
+
   it('swap-remove não perde nem duplica quando todas expiram', () => {
     const effects = new Effects();
     const pts = getPoints(effects);

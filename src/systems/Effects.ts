@@ -89,9 +89,13 @@ export class Effects {
     this.group.add(this.timingGlyph);
   }
 
+  /** Escala de partículas por tier de qualidade (Fase 4E): 0,5 no baixo, 1 nos demais. */
+  particleScale = 1;
+
   burst(at: THREE.Vector3, color: number, count = 18, speed = 4): void {
     const col = new THREE.Color(color);
-    for (let i = 0; i < count; i++) {
+    const scaled = Math.max(1, Math.round(count * this.particleScale));
+    for (let i = 0; i < scaled; i++) {
       if (this.particles.length >= this.MAX) break;
       const a = Math.random() * Math.PI * 2;
       const up = Math.random() * 0.9 + 0.15;
@@ -112,7 +116,8 @@ export class Effects {
 
   confetti(centerX: number): void {
     const colors = [0xffd54f, 0x4fc3f7, 0xef5350, 0x66bb6a, 0xba68c8];
-    for (let i = 0; i < 160; i++) {
+    const scaled = Math.max(1, Math.round(160 * this.particleScale));
+    for (let i = 0; i < scaled; i++) {
       if (this.particles.length >= this.MAX) break;
       this.particles.push({
         pos: new THREE.Vector3(

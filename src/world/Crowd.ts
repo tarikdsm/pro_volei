@@ -46,7 +46,10 @@ export class Crowd {
     head.translate(0, 0.68, 0);
     const geo = mergeGeos([body, head]);
 
-    const emptySeatChance = 1 - 0.82 * density;
+    // A malha é SEMPRE construída na lotação máxima (18% de assentos vazios); a densidade
+    // efetiva vira um prefixo visível via InstancedMesh.count — ajustável por tier em runtime
+    // (Fase 4E) sem realocar buffers. O shuffle torna o prefixo um subconjunto uniforme.
+    const emptySeatChance = 0.18;
     const spots: { pos: THREE.Vector3; angle: number }[] = [];
     for (const s of arena.standsInfo) {
       for (let r = 0; r < s.rows; r++) {
@@ -62,6 +65,11 @@ export class Crowd {
           spots.push({ pos, angle: Math.atan2(pos.z, pos.x) });
         }
       }
+    }
+
+    for (let i = spots.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [spots[i], spots[j]] = [spots[j], spots[i]];
     }
 
     this.count = spots.length;
@@ -105,6 +113,19 @@ export class Crowd {
       this.mesh.setColorAt(i, color);
     }
     this.mesh.instanceColor!.needsUpdate = true;
+    this.mesh.count = this.visibleFor(density);
+  }
+
+  /** Ajusta densidade visível e cadência da animação em runtime (tiers de qualidade, 4E). */
+  setQuality(density: number, tickHz: number): void {
+    this.tickInterval = tickHz > 0 ? 1 / tickHz : 0;
+    this.mesh.count = this.visibleFor(density);
+    this.mesh.instanceMatrix.needsUpdate = true;
+  }
+
+  private visibleFor(density: number): number {
+    const clamped = Math.min(1, Math.max(0, density));
+    return Math.max(1, Math.round(this.count * clamped));
   }
 
   /** dispara empolgação: 0.3 = toque legal, 1 = ponto/bloqueio espetacular */
@@ -150,7 +171,8 @@ export class Crowd {
     const freq = 2.2 + this.excitement * 6;
     const t = this.time;
 
-    for (let i = 0; i < this.count; i++) {
+    const visible = this.mesh.count; // só o prefixo visível do tier atual é animado
+    for (let i = 0; i < visible; i++) {
       const bx = this.basePos[i * 3],
         by = this.basePos[i * 3 + 1],
         bz = this.basePos[i * 3 + 2];

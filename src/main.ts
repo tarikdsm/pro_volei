@@ -13,7 +13,8 @@ import { HUD } from './ui/HUD';
 import { Menu } from './ui/Menu';
 import { TouchControls } from './ui/TouchControls';
 import { AppState, nextAppState } from './ui/appState';
-import { COLORS, CROWD, SIMULATION_TIMING } from './core/constants';
+import { COLORS, QUALITY_TIERS, SIMULATION_TIMING } from './core/constants';
+import { QualityManager } from './core/quality/QualityManager';
 import { exporDebugHabilitado } from './core/debug';
 import { mapScreenToCourt } from './core/input/CameraSpaceMapper';
 import { FixedStepRunner, type FixedStepDiscard } from './core/time/FixedStepRunner';
@@ -102,14 +103,32 @@ scene.fog = new THREE.Fog(COLORS.background, 45, 90);
 // ---------- mundo (qualidade reduzida no celular) ----------
 const court = new Court();
 const arena = new Arena(isTouch);
-const crowd = new Crowd(
-  arena,
-  isTouch ? CROWD.densityLow : CROWD.density,
-  isTouch ? CROWD.tickHzLow : CROWD.tickHz,
-);
+const crowd = new Crowd(arena);
 const referee = new Referee();
 const effects = new Effects();
 scene.add(court.group, arena.group, crowd.mesh, referee.group, effects.group);
+
+// ---------- tiers de qualidade (§10.1) ----------
+// Tier inicial por capacidade (touch = médio); ?tier=0|1|2 força em DEV/?debug para testes.
+const tierParam = debugEnabled
+  ? Number(new URLSearchParams(location.search).get('tier'))
+  : Number.NaN;
+const initialTier =
+  Number.isInteger(tierParam) && tierParam >= 0 && tierParam < QUALITY_TIERS.length
+    ? tierParam
+    : isTouch
+      ? 1
+      : 2;
+const quality = new QualityManager(initialTier);
+function applyQualityTier(tier: number): void {
+  const q = QUALITY_TIERS[tier];
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, q.dpr));
+  arena.setShadowResolution(q.shadowRes);
+  crowd.setQuality(q.crowdDensity, q.crowdTickHz);
+  effects.particleScale = q.particleScale;
+}
+applyQualityTier(quality.tier);
+let lastMatchStateForQuality = '';
 
 const director = new CameraDirector(
   window.innerWidth / window.innerHeight,
@@ -396,6 +415,16 @@ function frame(now: number): void {
     cameraLayoutDirty = false;
   }
   director.setFrame(match.cameraFrameSnapshot(), cameraSafeFrame);
+
+  // Tiers: amostra o frame em jogo e só avalia troca ao ENTRAR no estado de ponto (§10.1).
+  if (active) {
+    quality.sampleFrame(visualDt);
+    if (match.state === 'point' && lastMatchStateForQuality !== 'point') {
+      const nextTier = quality.evaluateAtBreak();
+      if (nextTier !== null) applyQualityTier(nextTier);
+    }
+    lastMatchStateForQuality = match.state;
+  }
 
   const simulatedDt = simulationFrame.steps / SIMULATION_TIMING.hz;
   crowd.update(active ? simulatedDt : visualDt * 0.2);

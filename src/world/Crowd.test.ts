@@ -19,6 +19,29 @@ function stubArena(): Arena {
   } as unknown as Arena;
 }
 
+describe('Crowd.setQuality (tiers 4E)', () => {
+  it('reduz o prefixo visível sem realocar buffers e clampa densidade', () => {
+    const crowd = new Crowd(stubArena(), 1, 20);
+    const full = crowd.mesh.count;
+    expect(full).toBeGreaterThan(0);
+
+    crowd.setQuality(0.5, 12);
+    expect(crowd.mesh.count).toBe(Math.max(1, Math.round(full * 0.5)));
+
+    crowd.setQuality(2, 20); // clampa em 1
+    expect(crowd.mesh.count).toBe(full);
+
+    crowd.setQuality(0, 12); // nunca zera (mínimo 1)
+    expect(crowd.mesh.count).toBe(1);
+  });
+
+  it('densidade inicial do construtor também vira prefixo', () => {
+    const fullCrowd = new Crowd(stubArena(), 1, 20);
+    const halfCrowd = new Crowd(stubArena(), 0.5, 20);
+    expect(halfCrowd.mesh.count).toBeLessThan(fullCrowd.mesh.count);
+  });
+});
+
 describe('advanceCrowdTick', () => {
   it('não dispara antes do intervalo', () => {
     const r = advanceCrowdTick(0, 0.01, 1 / 20);

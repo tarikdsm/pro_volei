@@ -385,6 +385,30 @@ export const COLORS = {
   background: 0x0b1420, // fundo/fog: mais escuro que a quadra, sempre
 };
 
+/**
+ * Tiers de qualidade (§10.1), aplicados pela apresentação (main.ts). O QualityManager decide
+ * trocas por frame time com histerese e SOMENTE entre pontos; física/simulação não mudam.
+ */
+export const QUALITY_TIERS = [
+  {
+    name: 'baixo',
+    dpr: 1.25,
+    shadowRes: 1024,
+    crowdDensity: 0.55,
+    crowdTickHz: 12,
+    particleScale: 0.5,
+  },
+  {
+    name: 'medio',
+    dpr: 1.5,
+    shadowRes: 2048,
+    crowdDensity: 0.8,
+    crowdTickHz: 16,
+    particleScale: 1,
+  },
+  { name: 'alto', dpr: 2, shadowRes: 2048, crowdDensity: 1, crowdTickHz: 20, particleScale: 1 },
+] as const;
+
 // Torcida instanciada (~1300 pessoas). O loop de animação recompõe a matriz de cada
 // pessoa e reenvia o buffer à GPU — custo fixo por frame. O throttle por tick fixo
 // desacopla esse custo do FPS: a animação é reconstruída `tickHz` vezes por segundo,
