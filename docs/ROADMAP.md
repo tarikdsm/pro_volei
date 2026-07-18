@@ -88,6 +88,16 @@ continuam aguardando a conclusão dessas etapas.
   damping, tudo determinístico por dt. 967 testes, playtest desktop/844×390 sem erros e draw
   calls em 249 (≤ 250 do §10.2). O commit funcional `a865482` passou `npm run check`; o run
   `29660489841` publicou o deploy Pages verde com smoke público limpo.
+- **Fase 4C — concluída:** corpo parametrizado (altura 0,94–1,06 e porte 0,92–1,10, penteados
+  `bun`/`braid` novos), elenco nomeado 6+6 (`roster.ts` — Elisa/Heloisa/Isabela preservadas,
+  AWAY ganhou seis identidades) e galeria determinística DEV-only (`?gallery`) para o aceite.
+  Duas revisões visuais independentes aplicaram o checklist §5.3 nos viewports 1920×1080,
+  844×390 e 568×320 + câmera de rally: **APROVADO sem itens altos**; ressalvas médias tratadas
+  (cabelo da nº 11 clareado) ou aceitas formalmente (no viewport 568 a distinção fina é por
+  time; números legíveis com conforto só na atleta controlada; bola em voo já evidenciada nos
+  screenshots da 4A/4B, sem mudança na 4C). 976 testes verdes; o commit funcional `89e83ad`
+  passou `npm run check` e o run `29661585073` publicou o deploy Pages verde com smoke
+  público limpo.
 
 ### Marco atual — IA coletiva 2.0 completa; personagens e render a seguir
 

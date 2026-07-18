@@ -55,6 +55,10 @@ Todas as mudanças notáveis do Pró Volei. Formato baseado em
   de dois ossos, foot planting (deslize ≤ 0,15 m) e mãos buscando o ponto analítico do contato
   (≤ 0,12 m quando alcançável), com antecipação vinda do plano do rally via canal opcional do
   `CharVisual` (`setPlanarMotion`/`setContactAim`).
+- Elenco nomeado 2.0: 12 atletas fictícias com identidades visuais próprias (altura, porte,
+  penteado — incluindo coque e trança novos —, pele e cabelo), Elisa/Heloisa/Isabela
+  preservadas e o time vermelho deixou de ser genérico; galeria determinística DEV-only
+  (`?gallery`) para aceite visual do elenco.
 - Ferramental de qualidade: ESLint 10 (flat config) + Prettier 3, `.editorconfig`,
   `.gitattributes` (LF), `.nvmrc` (Node 22).
 - Testes com Vitest 4 e primeira suíte cobrindo os solvers balísticos (`math3d`).

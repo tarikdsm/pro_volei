@@ -11,9 +11,9 @@ a versão 2.0 também pode usar assets locais otimizados e versionados.
 - **Alvos de publicação:** Web (atual) → Desktop/Steam (Tauri) → Mobile (Capacitor). Mesmo
   código web em todos; wrappers nativos entram depois. Ver [docs/ROADMAP.md](docs/ROADMAP.md).
 - **Multiplayer:** fora de escopo — foco em single-player vs CPU. Não introduzir backend/netcode.
-- **Marco atual:** Fases 1–2, 3A–3D, 4A e 4B concluídas (IA coletiva 2.0, formato 11·11·7,
-  atleta rigada com locomoção direcional, IK e foot planting). Próxima etapa autorizada:
-  **4C–4E** (elenco, arena premium, quality tiers), em ordem. Áudio/mobile, Copa e release
+- **Marco atual:** Fases 1–2, 3A–3D e 4A–4C concluídas (IA coletiva 2.0, formato 11·11·7,
+  atleta rigada com locomoção/IK e elenco nomeado 6+6 com galeria `?gallery`). Próxima etapa
+  autorizada: **4D–4E** (arena premium, quality tiers), em ordem. Áudio/mobile, Copa e release
   (Fases 5–7) seguem aguardando autorização. Estado canônico em
   [docs/ROADMAP.md](docs/ROADMAP.md).
 
