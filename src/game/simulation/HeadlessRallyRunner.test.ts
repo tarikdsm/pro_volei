@@ -242,7 +242,9 @@ describe('HeadlessRallyRunner', () => {
     console.info(
       `TACTICAL_MATRIX rallies=1000 points=${points.join(':')} doubleBlocks=${doubleBlocks} executedDoubleBlocks=${executedDoubleBlocks} elapsedMs=${elapsedMs.toFixed(1)}`,
     );
-  }, 60_000);
+    // Timeout folgado deliberadamente (como nas baterias de balanceamento): sob coverage e
+    // máquina carregada a matriz já passou de 60 s sem regressão funcional.
+  }, 240_000);
 
   it('falha com diagnóstico quando o watchdog de ticks é excedido', () => {
     const runner = new HeadlessRallyRunner({ seed: 1, maxTicksPerPoint: 1 });
