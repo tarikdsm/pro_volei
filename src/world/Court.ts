@@ -19,7 +19,7 @@ export class Court {
       (halfLength + freeZone) * 2,
       (halfWidth + freeZone) * 2,
     );
-    const freeMat = new THREE.MeshStandardMaterial({ color: COLORS.floorFree, roughness: 0.85 });
+    const freeMat = new THREE.MeshStandardMaterial({ color: COLORS.floorFree, roughness: 0.8 });
     const free = new THREE.Mesh(freeGeo, freeMat);
     free.rotation.x = -Math.PI / 2;
     free.position.y = -0.01;
@@ -27,7 +27,8 @@ export class Court {
     this.group.add(free);
 
     // quadra de jogo com leve variação de tom entre os lados da linha de 3m
-    const courtMat = new THREE.MeshStandardMaterial({ color: COLORS.floorCourt, roughness: 0.65 });
+    // Brilho de taraflex: roughness mais baixa dá o reflexo suave da iluminação de TV.
+    const courtMat = new THREE.MeshStandardMaterial({ color: COLORS.floorCourt, roughness: 0.55 });
     const court = new THREE.Mesh(new THREE.PlaneGeometry(halfLength * 2, halfWidth * 2), courtMat);
     court.rotation.x = -Math.PI / 2;
     court.position.y = 0.0;
@@ -35,7 +36,7 @@ export class Court {
     this.group.add(court);
 
     // faixas da zona de ataque (tom levemente diferente)
-    const zoneMat = new THREE.MeshStandardMaterial({ color: 0xdd7c3d, roughness: 0.65 });
+    const zoneMat = new THREE.MeshStandardMaterial({ color: COLORS.floorZone, roughness: 0.6 });
     for (const s of [-1, 1]) {
       const zone = new THREE.Mesh(
         new THREE.PlaneGeometry(COURT.attackLine, halfWidth * 2),

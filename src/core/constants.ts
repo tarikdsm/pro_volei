@@ -366,15 +366,23 @@ export const MATCH_FORMATS: MatchFormat[] = [
   },
 ];
 
+/** Paleta 2.0 (§6.1): azul-marinho + teal + coral; bola e equipes com o maior contraste. */
 export const COLORS = {
   homeJersey: 0x1565e8,
   homeShorts: 0x0c2f6b,
-  awayJersey: 0xe53935,
-  awayShorts: 0x7f1613,
-  floorCourt: 0xe8894a, // taraflex laranja
-  floorFree: 0x2f7d5c, // zona livre verde
-  lines: 0xf5f5f5,
+  awayJersey: 0xc9302c, // carmim profundo: identidade vermelha sem brigar com o piso coral
+  awayShorts: 0x6e1210,
+  floorCourt: 0xe0704a, // taraflex coral
+  floorZone: 0xd4603c, // faixa de ataque, coral mais profundo
+  floorFree: 0x1f6f6a, // zona livre teal
+  lines: 0xf7f5f0,
   net: 0xeeeeee,
+  arenaSteps: 0x2a3644, // arquibancada azul-marinho
+  arenaFaces: 0x202c3a,
+  arenaWall: 0x152030,
+  arenaCeiling: 0x101823,
+  bannerWall: 0x1c4a52, // placas com acento teal
+  background: 0x0b1420, // fundo/fog: mais escuro que a quadra, sempre
 };
 
 // Torcida instanciada (~1300 pessoas). O loop de animação recompõe a matriz de cada

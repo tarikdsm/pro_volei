@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { COURT } from '../core/constants';
+import { COLORS, COURT } from '../core/constants';
 
 // Ginásio: arquibancadas em 4 lados, iluminação de arena, placar suspenso, banners.
 export class Arena {
@@ -27,8 +27,8 @@ export class Arena {
     const stepH = 0.55,
       stepD = 0.9;
     const startDist = { long: COURT.halfWidth + 6.2, short: COURT.halfLength + 6.5 };
-    const stepMat = new THREE.MeshStandardMaterial({ color: 0x3a4a5a, roughness: 0.9 });
-    const faceMat = new THREE.MeshStandardMaterial({ color: 0x2c3947, roughness: 0.9 });
+    const stepMat = new THREE.MeshStandardMaterial({ color: COLORS.arenaSteps, roughness: 0.95 });
+    const faceMat = new THREE.MeshStandardMaterial({ color: COLORS.arenaFaces, roughness: 0.95 });
 
     // 2 laterais longas (±z) e 2 fundos (±x)
     const sides = [
@@ -77,7 +77,7 @@ export class Arena {
 
     // paredes do ginásio
     const wallMat = new THREE.MeshStandardMaterial({
-      color: 0x1a232e,
+      color: COLORS.arenaWall,
       roughness: 1,
       side: THREE.BackSide,
     });
@@ -86,7 +86,7 @@ export class Arena {
     this.group.add(wall);
     const ceil = new THREE.Mesh(
       new THREE.CircleGeometry(38, 24),
-      new THREE.MeshStandardMaterial({ color: 0x141b24, side: THREE.BackSide }),
+      new THREE.MeshStandardMaterial({ color: COLORS.arenaCeiling, side: THREE.BackSide }),
     );
     ceil.rotation.x = Math.PI / 2;
     ceil.position.y = 21.9;
@@ -129,7 +129,7 @@ export class Arena {
   private buildLights(): void {
     // luz ambiente + hemisférica de ginásio
     this.group.add(new THREE.AmbientLight(0xffffff, 0.45));
-    const hemi = new THREE.HemisphereLight(0xcfe8ff, 0x30414f, 0.5);
+    const hemi = new THREE.HemisphereLight(0xcfe8ff, 0x25333f, 0.5);
     this.group.add(hemi);
 
     // principal com sombras
@@ -146,9 +146,14 @@ export class Arena {
     key.shadow.bias = -0.0005;
     this.group.add(key);
 
-    const fill = new THREE.DirectionalLight(0xd6e8ff, 0.55);
+    const fill = new THREE.DirectionalLight(0xd6e8ff, 0.5);
     fill.position.set(-14, 18, -12);
     this.group.add(fill);
+
+    // contra-luz fria (rim) sem sombra: recorta as atletas do fundo, estilo transmissão.
+    const rim = new THREE.DirectionalLight(0x9fd8d2, 0.35);
+    rim.position.set(0, 14, -20);
+    this.group.add(rim);
 
     // refletores decorativos no teto
     const spotGeo = new THREE.CylinderGeometry(0.4, 0.55, 0.5, 12);
@@ -221,7 +226,7 @@ export class Arena {
 
   private buildAmbience(): void {
     // tapetes de proteção coloridos nos cantos da zona livre (detalhe visual)
-    const matA = new THREE.MeshStandardMaterial({ color: 0x24506b, roughness: 0.95 });
+    const matA = new THREE.MeshStandardMaterial({ color: COLORS.bannerWall, roughness: 0.95 });
     for (const sx of [-1, 1])
       for (const sz of [-1, 1]) {
         const pad = new THREE.Mesh(new THREE.PlaneGeometry(4, 4), matA);

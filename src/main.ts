@@ -13,7 +13,7 @@ import { HUD } from './ui/HUD';
 import { Menu } from './ui/Menu';
 import { TouchControls } from './ui/TouchControls';
 import { AppState, nextAppState } from './ui/appState';
-import { CROWD, SIMULATION_TIMING } from './core/constants';
+import { COLORS, CROWD, SIMULATION_TIMING } from './core/constants';
 import { exporDebugHabilitado } from './core/debug';
 import { mapScreenToCourt } from './core/input/CameraSpaceMapper';
 import { FixedStepRunner, type FixedStepDiscard } from './core/time/FixedStepRunner';
@@ -96,8 +96,8 @@ renderer.toneMappingExposure = 1.05;
 app.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x0e151f);
-scene.fog = new THREE.Fog(0x0e151f, 45, 90);
+scene.background = new THREE.Color(COLORS.background);
+scene.fog = new THREE.Fog(COLORS.background, 45, 90);
 
 // ---------- mundo (qualidade reduzida no celular) ----------
 const court = new Court();

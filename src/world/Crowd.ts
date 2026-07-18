@@ -75,7 +75,9 @@ export class Crowd {
     this.baseRotY = new Float32Array(this.count);
 
     const palette = [0xd6a77a, 0x8d5524, 0xc68642, 0xe0ac69, 0xf1c27d, 0x5d4037];
-    const shirt = [0x1565e8, 0xe53935, 0xffe14f, 0xffffff, 0x37474f, 0x7cb342, 0xff8a65, 0x9575cd];
+    // Torcida "silenciada" (§6.1): tintas dessaturadas da identidade navy/teal/coral — o fundo
+    // nunca contrasta mais que a quadra nem compete com a bola em voo.
+    const shirt = [0x27435e, 0x1c4a52, 0x8a4a3a, 0x4a5a68, 0x35586b, 0x6e4438, 0x3c4f5c, 0x52616d];
     const color = new THREE.Color();
 
     for (let i = 0; i < this.count; i++) {
