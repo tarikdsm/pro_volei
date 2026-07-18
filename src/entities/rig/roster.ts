@@ -107,7 +107,7 @@ export const AWAY_ROSTER: readonly RosterEntry[] = Object.freeze([
   {
     name: 'SOFIA',
     number: 11,
-    hair: 0x4e342e,
+    hair: 0xb97f4d, // castanho claro: separa da 8 e da 10 (escuras) no viewport pequeno
     hairstyle: 'ponytail',
     skin: 0xd6a77a,
     female: true,

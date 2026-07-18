@@ -425,4 +425,36 @@ function frame(now: number): void {
 
   renderer.render(scene, director.camera);
 }
-requestAnimationFrame(frame);
+
+// Galeria de aceite do elenco (Fase 4C, DEV/?debug + ?gallery): cena própria no mesmo
+// renderer, overlays ocultos; import dinâmico mantém o bundle de gameplay limpo.
+const galleryEnabled = debugEnabled && new URLSearchParams(location.search).has('gallery');
+if (galleryEnabled) {
+  for (const el of Array.from(document.body.querySelectorAll<HTMLElement>('div'))) {
+    if (!el.querySelector('canvas')) el.style.display = 'none';
+  }
+  void import('./ui/galleryMode').then(({ startGalleryMode }) => {
+    const galleryScene = new THREE.Scene();
+    const galleryCamera = new THREE.PerspectiveCamera(
+      50,
+      window.innerWidth / window.innerHeight,
+      0.1,
+      100,
+    );
+    const stepGallery = startGalleryMode(renderer, galleryScene, galleryCamera);
+    window.addEventListener('resize', () => {
+      galleryCamera.aspect = window.innerWidth / window.innerHeight;
+      galleryCamera.updateProjectionMatrix();
+    });
+    let last = performance.now();
+    const galleryFrame = (now: number): void => {
+      requestAnimationFrame(galleryFrame);
+      const dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
+      last = now;
+      stepGallery(dt);
+    };
+    requestAnimationFrame(galleryFrame);
+  });
+} else {
+  requestAnimationFrame(frame);
+}
