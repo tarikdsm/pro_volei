@@ -2,18 +2,18 @@
 
 **Data:** 2026-07-12
 
-**Status:** aprovado; Fases 1–2 e 3A–3C entregues; 3D em execução desde 18/07/2026 (4A–4E
-autorizadas na sequência)
+**Status:** aprovado; Fases 1–2 e 3A–3D entregues; 4A–4E autorizadas como próxima etapa
+(18/07/2026)
 
 > **Marco de 13/07/2026:** fundação/release engineering (1A–1D), control spine/game feel
-> (2A–2E) e IA coletiva (3A–3C) estão publicados e funcionais. A 3D está em execução e as
-> subfases 4A–4E estão autorizadas na sequência (18/07/2026); as Fases 5–7 continuam aguardando.
+> (2A–2E) e IA coletiva completa (3A–3D) estão publicados e funcionais. As subfases 4A–4E são a
+> próxima etapa autorizada (18/07/2026); as Fases 5–7 continuam aguardando.
 > Estado e evidências: [ROADMAP](../../ROADMAP.md) e
 > [índice dos planos](../plans/README.md).
 
-> A v1.1 publicada ainda usa o multiplicador legado `DIFFICULTIES.servePower`. Assim, o critério 6
-> da aceitação final continua pendente: a Fase 3C não adiciona vantagem física à estratégia, mas a
-> remoção do multiplicador herdado pertence ao tuning 3D, atualmente pausado.
+> **Atualização 18/07/2026:** a Fase 3D removeu o multiplicador legado `DIFFICULTIES.servePower`
+> — a potência de saque agora é única (`STRATEGIC_SERVE_TUNING.basePower`) e a dificuldade varia
+> apenas percepção, consistência e decisão. O critério 6 da aceitação final está atendido.
 
 **Alvo:** GitHub Pages em desktop e celular
 

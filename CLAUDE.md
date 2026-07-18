@@ -11,9 +11,10 @@ a versão 2.0 também pode usar assets locais otimizados e versionados.
 - **Alvos de publicação:** Web (atual) → Desktop/Steam (Tauri) → Mobile (Capacitor). Mesmo
   código web em todos; wrappers nativos entram depois. Ver [docs/ROADMAP.md](docs/ROADMAP.md).
 - **Multiplayer:** fora de escopo — foco em single-player vs CPU. Não introduzir backend/netcode.
-- **Marco atual:** Fases 1–2 e 3A–3C concluídas; **Fase 3D em execução** (métricas e tuning),
-  com 4A–4E autorizadas na sequência (18/07/2026). Áudio/mobile, Copa e release (Fases 5–7)
-  seguem aguardando autorização. Estado canônico em [docs/ROADMAP.md](docs/ROADMAP.md).
+- **Marco atual:** Fases 1–2 e 3A–3D concluídas (IA coletiva 2.0 completa, formato oficial
+  11·11·7 e baterias de balanceamento como gates). Próxima etapa autorizada: **4A–4E**
+  (personagens e render), em ordem. Áudio/mobile, Copa e release (Fases 5–7) seguem aguardando
+  autorização. Estado canônico em [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Stack
 
@@ -91,13 +92,16 @@ src/
   `ActionControl` resolve a intenção semântica e a mantém até o contato. `planId` é o token do
   rally; saque usa token negativo monotônico. Toda técnica passa por `ActionIntent`; não volte a
   interpretar edges diretamente por modo nem medir carga com `dt`/tempo de DOM.
-- **IA coletiva 2.0 (marco 3A–3C concluído):** `TeamBrain` forma recepção, transição, cobertura,
+- **IA coletiva 2.0 (marco 3A–3D concluído):** `TeamBrain` forma recepção, transição, cobertura,
   defesa e bloqueio simples/duplo. `MatchStrategyCoordinator` liga o `Match` ao
   `MatchStrategyBridge`; saque, levantamento e ataque da CPU usam observação pública atrasada,
   memória curta, compromissos causais e streams `strategy.home`/`strategy.away` de dois draws por
   decisão. O browser não retém trace; `HeadlessRallyRunner` registra `StrategyTrace` separado do
   `RallyJournal` v1 e oferece checkpoint RNG+estratégia apenas na fronteira de ponto, sem rebobinar
-  o estado físico do `Match`.
+  o estado físico do `Match`. A 3D fechou o balanceamento: dificuldade não altera física
+  (critério 6), e as baterias de `BalanceBattery.test.ts` (1.000 rallies/20 seeds e 30
+  partidas/10 seeds no formato 11·11·7) são gates de regressão das faixas §4.3/§3.2 — ao mexer em
+  IA/dificuldade/mecânica de rally, rode-as e mantenha-as verdes.
 - **A Fase 1 (quebrar o `Match.ts`) está concluída:** a lógica do antigo módulo monolítico vive
   em `RallyState`, `rules/` (scoring, rotation, SetMatch), `mechanics/` (serve, touch, block,
   net), `control/HumanController` e `ai/AiController`, cada um sobre um contexto injetado

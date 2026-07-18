@@ -4,8 +4,9 @@ Fonte única para saber quais planos foram executados. Os arquivos individuais p
 ordem TDD e evidências do momento; caixas abertas em blueprints históricos não significam trabalho
 ativo. O estado de produto continua em [`docs/ROADMAP.md`](../../ROADMAP.md).
 
-**Marco atual — 18/07/2026:** Fases 1–2 e 3A–3C entregues. O proprietário autorizou a retomada:
-o plano ativo é a Fase 3D; as subfases 4A–4E estão autorizadas na sequência.
+**Marco atual — 18/07/2026:** Fases 1–2 e 3A–3D entregues. O proprietário autorizou a retomada
+em 18/07/2026; a próxima etapa autorizada é a sequência 4A–4E (personagens e render), cada
+subfase com plano detalhado antes de alterar produção.
 
 | Plano | Estado | Resultado |
 |---|---|---|
@@ -22,7 +23,7 @@ o plano ativo é a Fase 3D; as subfases 4A–4E estão autorizadas na sequência
 | [`2026-07-12-fase-3a-headless-rng.md`](2026-07-12-fase-3a-headless-rng.md) | concluído | RNG por streams, simulação CPU×CPU e journal determinístico |
 | [`2026-07-12-fase-3b-formacoes-cobertura.md`](2026-07-12-fase-3b-formacoes-cobertura.md) | concluído | Formações, transição, cobertura, defesa e bloqueio coletivo |
 | [`2026-07-13-fase-3c-ia-estrategica.md`](2026-07-13-fase-3c-ia-estrategica.md) | concluído | Saque, set e ataque estratégicos, memória, trace e checkpoint |
-| [`2026-07-18-fase-3d-metricas-tuning.md`](2026-07-18-fase-3d-metricas-tuning.md) | em execução | Formato 2.0, métricas de balanceamento, remoção do servePower legado e tuning §4.3/§3.2 |
+| [`2026-07-18-fase-3d-metricas-tuning.md`](2026-07-18-fase-3d-metricas-tuning.md) | concluído | Formato 2.0 (11·11·7 com caps), métricas/baterias §4.3–§3.2 como gates, servePower removido, fixes de ataque da CPU e tuning do Normal |
 
 ## Retomada de desenvolvimento
 

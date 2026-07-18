@@ -40,6 +40,13 @@ Todas as mudanças notáveis do Pró Volei. Formato baseado em
   power/placed/tip, com fallbacks físicos seguros e sem retarget.
 - `StrategyTrace` canônico e `HeadlessStochasticCheckpoint` transacional para auditar candidatas,
   outcomes, budget de RNG e restaurar RNG+estratégia sem rebobinar o `Match`.
+- Formato oficial 2.0 de partida: melhor de 3 com sets a 11/11/7, diferença de 2 e caps
+  15/15/11 ("no cap vence quem marcar o ponto"), agora o formato padrão do menu.
+- Métricas de balanceamento no runner headless: side-outs, classificação decisivo/erro gratuito,
+  corredores de destino do ataque e partidas completas com resumo por set (`runHeadlessMatches`).
+- Baterias de regressão do balanceamento como gates: 1.000 rallies/20 seeds (mediana de contatos,
+  share decisivo, zona máxima) e 30 partidas/10 seeds (mediana e p90 de duração) na dificuldade
+  Normal, dentro das faixas do design 2.0 (§4.3/§3.2).
 - Ferramental de qualidade: ESLint 10 (flat config) + Prettier 3, `.editorconfig`,
   `.gitattributes` (LF), `.nvmrc` (Node 22).
 - Testes com Vitest 4 e primeira suíte cobrindo os solvers balísticos (`math3d`).
@@ -55,6 +62,13 @@ Todas as mudanças notáveis do Pró Volei. Formato baseado em
 
 ### Alterado
 
+- Dificuldade não altera mais a física: a potência do saque usa uma faixa única
+  (`STRATEGIC_SERVE_TUNING.basePower`) no lugar do multiplicador legado `servePower` por
+  dificuldade (critério 6 do design 2.0). Knobs do Normal re-tunados (reação 0,16 s, erros de
+  saque/ataque 6%/8%, defesa 38%, perfil estratégico mais explorador) para as faixas §4.3.
+- A atacante da CPU só pula perto do ponto de contato e inicia a aproximação da jogada própria
+  imediatamente; levantamento como terceiro toque vira bola para a quadra rival; o quick-center
+  aceita a central chegando junto com a bola (folga de 0,2 s), espalhando os corredores de ataque.
 - Gameplay do teclado simplificado para setas + Espaço; touch agora alimenta diretamente o mesmo
   contrato semântico, com ownership e captura de ponteiro.
 - Em telas touch, portrait pausa a partida e pede rotação; landscape retoma o jogo com o máximo de

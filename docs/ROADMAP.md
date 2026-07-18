@@ -4,12 +4,12 @@ Do protótipo jogável ao produto profissional. Ordenado por dependência, não 
 Escopo fixado: **single-player vs CPU** (sem multiplayer/online); publicar em **Web, Desktop/Steam
 e Mobile** a partir do mesmo código web.
 
-Estado atual: **v1.1.0** jogável, com as **Fases 1–2 e subfases 3A–3C concluídas**.
+Estado atual: **v1.1.0** jogável, com as **Fases 1–2 e subfases 3A–3D concluídas**.
 **Design 2.0 aprovado**, documentado em
 [`2026-07-12-pro-volei-2-0-design.md`](superpowers/specs/2026-07-12-pro-volei-2-0-design.md).
-Em 18/07/2026 o proprietário autorizou explicitamente a retomada: a **Fase 3D está em execução**
-e, na sequência, as subfases 4A–4E (personagens e render). Fases 5–7 continuam aguardando a
-conclusão dessas etapas.
+Em 18/07/2026 o proprietário autorizou explicitamente a retomada: a Fase 3D foi entregue no mesmo
+dia e as subfases **4A–4E (personagens e render) são a próxima etapa autorizada**. Fases 5–7
+continuam aguardando a conclusão dessas etapas.
 
 ### Fundação 2.0 — estado das subfases
 
@@ -61,13 +61,22 @@ conclusão dessas etapas.
   alto/rápido/acelerado e ataque power/placed/tip; trace e checkpoint estocástico comprovam
   budget fixo, terminalidade e determinismo. O commit funcional final `e33ab54` passou 911 testes,
   build, smoke e o run `29244051320`, com deploy Pages verde.
+- **Fase 3D — concluída:** formato oficial 2.0 (melhor de 3 a 11·11·7 com caps 15/15/11),
+  métricas de balanceamento no runner headless (side-outs, classe decisivo/erro gratuito, zonas
+  de destino, partidas completas via `runHeadlessMatches`) e remoção do multiplicador físico
+  legado `servePower` (critério 6). O diagnóstico sistemático corrigiu o pulo/aproximação do
+  ataque da CPU e o levantamento de terceiro toque; o tuning do Normal fechou as faixas
+  §4.3/§3.2 como gates de regressão: 1.000 rallies/20 seeds com mediana de 6 contatos, 78,4% de
+  pontos decisivos e zona máxima 42%; 30 partidas/10 seeds com mediana de 10,6 min e p90 de
+  13,5 min. O commit funcional `9ab1965` passou 938 testes, `npm run check` e playtest real; o
+  run `29653613239` publicou o deploy Pages verde.
 
-### Marco atual — Fase 3D em execução
+### Marco atual — IA coletiva 2.0 completa; personagens e render a seguir
 
-- **Entregue:** Fases 1A–1D, 2A–2E e 3A–3C.
-- **Em execução:** 3D (métricas e tuning das dificuldades), autorizada em 18/07/2026 junto com
-  4A–4E na sequência.
-- **Não iniciado:** Fases 4–7 do design 2.0 (4A–4E autorizadas; 5–7 aguardam).
+- **Entregue:** Fases 1A–1D, 2A–2E e 3A–3D.
+- **Autorizado, próxima etapa:** 4A–4E (personagens e render), em ordem, cada uma com plano
+  detalhado antes de alterar produção.
+- **Não iniciado:** Fases 5–7 do design 2.0 (aguardam autorização).
 - O índice canônico dos planos e suas evidências está em
   [`superpowers/plans/README.md`](superpowers/plans/README.md).
 
