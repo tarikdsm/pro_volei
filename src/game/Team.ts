@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { CharAction, CharLook, CharVisual, CharFactory } from '../entities/PlayerCharacter';
 import { createRiggedCharacter } from '../entities/rig/RiggedCharacter';
+import { AWAY_ROSTER, HOME_ROSTER } from '../entities/rig/roster';
 import { BASE_SLOTS, COLORS, PLAYER, TeamSide, SETTER_SPOT } from '../core/constants';
 import { initialSlots, rotateSlots } from './rules/rotation';
 import { lerp, lerpAngle } from '../core/math3d';
@@ -173,26 +174,13 @@ export class Team {
     // Injeta a fábrica visual (testes passam um dublê; browser usa o default).
     makeChar?: CharFactory,
   ) {
-    const skins = [0xd6a77a, 0x8d5524, 0xc68642, 0xe0ac69, 0xf1c27d, 0xb07b52];
-    const hairs = [0x2b1b12, 0x101010, 0x4e342e, 0x6d4c41, 0x1a1a1a, 0x3e2723];
-    // elenco do time humano: Elisa, Heloisa e Isabela + 3 genéricos
-    const roster: Partial<CharLook>[] = [
-      { name: 'ELISA', hair: 0xa87848, hairstyle: 'ponytail', female: true, skin: 0xe8b98a }, // castanho claro
-      { name: 'HELOISA', hair: 0x121212, hairstyle: 'long', female: true, skin: 0xd6a77a }, // preto liso
-      { name: 'ISABELA', hair: 0xe8c66b, hairstyle: 'ponytail', female: true, skin: 0xf1c9a0 }, // loira
-      {},
-      {},
-      {},
-    ];
+    // Elenco nomeado 2.0 (Fase 4C): identidades visuais vêm do roster; uniforme vem do time.
+    const roster = side === TeamSide.HOME ? HOME_ROSTER : AWAY_ROSTER;
     for (let i = 0; i < 6; i++) {
-      const custom = side === TeamSide.HOME ? roster[i] : {};
       const look: CharLook = {
         jersey: side === TeamSide.HOME ? COLORS.homeJersey : COLORS.awayJersey,
         shorts: side === TeamSide.HOME ? COLORS.homeShorts : COLORS.awayShorts,
-        skin: skins[(i + side * 3) % skins.length],
-        hair: hairs[(i + side * 2) % hairs.length],
-        number: i + (side === TeamSide.HOME ? 1 : 7),
-        ...custom,
+        ...roster[i],
       };
       const a = new Athlete(side, i, look, makeChar);
       this.athletes.push(a);
