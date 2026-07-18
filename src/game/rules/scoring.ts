@@ -1,10 +1,36 @@
 // Regras de pontuação do vôlei — funções puras, sem estado nem efeitos colaterais.
 // Extraídas de Match.ts para serem testáveis isoladamente (ver scoring.test.ts).
-import { COURT, BALL_RADIUS, TeamSide, otherSide, TouchKind } from '../../core/constants';
+import {
+  COURT,
+  BALL_RADIUS,
+  TeamSide,
+  otherSide,
+  TouchKind,
+  type SetScoringFormat,
+} from '../../core/constants';
 
-/** Set encerra ao atingir a pontuação-alvo com pelo menos 2 pontos de vantagem. */
-export function isSetOver(h: number, a: number, pointsPerSet: number): boolean {
-  return (h >= pointsPerSet || a >= pointsPerSet) && Math.abs(h - a) >= 2;
+/** Alvo e cap do set corrente: sets decisivos usam decidingPoints/decidingCap. */
+export function setTargets(
+  format: SetScoringFormat,
+  setNumber: number,
+): { target: number; cap: number | null } {
+  return isDecidingSet(setNumber, format.sets)
+    ? { target: format.decidingPoints, cap: format.decidingCap }
+    : { target: format.pointsPerSet, cap: format.cap };
+}
+
+/**
+ * Set encerra ao atingir o alvo com 2 de vantagem, ou ao atingir o cap com qualquer vantagem
+ * ("no cap, vence quem marcar o ponto" — §3.2 do design 2.0). `cap === null` = sem teto.
+ */
+export function isSetOver(
+  h: number,
+  a: number,
+  target: number,
+  cap: number | null = null,
+): boolean {
+  if (cap !== null && (h >= cap || a >= cap) && h !== a) return true;
+  return (h >= target || a >= target) && Math.abs(h - a) >= 2;
 }
 
 /** Vencedor do set pelo placar (empate resolve para AWAY, como no comportamento original). */
@@ -36,14 +62,21 @@ export function nextFirstServer(prevFirstServer: TeamSide): TeamSide {
 }
 
 /**
- * Líder em situação de set point (a 1 ponto de fechar), ou null.
+ * Líder em situação de set point: quem fecha o set se marcar o próximo ponto (alvo ou cap).
  * Empate não gera set point; se o set já acabou, retorna null.
  */
-export function setPointLeader(h: number, a: number, pointsPerSet: number): TeamSide | null {
-  if (isSetOver(h, a, pointsPerSet)) return null;
-  const leader = h > a ? TeamSide.HOME : a > h ? TeamSide.AWAY : null;
-  if (leader === null) return null;
-  return Math.max(h, a) >= pointsPerSet - 1 ? leader : null;
+export function setPointLeader(
+  h: number,
+  a: number,
+  target: number,
+  cap: number | null = null,
+): TeamSide | null {
+  if (isSetOver(h, a, target, cap)) return null;
+  if (h === a) return null;
+  const leader = h > a ? TeamSide.HOME : TeamSide.AWAY;
+  const nh = leader === TeamSide.HOME ? h + 1 : h;
+  const na = leader === TeamSide.AWAY ? a + 1 : a;
+  return isSetOver(nh, na, target, cap) ? leader : null;
 }
 
 /** Ace: o último toque foi o saque, o ponto foi de quem sacou e não houve toques no rally. */

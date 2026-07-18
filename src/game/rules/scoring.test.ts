@@ -8,6 +8,7 @@ import {
   isDecidingSet,
   nextFirstServer,
   setPointLeader,
+  setTargets,
   isAce,
   resolveRallyOutcome,
   outOfAntennaWinner,
@@ -82,6 +83,40 @@ describe('setPointLeader', () => {
   });
   it('na vantagem, segue set point acima da pontuação sem 2 de frente', () => {
     expect(setPointLeader(15, 14, 15)).toBe(TeamSide.HOME);
+  });
+});
+
+describe('formato 2.0 — alvo por set e cap', () => {
+  const FORMAT_2_0 = { sets: 3, pointsPerSet: 11, decidingPoints: 7, cap: 15, decidingCap: 11 };
+
+  it('setTargets devolve alvo/cap dos sets iniciais e do decisivo', () => {
+    expect(setTargets(FORMAT_2_0, 1)).toEqual({ target: 11, cap: 15 });
+    expect(setTargets(FORMAT_2_0, 2)).toEqual({ target: 11, cap: 15 });
+    expect(setTargets(FORMAT_2_0, 3)).toEqual({ target: 7, cap: 11 });
+    expect(setTargets({ ...FORMAT_2_0, sets: 1 }, 1)).toEqual({ target: 7, cap: 11 });
+  });
+
+  it('isSetOver fecha por alvo com 2 de vantagem e por cap com vantagem mínima', () => {
+    expect(isSetOver(11, 9, 11, 15)).toBe(true);
+    expect(isSetOver(11, 10, 11, 15)).toBe(false);
+    expect(isSetOver(14, 14, 11, 15)).toBe(false);
+    expect(isSetOver(15, 14, 11, 15)).toBe(true); // no cap vence quem marca o ponto
+    expect(isSetOver(11, 7, 7, 11)).toBe(true); // cap do set decisivo
+  });
+
+  it('isSetOver sem cap preserva o comportamento legado', () => {
+    expect(isSetOver(25, 23, 25)).toBe(true);
+    expect(isSetOver(25, 24, 25)).toBe(false);
+    expect(isSetOver(26, 24, 25)).toBe(true);
+  });
+
+  it('setPointLeader considera o cap', () => {
+    expect(setPointLeader(14, 13, 11, 15)).toBe(TeamSide.HOME); // 15-13 fecharia pelo cap
+    expect(setPointLeader(13, 14, 11, 15)).toBe(TeamSide.AWAY);
+    expect(setPointLeader(14, 14, 11, 15)).toBe(null);
+    expect(setPointLeader(10, 9, 11, 15)).toBe(TeamSide.HOME);
+    expect(setPointLeader(9, 5, 11, 15)).toBe(null);
+    expect(setPointLeader(24, 10, 25)).toBe(TeamSide.HOME); // legado sem cap
   });
 });
 

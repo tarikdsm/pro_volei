@@ -312,9 +312,47 @@ export const TIMING_FEEDBACK = {
   haptics: { perfect: [20, 30, 20], good: [15], off: [10] },
 } as const;
 
-export const MATCH_FORMATS = [
-  { name: 'Rápida — 1 set de 15', sets: 1, pointsPerSet: 15 },
-  { name: 'Clássica — melhor de 3 a 25', sets: 3, pointsPerSet: 25 },
+/**
+ * Formato de partida: alvo dos sets iniciais, alvo do set decisivo e caps (§3.2 do design 2.0).
+ * `cap === null` significa sem teto (vantagem de 2 obrigatória, formato legado).
+ */
+export interface MatchFormat {
+  name: string;
+  sets: number;
+  pointsPerSet: number; // alvo dos sets não decisivos
+  decidingPoints: number; // alvo do set decisivo
+  cap: number | null; // teto dos sets não decisivos
+  decidingCap: number | null; // teto do set decisivo
+}
+
+/** Fatia do formato usada pelas regras puras (sem o nome de exibição). */
+export type SetScoringFormat = Omit<MatchFormat, 'name'>;
+
+export const MATCH_FORMATS: MatchFormat[] = [
+  {
+    name: 'Oficial 2.0 — melhor de 3 (11·11·7)',
+    sets: 3,
+    pointsPerSet: 11,
+    decidingPoints: 7,
+    cap: 15,
+    decidingCap: 11,
+  },
+  {
+    name: 'Rápida — 1 set de 15',
+    sets: 1,
+    pointsPerSet: 15,
+    decidingPoints: 15,
+    cap: null,
+    decidingCap: null,
+  },
+  {
+    name: 'Clássica — melhor de 3 a 25',
+    sets: 3,
+    pointsPerSet: 25,
+    decidingPoints: 25,
+    cap: null,
+    decidingCap: null,
+  },
 ];
 
 export const COLORS = {
