@@ -51,6 +51,10 @@ Todas as mudanças notáveis do Pró Volei. Formato baseado em
   material (5 draw calls por atleta) e as 12 poses portadas para espaço de osso, adotada como
   personagem padrão. Draw calls da cena em rally caíram de ~515 para 235; idle passou a ser
   determinístico por dt e o decal de camisa é injetável (constrói em Node sem DOM).
+- Locomoção direcional e IK: corrida frontal/lateral com freada e inclinação, solver analítico
+  de dois ossos, foot planting (deslize ≤ 0,15 m) e mãos buscando o ponto analítico do contato
+  (≤ 0,12 m quando alcançável), com antecipação vinda do plano do rally via canal opcional do
+  `CharVisual` (`setPlanarMotion`/`setContactAim`).
 - Ferramental de qualidade: ESLint 10 (flat config) + Prettier 3, `.editorconfig`,
   `.gitattributes` (LF), `.nvmrc` (Node 22).
 - Testes com Vitest 4 e primeira suíte cobrindo os solvers balísticos (`math3d`).

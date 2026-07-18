@@ -80,6 +80,14 @@ continuam aguardando a conclusão dessas etapas.
   `29655834095` publicou o deploy Pages verde e o smoke público mostrou nome/número de Elisa
   nas costas. A direção "rig procedural, GLB opcional depois" foi autorizada pelo proprietário
   em 18/07/2026.
+- **Fase 4B — concluída:** locomoção direcional (parada/ajuste/corrida frontal-lateral/freada
+  via `classifyLocomotion`), solver analítico de IK de dois ossos, foot planting com deslize
+  ≤ 0,15 m testado e mãos que buscam o ponto analítico do contato (≤ 0,12 m em alvo alcançável,
+  com antecipação alimentada pelo `planNext`). `CharVisual` cresceu apenas com métodos
+  opcionais (`setPlanarMotion`/`setContactAim`); IK e pose blendam nos alvos de um único
+  damping, tudo determinístico por dt. 967 testes, playtest desktop/844×390 sem erros e draw
+  calls em 249 (≤ 250 do §10.2). O commit funcional `a865482` passou `npm run check`; o run
+  `29660489841` publicou o deploy Pages verde com smoke público limpo.
 
 ### Marco atual — IA coletiva 2.0 completa; personagens e render a seguir
 
