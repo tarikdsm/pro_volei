@@ -39,7 +39,7 @@ injetadas (audio, effects, camera, crowd, referee, arena). O wiring acontece em 
 |---|---|---|
 | `core/` | Fundamentos sem estado de jogo | `constants.ts` (dimensões, física, dificuldades, cores), `math3d.ts` (solvers balísticos, easing, RNG), `Input.ts` + `input/` (fila semântica e câmera), `time/` (runner fixo e slow-motion), `AudioEngine.ts` (áudio procedural) |
 | `world/` | Cenário estático e ambiente | `Court.ts`, `Arena.ts`, `Crowd.ts` (~1500 instanciados), `Referee.ts` |
-| `entities/` | Atores dinâmicos | `PlayerCharacter.ts` (humanoide + animações paramétricas), `Ball.ts` (rastro, sombra) |
+| `entities/` | Atores dinâmicos | `rig/` (atleta 2.0: `AthleteSkeleton` 19 ossos, `AthleteBodyGeometry` skinned por região, `RiggedCharacter` — personagem padrão), `PlayerCharacter.ts` (contratos `CharVisual`/`CharFactory`/`CharLook` + humanoide legado), `Ball.ts` (rastro, sombra) |
 | `systems/` | Sistemas transversais | `CameraDirector.ts` (câmera broadcast), `Effects.ts` (partículas, confete, shake) |
 | `game/` | Regras, estado, IA e controle | `Match.ts` (orquestrador), `RallyState.ts`, `Team.ts`, `simulation/` (timeline analítica), `rules/`, `mechanics/`, `strategy/`, `ai/AiController`, `control/HumanController` |
 | `ui/` | Apresentação e input do jogador | `HUD.ts`, `Menu.ts`, `TouchControls.ts` |

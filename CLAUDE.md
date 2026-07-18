@@ -11,10 +11,10 @@ a versão 2.0 também pode usar assets locais otimizados e versionados.
 - **Alvos de publicação:** Web (atual) → Desktop/Steam (Tauri) → Mobile (Capacitor). Mesmo
   código web em todos; wrappers nativos entram depois. Ver [docs/ROADMAP.md](docs/ROADMAP.md).
 - **Multiplayer:** fora de escopo — foco em single-player vs CPU. Não introduzir backend/netcode.
-- **Marco atual:** Fases 1–2 e 3A–3D concluídas (IA coletiva 2.0 completa, formato oficial
-  11·11·7 e baterias de balanceamento como gates). Próxima etapa autorizada: **4A–4E**
-  (personagens e render), em ordem. Áudio/mobile, Copa e release (Fases 5–7) seguem aguardando
-  autorização. Estado canônico em [docs/ROADMAP.md](docs/ROADMAP.md).
+- **Marco atual:** Fases 1–2, 3A–3D e 4A concluídas (IA coletiva 2.0, formato 11·11·7, baterias
+  de balanceamento e atleta rigada procedural como padrão). Próxima etapa autorizada: **4B–4E**
+  (locomotion/IK, elenco, arena, quality tiers), em ordem. Áudio/mobile, Copa e release (Fases
+  5–7) seguem aguardando autorização. Estado canônico em [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Stack
 
@@ -69,7 +69,7 @@ src/
 ├── main.ts        bootstrap, renderer, loop fixo 60 Hz, slow-motion, injeta Hooks no Match
 ├── core/          constants, math3d (solvers balísticos), Input, AudioEngine
 ├── world/         Court, Arena, Crowd (~1500 instanciados), Referee
-├── entities/      PlayerCharacter (humanoide procedural), Ball
+├── entities/      rig/ (atleta 2.0 com esqueleto — padrão), PlayerCharacter (contratos + legado), Ball
 ├── systems/       CameraDirector (broadcast), Effects (partículas/confete)
 ├── game/          Team (rodízio) e Match (máquina de estados do rally + regras + IA)
 └── ui/            HUD, Menu, TouchControls (celular)

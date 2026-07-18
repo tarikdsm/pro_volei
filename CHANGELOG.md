@@ -47,6 +47,10 @@ Todas as mudanças notáveis do Pró Volei. Formato baseado em
 - Baterias de regressão do balanceamento como gates: 1.000 rallies/20 seeds (mediana de contatos,
   share decisivo, zona máxima) e 30 partidas/10 seeds (mediana e p90 de duração) na dificuldade
   Normal, dentro das faixas do design 2.0 (§4.3/§3.2).
+- Atleta 2.0 com esqueleto real: 19 ossos nomeados, malha `SkinnedMesh` procedural por região de
+  material (5 draw calls por atleta) e as 12 poses portadas para espaço de osso, adotada como
+  personagem padrão. Draw calls da cena em rally caíram de ~515 para 235; idle passou a ser
+  determinístico por dt e o decal de camisa é injetável (constrói em Node sem DOM).
 - Ferramental de qualidade: ESLint 10 (flat config) + Prettier 3, `.editorconfig`,
   `.gitattributes` (LF), `.nvmrc` (Node 22).
 - Testes com Vitest 4 e primeira suíte cobrindo os solvers balísticos (`math3d`).

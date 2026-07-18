@@ -70,6 +70,16 @@ continuam aguardando a conclusão dessas etapas.
   pontos decisivos e zona máxima 42%; 30 partidas/10 seeds com mediana de 10,6 min e p90 de
   13,5 min. O commit funcional `9ab1965` passou 938 testes, `npm run check` e playtest real; o
   run `29653613239` publicou o deploy Pages verde.
+- **Fase 4A — concluída:** atleta com esqueleto real (19 ossos nomeados, `SkinnedMesh` por
+  região de material, skinning rígido) construída proceduralmente em código e adotada como
+  personagem padrão via `CharFactory`, com as 12 poses portadas para espaço de osso (idle agora
+  determinístico por dt) e decal de número/nome injetável (headless-safe). Prova de orçamento no
+  rally real: draw calls da cena caíram de ~515 para 235 e triângulos ficaram em ~144 mil
+  (≤ 250 mil do alvo mobile); 950 testes e playtest com as 12 atletas legíveis na câmera
+  broadcast. O commit funcional `8d89201` passou `npm run check` e smoke de produção; o run
+  `29655834095` publicou o deploy Pages verde e o smoke público mostrou nome/número de Elisa
+  nas costas. A direção "rig procedural, GLB opcional depois" foi autorizada pelo proprietário
+  em 18/07/2026.
 
 ### Marco atual — IA coletiva 2.0 completa; personagens e render a seguir
 
