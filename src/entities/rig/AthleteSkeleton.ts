@@ -89,6 +89,10 @@ export function buildAthleteSkeleton(): AthleteSkeletonRig {
     bones.push(bone);
   });
 
+  // O Skeleton captura os boneInverses a partir do matrixWorld ATUAL dos ossos; sem esta
+  // atualização os inversos ficam identidade e o skinning "explode" (regressão testada).
+  joints.hips.updateMatrixWorld(true);
+
   return Object.freeze({
     rootBone: joints.hips,
     skeleton: new THREE.Skeleton(bones),

@@ -26,6 +26,17 @@ describe('buildAthleteSkeleton', () => {
     expect(world(rig.joints.footL).y).toBeCloseTo(0.07, 2);
   });
 
+  it('boneInverses refletem o rest pose (regressão: skeleton criado sem matrixWorld)', () => {
+    const rig = buildAthleteSkeleton();
+    // O inverso do bind do osso deve levar a posição de mundo do rest pose à origem do osso.
+    const headInverse = rig.skeleton.boneInverses[rig.boneIndex.head];
+    const headRest = new THREE.Vector3(0, 1.54, 0).applyMatrix4(headInverse);
+    expect(headRest.length()).toBeLessThan(1e-6);
+    const footInverse = rig.skeleton.boneInverses[rig.boneIndex.footL];
+    const footRest = new THREE.Vector3(0.1, 0.07, 0.04).applyMatrix4(footInverse);
+    expect(footRest.length()).toBeLessThan(1e-6);
+  });
+
   it('duas construções são independentes (sem estado compartilhado)', () => {
     const a = buildAthleteSkeleton();
     const b = buildAthleteSkeleton();
