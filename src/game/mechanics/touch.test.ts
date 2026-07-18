@@ -258,6 +258,22 @@ describe('executeTouch — intenção semântica humana', () => {
     expect(third.ball.vel.x).toBeGreaterThan(5);
     expect(third.planned).toContain('pass');
   });
+
+  it('terceiro toque converte levantamento automaticamente em bola para a outra quadra', () => {
+    // Regressão 3D: passe ruim que fica no próprio campo gera passe 2 → plano de set como
+    // terceiro toque. Sem a conversão, o set subia no próprio campo e caía sem disputa.
+    const third = makeCtx(new THREE.Vector3());
+    const plan = makePlan('set', third.ctx.teamOf(TeamSide.HOME).nearestTo(0, 0));
+    third.ctx.rally.countTouch(TeamSide.HOME);
+    third.ctx.rally.countTouch(TeamSide.HOME);
+
+    executeTouch(third.ctx, plan, 1);
+
+    expect(third.ctx.rally.possessionTouches).toBe(3);
+    expect(third.ctx.rally.lastKind).toBe('freeball');
+    expect(third.ball.vel.x).toBeGreaterThan(5);
+    expect(third.planned).toContain('pass');
+  });
 });
 
 describe('executeTouch — ownership e orçamento de RNG', () => {

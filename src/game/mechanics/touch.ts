@@ -36,7 +36,9 @@ export function executeTouch(
   ctx.rally.lastKind = kind;
 
   // No terceiro toque, o mesmo botão vira automaticamente passe para a quadra rival.
-  if ((kind === 'pass' || kind === 'dig') && ctx.rally.possessionTouches >= 3) {
+  // Vale também para o levantamento: um set como terceiro toque subiria no próprio campo
+  // e cairia sem disputa (a atacante nunca poderá tocar a bola de novo).
+  if ((kind === 'pass' || kind === 'dig' || kind === 'set') && ctx.rally.possessionTouches >= 3) {
     ctx.rally.lastKind = 'freeball';
     doFreeball(ctx, plan, quality, intent);
     return;
