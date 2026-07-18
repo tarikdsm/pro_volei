@@ -46,6 +46,10 @@ export interface CharVisual {
   setAction(a: CharAction): void;
   update(dt: number): void;
   presentJump?(jumpY: number): void;
+  /** Locomoção direcional no referencial da atleta (m/s; frente/esquerda positivos). */
+  setPlanarMotion?(forward: number, lateral: number, braking: boolean): void;
+  /** Alvo de contato no referencial do root; a implementação expira após `inSeconds`. */
+  setContactAim?(x: number, y: number, z: number, inSeconds: number): void;
 }
 
 // Fábrica de personagem visual (default no browser = new PlayerCharacter).

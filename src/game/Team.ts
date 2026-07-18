@@ -84,6 +84,18 @@ export class Athlete {
     if (!this.faceNet && moving) this.facing = Math.atan2(this.velocity.x, this.velocity.z);
     this.char.moveSpeed = speed;
 
+    // Locomoção direcional no referencial da atleta (frente = +z local, esquerda = +x local).
+    if (this.char.setPlanarMotion) {
+      const sinF = Math.sin(this.facing);
+      const cosF = Math.cos(this.facing);
+      const forward = this.velocity.x * sinF + this.velocity.z * cosF;
+      const lateral = this.velocity.x * cosF - this.velocity.z * sinF;
+      // Freando quando a distância restante ao alvo cabe na desaceleração atual.
+      const remaining = Math.hypot(this.target.x - this.pos.x, this.target.z - this.pos.z);
+      const braking = remaining < (speed * speed) / (2 * PLAYER.deceleration) + 0.05;
+      this.char.setPlanarMotion(forward, lateral, braking);
+    }
+
     // encara a rede por padrão (mais legível para vôlei)
     if (this.faceNet) {
       const targetFacing = this.side === TeamSide.HOME ? Math.PI / 2 : -Math.PI / 2;
@@ -133,6 +145,19 @@ export class Athlete {
   /** posição das mãos p/ contato (aproximada) */
   reachPoint(): THREE.Vector3 {
     return new THREE.Vector3(this.pos.x, 1.0 + this.jumpY, this.pos.z);
+  }
+
+  /** Alvo de contato para o visual (antecipação/IK): converte mundo → referencial do root. */
+  aimContact(point: { x: number; y: number; z: number }, inSeconds: number): void {
+    if (!this.char.setContactAim) return;
+    const dx = point.x - this.pos.x;
+    const dz = point.z - this.pos.z;
+    const sinF = Math.sin(this.facing);
+    const cosF = Math.cos(this.facing);
+    // Ry(-facing): local x = esquerda da atleta, local z = frente.
+    const localX = cosF * dx - sinF * dz;
+    const localZ = sinF * dx + cosF * dz;
+    this.char.setContactAim(localX, point.y - this.jumpY, localZ, inSeconds);
   }
 }
 

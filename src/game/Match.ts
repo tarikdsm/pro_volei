@@ -479,6 +479,8 @@ export class Match {
     }
     this.coordinateTeamPlan(this.rally.plan);
     this.strategyCoordinator.bindCpuPlan(this.rally.plan);
+    // Antecipação visual: o ponto analítico do contato alimenta IK/olhar (apresentação pura).
+    athlete.aimContact(cPoint, cT);
 
     // Aproximação: a IA agenda o deslocamento e o pulo. No humano, ataque e levantamento mantêm
     // rotas táticas; recepção fica nas setas + assistência limitada do AutoSelector.
