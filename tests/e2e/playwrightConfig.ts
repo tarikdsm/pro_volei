@@ -2,12 +2,14 @@ import { defineConfig, devices } from '@playwright/test';
 
 export type TestServerMode = 'dev' | 'preview';
 
-const SERVER_COMMAND: Record<TestServerMode, string> = {
-  dev: 'npm run dev -- --host 127.0.0.1 --port 5199 --strictPort',
-  preview: 'npm run preview -- --host 127.0.0.1 --port 5199 --strictPort',
-};
-
 export function makePlaywrightConfig(mode: TestServerMode) {
+  const configuredPort = Number(process.env.PRO_VOLEI_E2E_PORT);
+  const port =
+    Number.isInteger(configuredPort) && configuredPort >= 1024 && configuredPort <= 65535
+      ? configuredPort
+      : 5199;
+  const baseURL = `http://127.0.0.1:${port}`;
+  const serverCommand = `npm run ${mode === 'dev' ? 'dev' : 'preview'} -- --host 127.0.0.1 --port ${port} --strictPort`;
   const desktopTestIgnore =
     mode === 'dev' ? [/touch\.spec\.ts/, /offline\.spec\.ts/] : /touch\.spec\.ts/;
   return defineConfig({
@@ -25,15 +27,15 @@ export function makePlaywrightConfig(mode: TestServerMode) {
     outputDir: '.playwright-mcp/test-results',
     use: {
       // porta dedicada 5199 — a 5173 colide com o outro projeto do usuário
-      baseURL: 'http://127.0.0.1:5199',
+      baseURL,
       screenshot: 'only-on-failure',
       trace: 'retain-on-failure',
       video: 'off',
       viewport: { width: 1280, height: 800 },
     },
     webServer: {
-      command: SERVER_COMMAND[mode],
-      url: 'http://127.0.0.1:5199',
+      command: serverCommand,
+      url: baseURL,
       timeout: 60_000,
       reuseExistingServer: mode === 'dev' && !process.env.CI,
     },
