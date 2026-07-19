@@ -373,7 +373,7 @@ Reescreve `Crowd`: matrizes de instância ESTÁTICAS, animação (pulo + ola + e
 - Consumes: `Arena.standsInfo` (origin/right/up/rows/cols — ver `src/world/Arena.ts:8-14`).
 - **Quem chama `crowd.mesh` hoje:** apenas `src/main.ts:139` (`scene.add(..., crowd.mesh, ...)`) e `applyQualityTier` (`crowd.setQuality(q.crowdDensity, q.crowdTickHz)` na linha ~155). Confirme com `rg "crowd\." src` antes de mexer.
 
-- [ ] **Step 1: Escrever os testes que falham**
+- [x] **Step 1: Escrever os testes que falham**
 
 Substitua o conteúdo de `src/world/Crowd.test.ts` por:
 
@@ -435,12 +435,12 @@ describe('computeCrowdSpots', () => {
 });
 ```
 
-- [ ] **Step 2: Rodar para ver falhar**
+- [x] **Step 2: Rodar para ver falhar**
 
 Run: `npx vitest run src/world/Crowd.test.ts`
 Expected: FAIL — `advanceCrowdMood`/`computeCrowdSpots` não existem.
 
-- [ ] **Step 3: Reescrever `src/world/Crowd.ts`**
+- [x] **Step 3: Reescrever `src/world/Crowd.ts`**
 
 Substitua o arquivo inteiro por:
 
@@ -712,12 +712,12 @@ function mergeGeos(geos: THREE.BufferGeometry[]): THREE.BufferGeometry {
 }
 ```
 
-- [ ] **Step 4: Rodar os testes novos**
+- [x] **Step 4: Rodar os testes novos**
 
 Run: `npx vitest run src/world/Crowd.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Atualizar `src/main.ts` e `src/core/constants.ts`**
+- [x] **Step 5: Atualizar `src/main.ts` e `src/core/constants.ts`**
 
 Em `src/main.ts`:
 - Linha ~139: troque `crowd.mesh` por `crowd.group` no `scene.add(...)`.
@@ -738,16 +738,16 @@ export const CROWD = {
 
 Depois rode `rg "crowdTickHz|tickHzLow|idleFreezeBelow|advanceCrowdTick|crowd\.mesh" src` e corrija QUALQUER referência restante (testes de constants, etc.) removendo o campo/uso — o grep deve terminar sem resultados.
 
-- [ ] **Step 6: Suíte completa + build**
+- [x] **Step 6: Suíte completa + build**
 
 Run: `npm run test` — Expected: verde (inclusive baterias de balanceamento — a torcida não toca a simulação).
 Run: `npm run build` — Expected: sucesso, bundle ≤ 250 kB gzip (o log do Vite mostra o gzip).
 
-- [ ] **Step 7: Verificação visual**
+- [x] **Step 7: Verificação visual**
 
 Use a skill `playtest` do projeto (porta 5199). Verifique: torcida pulando suavemente (sem "steps" de 12–20 Hz), cabeças com tons de pele distintos das camisas, ola percorrendo a arena após um ponto espetacular, zero erros de console. Com `?debug`, no console: `__renderer.info.render.calls` durante um rally deve ficar ≤ 250 (a torcida adiciona 1 draw call: eram 1, viraram 2).
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add src/world/Crowd.ts src/world/Crowd.test.ts src/main.ts src/core/constants.ts
@@ -1726,6 +1726,15 @@ git commit -m "feat(arena): taraflex procedural, environment RoomEnvironment e s
 ---
 
 ### Task 10: Gate final da fase — medição, playtest e documentação
+
+> **Nota do playtest da Task 4 (torcida GPU) — reconciliar aqui:** a geometria 2.0 da torcida
+> (tronco + ombros + braços + cabeça separada) elevou a contagem de triângulos. Medido em
+> 2026-07-19 (dev, `?debug`): tier 2/desktop 445k · tier 1/`medio` (padrão móvel) **341k** ·
+> tier 0/`baixo` (piso móvel) **242k**. O alvo §10.2 de **≤250 mil (móvel)** é atendido só no
+> tier 0. Draw calls (164–233) e bundle (223 kB gzip) OK em todos os tiers; zero erros de
+> console; cabeças em tom de pele distinto das camisas confirmadas. Decidir na medição de device
+> real: aceitar (o QualityManager desce ao tier 0 sob pressão de FPS) ou reduzir a torcida móvel
+> (padrão de touch no tier 0, densidade menor, ou geometria mais enxuta).
 
 **Files:**
 - Modify: `docs/ROADMAP.md` (subfase Fase 8 na seção de estado)
