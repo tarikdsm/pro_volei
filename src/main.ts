@@ -27,6 +27,11 @@ import type { SafeFrame, ScreenRect } from './systems/camera/CameraFrame';
 import { parseSeed, RandomHub } from './core/random';
 import { RallyJournal, type RallyJournalEntry } from './game/simulation/RallyJournal';
 import type { SimulationTelemetryPort } from './game/simulation/SimulationTelemetry';
+import {
+  loadAudioSettings,
+  saveAudioSettings,
+  type AudioSettingsStorage,
+} from './core/audio/AudioSettings';
 
 const app = document.getElementById('app')!;
 const debugWindow = window as unknown as {
@@ -136,7 +141,16 @@ const director = new CameraDirector(
   detectMotionProfile(window.matchMedia.bind(window)),
 );
 const input = new Input();
-const audio = new AudioEngine();
+let audioStorage: AudioSettingsStorage | null = null;
+try {
+  audioStorage = window.localStorage;
+} catch {
+  // Safari privado/políticas corporativas podem bloquear até o getter do storage.
+}
+const audio = new AudioEngine(loadAudioSettings(audioStorage), () =>
+  THREE.MathUtils.clamp(director.ballPos.z / 9, -0.65, 0.65),
+);
+saveAudioSettings(audioStorage, audio.settingsSnapshot());
 const haptics = new Haptics();
 const feedback = new PresentationFeedback([effects, audio, haptics]);
 const hud = new HUD(app, isTouch);

@@ -10,6 +10,9 @@ let ctorCalls = 0;
 let resumeSpy: ReturnType<typeof vi.fn>;
 let suspendSpy: ReturnType<typeof vi.fn>;
 let oscillatorStarts = 0;
+let gainValues: Array<{ value: number }> = [];
+let compressorCount = 0;
+let pannerCount = 0;
 // permite cada teste escolher se resume() resolve ou rejeita (simula contexto suspenso/iOS)
 let resumeImpl: () => Promise<void> = () => Promise.resolve();
 
@@ -32,13 +35,29 @@ class MockAudioContext {
   }
 
   createGain(): Record<string, unknown> {
-    return fakeNode({
-      gain: {
-        value: 0,
-        setValueAtTime: () => {},
-        exponentialRampToValueAtTime: () => {},
+    const gain = {
+      value: 0,
+      setValueAtTime(value: number) {
+        this.value = value;
       },
+      exponentialRampToValueAtTime: () => {},
+    };
+    gainValues.push(gain);
+    return fakeNode({ gain });
+  }
+  createDynamicsCompressor(): Record<string, unknown> {
+    compressorCount++;
+    return fakeNode({
+      threshold: { value: 0 },
+      knee: { value: 0 },
+      ratio: { value: 0 },
+      attack: { value: 0 },
+      release: { value: 0 },
     });
+  }
+  createStereoPanner(): Record<string, unknown> {
+    pannerCount++;
+    return fakeNode({ pan: { value: 0 } });
   }
   createBuffer(_channels: number, len: number): Record<string, unknown> {
     return { getChannelData: () => new Float32Array(len) };
@@ -65,6 +84,9 @@ class MockAudioContext {
 beforeEach(() => {
   ctorCalls = 0;
   oscillatorStarts = 0;
+  gainValues = [];
+  compressorCount = 0;
+  pannerCount = 0;
   resumeImpl = () => Promise.resolve();
   globalThis.AudioContext = MockAudioContext as unknown as typeof AudioContext;
 });
@@ -165,5 +187,45 @@ describe('AudioEngine.timingCue', () => {
     expect(afterGood).toBe(3);
     expect(oscillatorStarts).toBe(4);
     expect(timeout).not.toHaveBeenCalled();
+  });
+});
+
+describe('AudioEngine mixer', () => {
+  it('aplica os quatro canais e conecta um limitador', () => {
+    const audio = new AudioEngine();
+    audio.applySettings({ master: 0.2, effects: 0.3, crowd: 0.4, music: 0.5 });
+    audio.init();
+
+    expect(audio.settingsSnapshot()).toEqual({ master: 0.2, effects: 0.3, crowd: 0.4, music: 0.5 });
+    expect(gainValues.map((gain) => gain.value)).toEqual(
+      expect.arrayContaining([0.2, 0.3, 0.4, 0.5]),
+    );
+    expect(compressorCount).toBe(1);
+  });
+
+  it('agenda sequências no Web Audio sem setTimeout e usa panorama nos impactos', () => {
+    const audio = new AudioEngine();
+    audio.init();
+    const timeout = vi.spyOn(globalThis, 'setTimeout');
+
+    audio.cheer(true);
+    audio.applause(0.2);
+    audio.scoreJingle(true);
+    audio.victoryFanfare();
+    audio.hitHard(0.5);
+
+    expect(timeout).not.toHaveBeenCalled();
+    expect(pannerCount).toBeGreaterThan(0);
+  });
+
+  it('emite legenda curta pelo mesmo método que dispara o som', () => {
+    const caption = vi.fn();
+    const audio = new AudioEngine();
+    audio.setCaptionSink(caption);
+    audio.init();
+
+    audio.block();
+
+    expect(caption).toHaveBeenCalledWith({ text: 'Bloqueio', durationMs: 900 });
   });
 });

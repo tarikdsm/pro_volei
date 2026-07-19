@@ -5,10 +5,16 @@ type Vibrate = (pattern: number[]) => unknown;
 
 /** Haptic opcional: nunca condiciona gameplay nem propaga falha do dispositivo. */
 export class Haptics {
+  private enabled = true;
+
   constructor(private readonly vibrate: Vibrate | null = detectVibrate()) {}
 
+  setEnabled(enabled: boolean): void {
+    this.enabled = enabled;
+  }
+
   timingCue(event: Readonly<TimingFeedbackEvent>): void {
-    if (!this.vibrate) return;
+    if (!this.enabled || !this.vibrate) return;
     try {
       this.vibrate([...TIMING_FEEDBACK.haptics[event.tier]]);
     } catch {

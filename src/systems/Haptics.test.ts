@@ -37,4 +37,17 @@ describe('Haptics', () => {
       }).timingCue(cue('perfect')),
     ).not.toThrow();
   });
+
+  it('pode ser desabilitado e reabilitado sem alterar o evento de timing', () => {
+    const vibrate = vi.fn();
+    const haptics = new Haptics(vibrate);
+
+    haptics.setEnabled(false);
+    haptics.timingCue(cue('perfect'));
+    expect(vibrate).not.toHaveBeenCalled();
+
+    haptics.setEnabled(true);
+    haptics.timingCue(cue('good'));
+    expect(vibrate).toHaveBeenCalledWith([15]);
+  });
 });
