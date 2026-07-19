@@ -1,47 +1,54 @@
 ---
 name: playtest
-description: Sobe o Pró Volei e o exercita num browser real via Playwright MCP — abre o jogo, inicia uma partida, tira screenshots e lê erros do console. Use após mudanças em game/, entities/, systems/, world/ ou ui/ para verificar comportamento de verdade, não só testes unitários.
+description: Use when gameplay, rendering, input, audio, world, or UI changes in Pró Volei require verification in a real browser.
 ---
 
-# Playtest — verificar o Pró Volei num browser real
+# Playtest do Pró Volei
 
-Confirma que o jogo carrega e que a mudança funciona, dirigindo o jogo de ponta a ponta.
-Complementa (não substitui) os testes de `npm run test`.
+## Visão geral
 
-## Pré-requisitos
+Exercite o jogo no Playwright MCP e observe comportamento, visual e console. O playtest complementa
+os gates automatizados; não substitui `npm run check` nem os E2E.
 
-- **Playwright MCP ativo** (configurado em `.mcp.json`). Se as ferramentas `mcp__playwright__*`
-  não estiverem disponíveis, peça ao usuário para aprovar/reiniciar o MCP e pare aqui.
+## Referência rápida
 
-## Passos
+| Perfil | URL | Fluxo e controles |
+|---|---|---|
+| Desktop alto | `/?debug=1&tier=2` | Clique em **JOGAR**; **Setas** movem/miram, **Espaço** age, **Esc** pausa |
+| Touch landscape | `/?debug=1&touch=1&tier=1` | Autostart sem **JOGAR**; ação no terço esquerdo, joystick no terço direito |
+| Touch portrait | mesma URL, viewport vertical | Menu “Gire o celular”; simulação pausada até voltar ao landscape |
 
-1. **Suba o dev server em background:** `npm run dev` (porta 5173). Aguarde a linha `ready`.
-2. **Abra o jogo:** navegue até `http://localhost:5173/`.
-   - Para testar os controles de toque no desktop, use `http://localhost:5173/?touch=1`.
-3. **Screenshot do menu inicial.**
-4. **Verifique o console** (mensagens do browser). Qualquer erro/exceção = investigar antes de seguir.
-5. **Inicie uma partida:** clique em jogar (dificuldade Normal, formato rápido).
-6. **Jogue alguns rallies** pelo teclado:
-   - Saque: segurar e soltar **Espaço**; mira com **WASD**.
-   - Recepção/ataque/bloqueio: **WASD** move/mira, **Espaço** no tempo do toque/pulo.
-   - Capture screenshots em momentos-chave (saque, rally, ponto).
-7. **Reporte:** carregou sem erro de console? a mudança apareceu/funcionou como esperado?
-   Anexe screenshots (antes/depois quando fizer sentido).
+## Procedimento
 
-## Encerrar
+1. Confirme que as ferramentas `mcp__playwright__*` estão disponíveis.
+2. Escolha uma porta livre e suba Vite em background com host `127.0.0.1` e `--strictPort`. Grave
+   stdout/stderr em `.playwright-mcp/` e aguarde a linha `ready`. Não presuma 5173 ou 5199 livres.
+3. Abra o perfil relevante. Capture menu, saque/rally e o estado alterado; use viewport desktop e,
+   para mudanças móveis, pelo menos 844×390 e 390×844.
+4. Jogue alguns rallies. No saque, segure/solte **Espaço** ou a zona de ação e mire pelas
+   **Setas** ou pelo joystick. Verifique HUD, bola, atleta controlada, touch simultâneo e pausa.
+5. Leia erros e avisos do console da navegação corrente. Mensagens acumuladas de outra URL/porta
+   devem ser classificadas separadamente, nunca atribuídas ao run atual.
+6. Inspecione estado pelos hooks abaixo quando a observação visual não bastar.
+7. Se houver falha, use `superpowers:systematic-debugging` antes de propor correção.
+8. Ao terminar, localize o PID que escuta a porta, confirme que a linha de comando aponta para o
+   Vite deste repositório e só então encerre esse processo. Nunca mate todos os processos Node.
 
-- **Pare o dev server** em background ao terminar (não deixe a porta presa).
-- Salve screenshots dentro de `.playwright-mcp/` (já ignorado pelo git) para não sujar a raiz
-  do repositório; limpe qualquer artefato que tenha escapado.
+## Hooks de diagnóstico
 
-## Dica de porta
+Com `?debug=1` (ou em DEV), estão disponíveis:
 
-Se a porta padrão (5173) estiver ocupada por outro projeto, suba numa porta dedicada com
-`npm run dev -- --port 5199 --strictPort` e navegue para `http://localhost:5199/`.
+- `window.__match`, `window.__renderer`, `window.__simulationClock` e `window.__controlFrame`;
+- `window.__selection`, `window.__action`, `window.__cameraFrame` e `window.__feedback`;
+- `window.__seed`, `window.__random`, `window.__readJournal()` e os snapshots de journal.
 
-## Dicas
+Use `__simulationClock.tick` para provar avanço/congelamento e `__renderer.info.render` para draw
+calls/triângulos. Hooks debug não existem no build público sem `?debug=1`.
 
-- `window.__match` no console expõe o estado da partida para inspeção/depuração.
-- Se o comportamento estiver errado, use a skill `superpowers:systematic-debugging` para achar
-  a causa raiz antes de propor conserto.
-- Performance é crítica no alvo mobile — repare em travadas/queda de FPS durante rallies longos.
+## Erros comuns
+
+- Usar WASD: o contrato atual é **Setas + Espaço**.
+- Inverter touch: **ação à esquerda; movimento à direita**.
+- Procurar **JOGAR** no touch landscape: esse fluxo inicia automaticamente.
+- Salvar screenshots na raiz: use `.playwright-mcp/` e não suje o Git.
+- Reportar “sem erros” sem verificar console e progressão real do tick.
