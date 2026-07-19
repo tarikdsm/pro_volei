@@ -3,9 +3,9 @@ import * as THREE from 'three';
 import { buildAthleteSkeleton } from './AthleteSkeleton';
 
 describe('buildAthleteSkeleton', () => {
-  it('monta 19 ossos com hierarquia e índices consistentes', () => {
+  it('monta 20 ossos com hierarquia e índices consistentes', () => {
     const rig = buildAthleteSkeleton();
-    expect(rig.skeleton.bones).toHaveLength(19);
+    expect(rig.skeleton.bones).toHaveLength(20);
     expect(rig.joints.hips).toBe(rig.rootBone);
     expect(rig.joints.shinL.parent).toBe(rig.joints.thighL);
     expect(rig.joints.forearmR.parent).toBe(rig.joints.upperArmR);
@@ -14,6 +14,12 @@ describe('buildAthleteSkeleton', () => {
       expect(rig.skeleton.bones[rig.boneIndex[name as keyof typeof rig.boneIndex]]).toBe(bone);
       expect(bone.name).toBe(name); // nome da junta no osso (usado por testes e debug)
     }
+  });
+
+  it('hairTail é o último osso e filho de head', () => {
+    const rig = buildAthleteSkeleton();
+    expect(rig.boneIndex.hairTail).toBe(19);
+    expect(rig.joints.hairTail.parent).toBe(rig.joints.head);
   });
 
   it('é simétrico em x e alcança altura de cabeça ~1,54 m no rest pose', () => {

@@ -208,4 +208,17 @@ describe('RiggedCharacter', () => {
     const head = char.root.getObjectByName('head')!;
     expect(Math.abs(head.rotation.y)).toBeLessThan(0.08);
   });
+
+  it('o cabelo balança ao correr e volta ao repouso, sempre dentro do clamp', () => {
+    const char = new RiggedCharacter({ ...LOOK, hairstyle: 'ponytail' }, { decalTexture: null });
+    const tail = char.root.getObjectByName('hairTail')!;
+    char.setPlanarMotion(4, 0, false); // corrida à frente
+    for (let i = 0; i < 60; i += 1) char.update(1 / 60);
+    const moving = tail.rotation.x;
+    expect(Math.abs(moving)).toBeGreaterThan(0.05);
+    expect(Math.abs(moving)).toBeLessThanOrEqual(0.7);
+    char.setPlanarMotion(0, 0, false);
+    for (let i = 0; i < 240; i += 1) char.update(1 / 60);
+    expect(Math.abs(tail.rotation.x)).toBeLessThan(0.05);
+  });
 });

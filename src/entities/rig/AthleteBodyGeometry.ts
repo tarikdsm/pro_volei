@@ -30,6 +30,8 @@ interface SegmentSpec {
   readonly scale?: readonly [number, number, number];
   /** Rotação (rad) aplicada à geometria antes do offset (ex.: rabo de cavalo inclinado). */
   readonly rotationX?: number;
+  /** Rotação em z (rad) aplicada antes do offset (mechas laterais). */
+  readonly rotationZ?: number;
 }
 
 function capsule(radius: number, length: number): THREE.BufferGeometry {
@@ -94,38 +96,92 @@ function bodySegments(hairstyle: AthleteHairstyle): SegmentSpec[] {
     ...mirrored('shorts', 'thighL', 'thighR', () => capsule(0.062, 0.3), [0, -0.17, 0]),
     // tênis
     ...mirrored('shoes', 'footL', 'footR', () => box(0.09, 0.07, 0.22), [0, -0.035, 0.05]),
-    // cabelo: cap sempre; variações por estilo
+    // cabelo: cap sempre; variações por estilo. Segmentos pendentes vão no osso hairTail
+    // (pêndulo, Fase 8); scalp/coque ficam na cabeça.
     { region: 'hair', bone: 'head', geometry: sphere(0.11, 10, 8), offset: [0, 0.045, -0.01] },
   ];
   if (hairstyle === 'long') {
-    specs.push({
-      region: 'hair',
-      bone: 'head',
-      geometry: box(0.16, 0.22, 0.05),
-      offset: [0, -0.06, -0.1],
-    });
+    // cortina traseira em três painéis levemente curvados + mechas laterais
+    specs.push(
+      { region: 'hair', bone: 'head', geometry: box(0.15, 0.1, 0.045), offset: [0, -0.01, -0.105] },
+      {
+        region: 'hair',
+        bone: 'hairTail',
+        geometry: box(0.16, 0.16, 0.04),
+        offset: [0, -0.1, -0.025],
+        rotationX: -0.12,
+      },
+      {
+        region: 'hair',
+        bone: 'hairTail',
+        geometry: box(0.14, 0.12, 0.035),
+        offset: [0, -0.22, -0.045],
+        rotationX: -0.2,
+      },
+      {
+        region: 'hair',
+        bone: 'head',
+        geometry: box(0.035, 0.16, 0.07),
+        offset: [0.105, -0.03, -0.03],
+        rotationZ: 0.12,
+      },
+      {
+        region: 'hair',
+        bone: 'head',
+        geometry: box(0.035, 0.16, 0.07),
+        offset: [-0.105, -0.03, -0.03],
+        rotationZ: -0.12,
+      },
+    );
   } else if (hairstyle === 'ponytail') {
-    specs.push({
-      region: 'hair',
-      bone: 'head',
-      geometry: capsule(0.035, 0.22),
-      offset: [0, -0.02, -0.16],
-      rotationX: -0.55,
-    });
+    // tufo na nuca + rabo em três segmentos afinando, com curva natural
+    specs.push(
+      { region: 'hair', bone: 'head', geometry: sphere(0.045, 8, 6), offset: [0, 0.015, -0.1] },
+      {
+        region: 'hair',
+        bone: 'hairTail',
+        geometry: capsule(0.034, 0.09),
+        offset: [0, -0.045, -0.035],
+        rotationX: -0.45,
+      },
+      {
+        region: 'hair',
+        bone: 'hairTail',
+        geometry: capsule(0.028, 0.09),
+        offset: [0, -0.13, -0.065],
+        rotationX: -0.25,
+      },
+      {
+        region: 'hair',
+        bone: 'hairTail',
+        geometry: capsule(0.02, 0.07),
+        offset: [0, -0.2, -0.075],
+        rotationX: -0.1,
+      },
+    );
   } else if (hairstyle === 'bun') {
-    specs.push({
-      region: 'hair',
-      bone: 'head',
-      geometry: sphere(0.05, 8, 6),
-      offset: [0, 0.08, -0.1],
-    });
+    // coque alto: rosca + núcleo (fica na cabeça, sem pêndulo)
+    const ring = new THREE.TorusGeometry(0.048, 0.018, 6, 12);
+    specs.push(
+      { region: 'hair', bone: 'head', geometry: ring, offset: [0, 0.085, -0.09], rotationX: 1.2 },
+      { region: 'hair', bone: 'head', geometry: sphere(0.042, 8, 6), offset: [0, 0.09, -0.095] },
+    );
   } else if (hairstyle === 'braid') {
+    // trança: contas afinando em cadeia no hairTail
     specs.push({
       region: 'hair',
       bone: 'head',
-      geometry: capsule(0.028, 0.3),
-      offset: [0, -0.08, -0.13],
-      rotationX: -0.25,
+      geometry: sphere(0.04, 8, 6),
+      offset: [0, -0.01, -0.1],
+    });
+    const beads = [0.033, 0.03, 0.027, 0.024, 0.02] as const;
+    beads.forEach((radius, i) => {
+      specs.push({
+        region: 'hair',
+        bone: 'hairTail',
+        geometry: sphere(radius, 7, 5),
+        offset: [0, -0.05 - i * 0.055, -0.03 - i * 0.012],
+      });
     });
   }
   return specs;
@@ -142,6 +198,7 @@ function prepareSegment(
   const geometry = spec.geometry;
   if (spec.scale) geometry.scale(spec.scale[0], spec.scale[1], spec.scale[2]);
   if (spec.rotationX) geometry.rotateX(spec.rotationX);
+  if (spec.rotationZ) geometry.rotateZ(spec.rotationZ);
   // Escala visual do corpo: porte em x/z, altura em y (casada com o esqueleto escalado).
   geometry.scale(buildScale, heightScale, buildScale);
   const bone = rest[spec.bone];

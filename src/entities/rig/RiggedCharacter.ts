@@ -36,6 +36,9 @@ const AIM_HOLD_SECONDS = 0.3; // follow-through após o instante do contato
 const HEAD_YAW_MAX = 1.0; // rad — além disso a atleta não "quebra o pescoço"
 const HEAD_PITCH_MIN = -0.55; // olhar para cima
 const HEAD_PITCH_MAX = 0.6; // olhar para baixo
+const HAIR_STIFFNESS = 60; // mola do pêndulo do cabelo (rad/s² por rad)
+const HAIR_DAMPING = 10; // amortecimento (1/s)
+const HAIR_SWING_MAX = 0.7; // rad
 
 export interface RiggedCharacterOptions {
   /**
@@ -68,6 +71,13 @@ export class RiggedCharacter implements CharVisual {
   private planarLateral = 0;
   private planarBraking = false;
   private planarFed = false;
+
+  // Pêndulo do cabelo (hairTail): estado de mola amortecida, determinístico por dt.
+  private hairAngleX = 0;
+  private hairAngleZ = 0;
+  private hairVelX = 0;
+  private hairVelZ = 0;
+  private prevJumpY = 0;
 
   // Alvo de contato (referencial do root); expira sozinho.
   private readonly aim = new THREE.Vector3();
@@ -283,6 +293,32 @@ export class RiggedCharacter implements CharVisual {
     j.thighR.rotation.z += (thighRZ - j.thighR.rotation.z) * legDamp;
     j.shinL.rotation.x += (shinLX - j.shinL.rotation.x) * legDamp;
     j.shinR.rotation.x += (shinRX - j.shinR.rotation.x) * legDamp;
+
+    // Movimento secundário do cabelo: pêndulo amortecido reagindo à locomoção e ao pulo.
+    if (dt > 0) {
+      const verticalVel = (this.jumpY - this.prevJumpY) / dt;
+      this.prevJumpY = this.jumpY;
+      const fwd = Math.max(-6, Math.min(6, this.planarForward));
+      const lat = Math.max(-6, Math.min(6, this.planarLateral));
+      // correr à frente joga o rabo para trás (pitch +); cair joga para cima
+      const targetX = 0.09 * fwd - 0.05 * Math.max(-8, Math.min(8, verticalVel));
+      const targetZ = -0.08 * lat;
+      this.hairVelX +=
+        ((targetX - this.hairAngleX) * HAIR_STIFFNESS - this.hairVelX * HAIR_DAMPING) * dt;
+      this.hairVelZ +=
+        ((targetZ - this.hairAngleZ) * HAIR_STIFFNESS - this.hairVelZ * HAIR_DAMPING) * dt;
+      this.hairAngleX = Math.max(
+        -HAIR_SWING_MAX,
+        Math.min(HAIR_SWING_MAX, this.hairAngleX + this.hairVelX * dt),
+      );
+      this.hairAngleZ = Math.max(
+        -HAIR_SWING_MAX,
+        Math.min(HAIR_SWING_MAX, this.hairAngleZ + this.hairVelZ * dt),
+      );
+      const tail = this.rig.joints.hairTail;
+      tail.rotation.x = this.hairAngleX;
+      tail.rotation.z = this.hairAngleZ;
+    }
   }
 
   /** Soluções de IK das mãos ao alvo de contato, ou null quando inativo. */

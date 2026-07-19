@@ -23,7 +23,33 @@ describe('buildAthleteBodyParts', () => {
       for (let i = 0; i < position.count; i += 1) {
         expect(skinWeight.getX(i)).toBe(1); // rígido: 100% num único osso
         expect(skinIndex.getX(i)).toBeGreaterThanOrEqual(0);
-        expect(skinIndex.getX(i)).toBeLessThan(19);
+        expect(skinIndex.getX(i)).toBeLessThan(20);
+      }
+    }
+  });
+
+  it('penteados pendentes têm vértices skinnados no hairTail', () => {
+    for (const hairstyle of ['ponytail', 'braid', 'long'] as const) {
+      const rig = buildAthleteSkeleton();
+      const parts = buildAthleteBodyParts(rig.boneIndex, { hairstyle });
+      const hair = parts.find((p) => p.region === 'hair')!;
+      const skinIndex = hair.geometry.getAttribute('skinIndex');
+      let tailVerts = 0;
+      for (let i = 0; i < skinIndex.count; i += 1) {
+        if (skinIndex.getX(i) === rig.boneIndex.hairTail) tailVerts += 1;
+      }
+      expect(tailVerts, hairstyle).toBeGreaterThan(0);
+    }
+  });
+
+  it('coque e curto permanecem 100% na cabeça', () => {
+    for (const hairstyle of ['bun', 'short'] as const) {
+      const rig = buildAthleteSkeleton();
+      const parts = buildAthleteBodyParts(rig.boneIndex, { hairstyle });
+      const hair = parts.find((p) => p.region === 'hair')!;
+      const skinIndex = hair.geometry.getAttribute('skinIndex');
+      for (let i = 0; i < skinIndex.count; i += 1) {
+        expect(skinIndex.getX(i)).toBe(rig.boneIndex.head);
       }
     }
   });

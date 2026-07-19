@@ -1,5 +1,6 @@
-// Esqueleto procedural da atleta 2.0 (Fase 4A): 19 ossos nomeados, hierarquia fixa e índices
-// estáveis para o skinning rígido. Puro Three.js (Bone/Skeleton) — roda em Node, sem DOM.
+// Esqueleto procedural da atleta 2.0 (Fase 4A): 20 ossos (Fase 8: hairTail para o movimento do
+// cabelo) nomeados, hierarquia fixa e índices estáveis para o skinning rígido. Puro Three.js
+// (Bone/Skeleton) — roda em Node, sem DOM.
 import * as THREE from 'three';
 
 export type AthleteJointName =
@@ -21,7 +22,8 @@ export type AthleteJointName =
   | 'footL'
   | 'thighR'
   | 'shinR'
-  | 'footR';
+  | 'footR'
+  | 'hairTail';
 
 export interface AthleteSkeletonRig {
   readonly rootBone: THREE.Bone; // hips
@@ -55,6 +57,7 @@ const BONE_TABLE: readonly {
   { name: 'thighR', parent: 'hips', position: [-0.1, -0.02, 0] },
   { name: 'shinR', parent: 'thighR', position: [0, -0.42, 0] },
   { name: 'footR', parent: 'shinR', position: [0, -0.44, 0.04] },
+  { name: 'hairTail', parent: 'head', position: [0, 0.02, -0.09] },
 ];
 
 /** Escalas visuais do corpo (Fase 4C): altura em y e largura/porte em x. Só apresentação. */
