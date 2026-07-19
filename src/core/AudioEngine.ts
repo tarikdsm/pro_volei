@@ -55,6 +55,14 @@ export class AudioEngine {
     void this.ctx?.resume().catch(() => {});
   }
 
+  /**
+   * Suspende o contexto (pausa, portrait, menus): silencia e economiza bateria. Idempotente e
+   * no-op sem contexto; o retorno ao jogo usa os pontos de resume() já existentes.
+   */
+  suspend(): void {
+    void this.ctx?.suspend().catch(() => {});
+  }
+
   update(dt: number): void {
     if (!this.ctx) return;
     const g = this.crowdGain.gain;

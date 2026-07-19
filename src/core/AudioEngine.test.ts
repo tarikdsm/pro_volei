@@ -8,6 +8,7 @@ import type { TimingFeedbackEvent } from '../game/feedback/TimingFeedback';
 
 let ctorCalls = 0;
 let resumeSpy: ReturnType<typeof vi.fn>;
+let suspendSpy: ReturnType<typeof vi.fn>;
 let oscillatorStarts = 0;
 // permite cada teste escolher se resume() resolve ou rejeita (simula contexto suspenso/iOS)
 let resumeImpl: () => Promise<void> = () => Promise.resolve();
@@ -22,10 +23,12 @@ class MockAudioContext {
   currentTime = 0;
   destination = fakeNode();
   resume = vi.fn(() => resumeImpl());
+  suspend = vi.fn(() => Promise.resolve());
 
   constructor() {
     ctorCalls++;
     resumeSpy = this.resume;
+    suspendSpy = this.suspend;
   }
 
   createGain(): Record<string, unknown> {
@@ -115,6 +118,16 @@ describe('AudioEngine.resume', () => {
   it('sem init(): não lança (no-op via optional chaining quando ctx é null)', () => {
     const audio = new AudioEngine();
     expect(() => audio.resume()).not.toThrow();
+  });
+
+  it('suspend() suspende o contexto existente e é no-op sem init', () => {
+    const semInit = new AudioEngine();
+    expect(() => semInit.suspend()).not.toThrow();
+
+    const audio = new AudioEngine();
+    audio.init();
+    audio.suspend();
+    expect(suspendSpy).toHaveBeenCalledTimes(1);
   });
 
   it('engole a rejeição de resume() sem propagar exceção (garante o .catch)', async () => {
