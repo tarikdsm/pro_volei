@@ -114,16 +114,19 @@ function patchCrowdMaterial(material: THREE.MeshLambertMaterial, uniforms: Crowd
   };
 }
 
-/** Geometria do corpo (camisa): tronco + ombros + braços. Base do assento em y = 0. */
+/** Geometria do corpo (camisa): tronco + ombros + braços. Base do assento em y = 0.
+ *  Contagens de segmentos enxutas (Fase 8, §10.2): a torcida é instanciada ~1300× e vista de
+ *  longe, então poucos segmentos mantêm o orçamento de triângulos móvel (≤250 mil) sem perda
+ *  visível. */
 function buildBodyGeometry(): THREE.BufferGeometry {
-  const torso = new THREE.CylinderGeometry(0.15, 0.19, 0.5, 8);
+  const torso = new THREE.CylinderGeometry(0.15, 0.19, 0.5, 6);
   torso.translate(0, 0.27, 0);
-  const shoulders = new THREE.SphereGeometry(0.15, 8, 5, 0, Math.PI * 2, 0, Math.PI * 0.5);
+  const shoulders = new THREE.SphereGeometry(0.15, 6, 4, 0, Math.PI * 2, 0, Math.PI * 0.5);
   shoulders.translate(0, 0.5, 0);
-  const armL = new THREE.CapsuleGeometry(0.042, 0.24, 2, 6);
+  const armL = new THREE.CapsuleGeometry(0.042, 0.24, 2, 4);
   armL.rotateZ(0.42);
   armL.translate(0.2, 0.34, 0);
-  const armR = new THREE.CapsuleGeometry(0.042, 0.24, 2, 6);
+  const armR = new THREE.CapsuleGeometry(0.042, 0.24, 2, 4);
   armR.rotateZ(-0.42);
   armR.translate(-0.2, 0.34, 0);
   return mergeGeos([torso, shoulders, armL, armR]);
@@ -131,7 +134,7 @@ function buildBodyGeometry(): THREE.BufferGeometry {
 
 /** Geometria da cabeça (pele). */
 function buildHeadGeometry(): THREE.BufferGeometry {
-  const head = new THREE.SphereGeometry(0.105, 8, 6);
+  const head = new THREE.SphereGeometry(0.105, 6, 5);
   head.translate(0, 0.68, 0);
   return mergeGeos([head]);
 }
