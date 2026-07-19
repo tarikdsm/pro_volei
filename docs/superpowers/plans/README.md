@@ -4,9 +4,9 @@ Fonte única para saber quais planos foram executados. Os arquivos individuais p
 ordem TDD e evidências do momento; caixas abertas em blueprints históricos não significam trabalho
 ativo. O estado de produto continua em [`docs/ROADMAP.md`](../../ROADMAP.md).
 
-**Marco atual — 18/07/2026:** Fases 1–2 e 3A–3D entregues. O proprietário autorizou a retomada
-em 18/07/2026; a próxima etapa autorizada é a sequência 4A–4E (personagens e render), cada
-subfase com plano detalhado antes de alterar produção.
+**Marco atual — 18/07/2026:** Fases 1–2, 3A–3D e 4A–4E entregues — o mandato autorizado em
+18/07/2026 está completo. Fases 5–7 aguardam nova autorização explícita; ao retomar, escrever o
+plano detalhado da próxima subfase antes de alterar produção.
 
 | Plano | Estado | Resultado |
 |---|---|---|
@@ -28,7 +28,7 @@ subfase com plano detalhado antes de alterar produção.
 | [`2026-07-18-fase-4b-locomotion-ik.md`](2026-07-18-fase-4b-locomotion-ik.md) | concluído | Locomoção direcional, IK de dois ossos, foot planting ≤0,15 m e mãos ao contato ≤0,12 m |
 | [`2026-07-18-fase-4c-elenco.md`](2026-07-18-fase-4c-elenco.md) | concluído | Corpo parametrizado, elenco nomeado 6+6, galeria `?gallery` e aceite §5.3 aprovado em duas revisões |
 | [`2026-07-18-fase-4d-arena-premium.md`](2026-07-18-fase-4d-arena-premium.md) | concluído | Paleta navy/teal/coral, torcida silenciada, contra-luz de TV e anel duplo de seleção daltônico-legível |
-| [`2026-07-18-fase-4e-quality-tiers.md`](2026-07-18-fase-4e-quality-tiers.md) | em execução | QualityManager com histerese entre pontos: dpr, sombra, torcida e partículas por tier |
+| [`2026-07-18-fase-4e-quality-tiers.md`](2026-07-18-fase-4e-quality-tiers.md) | concluído | QualityManager com histerese entre pontos; arquibancada mesclada (48→2 meshes) e rally ≤ 250 dc |
 
 ## Retomada de desenvolvimento
 

@@ -7,9 +7,9 @@ e Mobile** a partir do mesmo código web.
 Estado atual: **v1.1.0** jogável, com as **Fases 1–2 e subfases 3A–3D concluídas**.
 **Design 2.0 aprovado**, documentado em
 [`2026-07-12-pro-volei-2-0-design.md`](superpowers/specs/2026-07-12-pro-volei-2-0-design.md).
-Em 18/07/2026 o proprietário autorizou explicitamente a retomada: a Fase 3D foi entregue no mesmo
-dia e as subfases **4A–4E (personagens e render) são a próxima etapa autorizada**. Fases 5–7
-continuam aguardando a conclusão dessas etapas.
+Em 18/07/2026 o proprietário autorizou explicitamente a retomada (3D e 4A–4E); **todo o mandato
+foi entregue no mesmo dia**, cada subfase publicada com CI/Pages verdes. As Fases 5–7 aguardam
+nova autorização explícita.
 
 ### Fundação 2.0 — estado das subfases
 
@@ -112,13 +112,24 @@ continuam aguardando a conclusão dessas etapas.
   software do runner (sem regressão funcional; local em ~29 s); o Pages não promoveu o SHA
   vermelho. O commit corretivo `1841a9d` (timeout de E2E para 120 s) passou no run
   `29663703758`, promovendo a 4D com smoke público limpo.
+- **Fase 4E — concluída:** `QualityManager` puro (janela p95, histerese 2↓/4↑, cooldown de 2
+  avaliações, reset ao iniciar/retomar) com tiers §10.1 aplicados a pixel ratio, resolução de
+  sombra, densidade/cadência da torcida (prefixo de `InstancedMesh.count`, sem realocação) e
+  escala de partículas; a troca só ocorre na entrada do estado de ponto — invariante verificado
+  por revisão independente (APROVADO). Otimização: arquibancada mesclada por material (48
+  meshes → 2), derrubando os draw calls de rally no tier alto de 252–269 para 218–226 (≤ 250 do
+  §10.2); tier baixo com 241 dc/105 mil triângulos e legibilidade aprovada; bundle 209,9 kB
+  gzip (≤ 250). A evidência pendente da 4D (bola em voo sobre a torcida silenciada, legível)
+  foi capturada no playtest. Pós-processamento (opcional no §10.1) adiado para a Fase 7 com
+  decisão registrada; medição física em aparelhos reais permanece na 7B, como o design prevê.
+  986 testes verdes; o commit funcional `76de9a3` passou `npm run check` e smoke prod local; o
+  run `29669256918` publicou o deploy Pages verde com smoke público limpo.
 
-### Marco atual — IA coletiva 2.0 completa; personagens e render a seguir
+### Marco atual — mandato 3D + 4A–4E completo
 
-- **Entregue:** Fases 1A–1D, 2A–2E e 3A–3D.
-- **Autorizado, próxima etapa:** 4A–4E (personagens e render), em ordem, cada uma com plano
-  detalhado antes de alterar produção.
-- **Não iniciado:** Fases 5–7 do design 2.0 (aguardam autorização).
+- **Entregue:** Fases 1A–1D, 2A–2E, 3A–3D e 4A–4E — todo o escopo autorizado em 18/07/2026.
+- **Não iniciado:** Fases 5–7 do design 2.0 (áudio/mobile, Copa, release 2.0.0) — aguardam nova
+  autorização explícita do proprietário.
 - O índice canônico dos planos e suas evidências está em
   [`superpowers/plans/README.md`](superpowers/plans/README.md).
 

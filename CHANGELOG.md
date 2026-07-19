@@ -63,6 +63,10 @@ Todas as mudanças notáveis do Pró Volei. Formato baseado em
   livre teal, arquibancada azul-marinho, torcida com tintas silenciadas da identidade),
   contra-luz fria de transmissão, taraflex com brilho e anel duplo ciano da atleta controlada
   (dupla codificação forma+cor, legível para daltonismo).
+- Quality tiers (§10.1): `QualityManager` com janela p95, histerese e cooldown, trocando tier
+  somente na entrada do estado de ponto; tiers aplicam pixel ratio, resolução de sombra,
+  densidade/cadência da torcida e escala de partículas (`?tier=` força em DEV). Arquibancada
+  mesclada por material (48 meshes → 2): rally no tier alto caiu para 218–226 draw calls.
 - Ferramental de qualidade: ESLint 10 (flat config) + Prettier 3, `.editorconfig`,
   `.gitattributes` (LF), `.nvmrc` (Node 22).
 - Testes com Vitest 4 e primeira suíte cobrindo os solvers balísticos (`math3d`).
