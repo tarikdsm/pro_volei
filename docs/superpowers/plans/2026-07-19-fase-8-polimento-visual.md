@@ -768,7 +768,7 @@ Reescreve as curvas das poses de jogada em `athletePoses.ts` para dar "snap" às
 - Consumes: `CharAction` de `../PlayerCharacter`, `LocomotionState` de `./locomotion` (inalterados).
 - Produces: mesma API — `poseFor(action, t, runPhase, idleClock, phaseSeed): AthletePose` e `locomotionPose(state, runPhase): AthletePose`. Novos helpers internos exportados para teste: `easeOutBack(t: number, s?: number): number` e `phase(t: number, start: number, end: number): number`.
 
-- [ ] **Step 1: Escrever os testes que falham**
+- [x] **Step 1: Escrever os testes que falham**
 
 Create `src/entities/rig/athletePoses.test.ts`:
 
@@ -843,12 +843,12 @@ describe('poseFor', () => {
 });
 ```
 
-- [ ] **Step 2: Rodar para ver falhar**
+- [x] **Step 2: Rodar para ver falhar**
 
 Run: `npx vitest run src/entities/rig/athletePoses.test.ts`
 Expected: FAIL — `easeOutBack`/`phase` não são exportados.
 
-- [ ] **Step 3: Implementar easings e reescrever as poses de jogada**
+- [x] **Step 3: Implementar easings e reescrever as poses de jogada**
 
 Em `src/entities/rig/athletePoses.ts`, logo após `ease01` (linha ~97), adicione:
 
@@ -941,12 +941,12 @@ Substitua os cases `bump`, `set`, `spikeHit`, `block` e `serveToss` do `switch` 
 
 Os demais cases (`idle`, `run`, `spikeWindup`, `serveHit`, `dive`, `celebrate`, `dejected`) permanecem como estão.
 
-- [ ] **Step 4: Rodar os testes**
+- [x] **Step 4: Rodar os testes**
 
 Run: `npx vitest run src/entities/rig/athletePoses.test.ts src/entities/rig/RiggedCharacter.test.ts`
 Expected: PASS. Se `RiggedCharacter.test.ts` asserta valores numéricos derivados das poses antigas, atualize APENAS os números esperados para os novos alvos (a intenção do teste não muda). Não afrouxe tolerâncias além do necessário.
 
-- [ ] **Step 5: Gates + commit**
+- [x] **Step 5: Gates + commit**
 
 Run: `npm run check`
 
