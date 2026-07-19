@@ -1196,7 +1196,7 @@ As atletas passam a acompanhar a bola com a cabeça — vida imediata em TODAS a
 - Produces: `CharVisual.setLookTarget?(x: number, y: number, z: number): void` (coords no referencial do root, como `setContactAim`); `Athlete.lookAtPoint(point: { x: number; y: number; z: number }): void`.
 - Consumes: `this.ball.present(alpha)` em `Match.present` (retorna `THREE.Vector3` interpolado — ver Match.ts:586); `Team.athletes` (array público usado em `Team.present`).
 
-- [ ] **Step 1: Teste que falha**
+- [x] **Step 1: Teste que falha**
 
 Em `src/entities/rig/RiggedCharacter.test.ts`, siga o padrão do arquivo (construção com `decalTexture: null`) e adicione:
 
@@ -1225,7 +1225,7 @@ Em `src/entities/rig/RiggedCharacter.test.ts`, siga o padrão do arquivo (constr
 
 Run: `npx vitest run src/entities/rig/RiggedCharacter.test.ts` — Expected: FAIL.
 
-- [ ] **Step 2: Contrato + implementação**
+- [x] **Step 2: Contrato + implementação**
 
 Em `src/entities/PlayerCharacter.ts`, interface `CharVisual`, adicione após `setContactAim`:
 
@@ -1295,7 +1295,7 @@ Substitua por:
 
 Run: `npx vitest run src/entities/rig/RiggedCharacter.test.ts` — Expected: PASS.
 
-- [ ] **Step 3: Wiring Team/Match**
+- [x] **Step 3: Wiring Team/Match**
 
 Em `src/game/Team.ts`, classe `Athlete`, após `aimContact` (linha ~168), adicione (mesma matemática de conversão, sem alocar):
 
@@ -1330,7 +1330,7 @@ Em `src/game/Match.ts`, `present(alpha)` (linhas 582-587), substitua por:
 
 Se `Team.athletes` for `private`, exponha um getter readonly (`get athletes(): readonly Athlete[]`) — verifique em `src/game/Team.ts` (o `present` da Team itera `this.athletes`, linha ~349).
 
-- [ ] **Step 4: Suíte completa + commit**
+- [x] **Step 4: Suíte completa + commit**
 
 Run: `npm run test` — Expected: verde (headless usa `HeadlessCharacter` sem `setLookTarget` → no-op via optional chaining em `lookAtPoint`).
 Run: `npm run check`
