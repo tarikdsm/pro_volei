@@ -974,7 +974,7 @@ Duas ações visuais novas: `serveUnderhand` (saque por baixo quando o humano sa
 - Consumes: `Athlete.act(action, duration)` (Team.ts:70-73), `performServe(ctx, server, power, target, clearance)` (serve.ts:114) — o `power` do medidor humano já chega aqui.
 - **Não tocar** em `performStrategicServe` (caminho da CPU/headless — é o que as baterias exercitam).
 
-- [ ] **Step 1: Testes que falham (poses novas)**
+- [x] **Step 1: Testes que falham (poses novas)**
 
 Em `src/entities/rig/athletePoses.test.ts`, adicione:
 
@@ -1000,7 +1000,7 @@ E adicione `'serveUnderhand', 'land'` ao array `ACTIONS` do teste de valores fin
 Run: `npx vitest run src/entities/rig/athletePoses.test.ts`
 Expected: FAIL — TypeScript nem compila (`serveUnderhand` não é `CharAction`).
 
-- [ ] **Step 2: Estender `CharAction` e as poses**
+- [x] **Step 2: Estender `CharAction` e as poses**
 
 Em `src/entities/PlayerCharacter.ts:13-25`, adicione à união:
 
@@ -1068,7 +1068,7 @@ No legado `src/entities/PlayerCharacter.ts`, adicione ao `switch` de `update` (a
 
 Run: `npx vitest run src/entities/rig/athletePoses.test.ts` — Expected: PASS.
 
-- [ ] **Step 3: Constante e wiring do saque por baixo (humano)**
+- [x] **Step 3: Constante e wiring do saque por baixo (humano)**
 
 Em `src/core/constants.ts`, perto das constantes de jogador/saque, adicione:
 
@@ -1098,7 +1098,7 @@ Em `src/game/mechanics/serve.ts`, função `performServe` (linhas 114-132), subs
 
 Adicione o import de `SERVE_UNDERHAND_VISUAL_POWER` no topo do arquivo (junto dos imports de `core/constants`). **Não altere** o `ctx.ball.launch` nem os tempos de `ctx.after` — são estado compartilhado com a simulação.
 
-- [ ] **Step 4: Teste que falha (aterrissagem)**
+- [x] **Step 4: Teste que falha (aterrissagem)**
 
 Em `src/game/Team.test.ts`, veja como os testes existentes constroem `Athlete` (eles injetam um `CharFactory` dublê — siga o padrão do arquivo). Adicione:
 
@@ -1123,7 +1123,7 @@ Em `src/game/Team.test.ts`, veja como os testes existentes constroem `Athlete` (
 
 Run: `npx vitest run src/game/Team.test.ts` — Expected: FAIL (`land` nunca é emitido).
 
-- [ ] **Step 5: Implementar a detecção de aterrissagem**
+- [x] **Step 5: Implementar a detecção de aterrissagem**
 
 Em `src/game/Team.ts`, classe `Athlete`:
 
@@ -1167,7 +1167,7 @@ No bloco do pulo em `update(...)` (linhas ~113-121), ao aterrissar:
 
 Run: `npx vitest run src/game/Team.test.ts` — Expected: PASS.
 
-- [ ] **Step 6: Suíte completa (baterias incluídas) + commit**
+- [x] **Step 6: Suíte completa (baterias incluídas) + commit**
 
 Run: `npm run test`
 Expected: TUDO verde — em especial `BalanceBattery.test.ts` e `Match.headless.test.ts` (o caminho da CPU não foi tocado; `land` também dispara no headless via `HeadlessCharacter`, que aceita qualquer `CharAction` sem efeito).
