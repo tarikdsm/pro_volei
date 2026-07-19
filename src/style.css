@@ -484,6 +484,110 @@ body.touch #meter {
   box-shadow: 0 16px 40px rgba(255, 190, 40, 0.5);
 }
 
+.menu-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 26px;
+}
+.menu-actions .big-btn {
+  margin-top: 0;
+}
+.menu-actions .cup-btn {
+  color: #eaffff;
+  background: linear-gradient(135deg, #087f8c, #20c6b7);
+  box-shadow: 0 10px 30px rgba(32, 198, 183, 0.28);
+}
+
+.cup-panel {
+  width: min(900px, 96vw);
+}
+.cup-bracket {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+.cup-round {
+  display: grid;
+  gap: 6px;
+  min-height: 126px;
+  padding: 14px 12px;
+  text-align: left;
+  color: #8fa3b8;
+  background: rgba(20, 34, 54, 0.75);
+  border: 1px solid rgba(120, 180, 255, 0.2);
+  border-radius: 14px;
+  font-size: 12px;
+}
+.cup-round strong {
+  color: #fff;
+  font-size: 15px;
+}
+.cup-round-name {
+  color: #6d8199;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+.cup-round.current {
+  border-color: #20c6b7;
+  box-shadow: inset 0 0 24px rgba(32, 198, 183, 0.12);
+}
+.cup-round.won {
+  border-color: rgba(255, 225, 79, 0.7);
+}
+.cup-round.won::after {
+  content: 'CONCLUÍDO';
+  color: #ffe14f;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+.cup-round.locked {
+  opacity: 0.58;
+}
+.cup-reward {
+  margin: 18px 0 0;
+  color: #ffe14f;
+  font-weight: 800;
+}
+
+@media (max-width: 700px) {
+  .cup-bracket {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (orientation: landscape) and (max-height: 500px) {
+  .cup-panel,
+  .cup-result-panel {
+    padding: 12px 18px;
+  }
+  .cup-panel .endtitle,
+  .cup-result-panel .endtitle {
+    margin: 0;
+    font-size: 25px;
+  }
+  .cup-panel .tagline,
+  .cup-result-panel .tagline {
+    margin: 4px 0 10px;
+  }
+  .cup-round {
+    min-height: 92px;
+    padding: 8px;
+  }
+  .cup-panel .big-btn,
+  .cup-result-panel .big-btn {
+    margin-top: 10px;
+    padding: 10px;
+    font-size: 16px;
+  }
+  .cup-result-panel .stats {
+    margin: 8px 0;
+  }
+  .cup-result-panel .stats span {
+    font-size: 24px;
+  }
+}
+
 .ghost-btn {
   display: block;
   width: 100%;

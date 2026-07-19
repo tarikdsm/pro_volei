@@ -10,7 +10,11 @@ import {
   type OpponentStrategySnapshot,
   type StrategyDecisionRequest,
 } from './OpponentStrategySystem';
-import type { StrategyObservation, StrategyProposal } from './StrategyTypes';
+import type {
+  StrategyDecisionContext,
+  StrategyObservation,
+  StrategyProposal,
+} from './StrategyTypes';
 import { buildStrategyObservation, packStrategyObservation } from './StrategyObservationAdapter';
 import {
   buildOwnContactRead,
@@ -238,6 +242,29 @@ describe('OpponentStrategySystem perception', () => {
 });
 
 describe('OpponentStrategySystem transaction and lifecycle', () => {
+  it('aplica o perfil tático somente ao lado adversário e preserva o budget de RNG', () => {
+    const contexts: StrategyDecisionContext[] = [];
+    const random = streams([1, 2, 3, 4], [5, 6, 7, 8]);
+    const brain = {
+      decide(input: StrategyDecisionContext) {
+        contexts.push(input);
+        return new OpponentBrain().decide(input);
+      },
+    };
+    const system = new OpponentStrategySystem({ streams: random, brain });
+    const profile = { familyBias: { serve: { 'float-deep': 0.1 } } } as const;
+    system.setAwayTacticalProfile(profile);
+    system.captureFrame(observation(0));
+
+    committed(system, serveRequest(TeamSide.HOME));
+    committed(system, serveRequest(TeamSide.AWAY));
+
+    expect(contexts[0].tacticalProfile).toBeUndefined();
+    expect(contexts[1].tacticalProfile).toEqual(profile);
+    expect(random.home.draws).toBe(2);
+    expect(random.away.draws).toBe(2);
+  });
+
   it('commitSetPlay mantém nonquick em +2 e quick causal atômico em +4', () => {
     const makeBrain = (optionId: 'set.high-left' | 'set.quick-center') => ({
       decide(input: Parameters<OpponentBrain['decide']>[0]) {

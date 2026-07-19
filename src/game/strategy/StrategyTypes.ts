@@ -47,6 +47,14 @@ export type AttackOptionId =
 
 export type StrategyOptionId = ServeOptionId | SetOptionId | AttackOptionId;
 
+/** Ajustes de identidade limitados à seleção de jogadas; nunca contém parâmetros físicos. */
+export interface StrategyBiasProfile {
+  readonly familyBias?: Readonly<
+    Partial<Record<StrategyDecisionKind, Readonly<Record<string, number>>>>
+  >;
+  readonly optionBias?: Readonly<Partial<Record<StrategyOptionId, number>>>;
+}
+
 export interface AthleteStrategySnapshot {
   readonly side: TeamSide;
   readonly id: number;
@@ -101,6 +109,7 @@ export interface StrategyDecisionContext {
   readonly observation: StrategyObservation;
   readonly memory: StrategyMemorySnapshot;
   readonly ticket: StrategyDrawTicket;
+  readonly tacticalProfile?: Readonly<StrategyBiasProfile>;
   /** Bola e elenco próprios logo após o contato; obrigatório em set/attack, nunca contém rival. */
   readonly ownContactRead?: OwnContactRead;
   /** ID da levantadora no roster do próprio lado; obrigatório em runtime quando kind === 'set'. */

@@ -9,6 +9,7 @@ import {
   resetStrategyMemory,
 } from './StrategyMemory';
 import type {
+  StrategyBiasProfile,
   StrategyDecisionContext,
   StrategyDecisionKind,
   StrategyDifficulty,
@@ -414,6 +415,7 @@ export class OpponentStrategySystem {
   private readonly streams: Readonly<{ home: RandomSource; away: RandomSource }>;
   private readonly brain: StrategyBrainPort;
   private readonly sink?: (event: StrategyOutboxEvent) => void;
+  private awayTacticalProfile?: Readonly<StrategyBiasProfile>;
   private sinkEnabled = true;
   private currentMatchEpoch = 0;
   private sequences: [number, number] = [0, 0];
@@ -438,6 +440,10 @@ export class OpponentStrategySystem {
 
   get matchEpoch(): number {
     return this.currentMatchEpoch;
+  }
+
+  setAwayTacticalProfile(profile?: Readonly<StrategyBiasProfile>): void {
+    this.awayTacticalProfile = profile ? deepFreezeCopy(profile) : undefined;
   }
 
   captureFrame(observation: StrategyObservation): void {
@@ -683,6 +689,7 @@ export class OpponentStrategySystem {
         observation: perception.observation,
         memory,
         ticket,
+        tacticalProfile: request.side === TeamSide.AWAY ? this.awayTacticalProfile : undefined,
         ownContactRead,
         setterAthleteId: request.setterAthleteId,
         attackOriginZ,

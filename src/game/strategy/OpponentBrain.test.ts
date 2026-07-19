@@ -837,4 +837,44 @@ describe('OpponentBrain', () => {
       }),
     ).toThrow(/outcome|memória/i);
   });
+
+  it('mantém o perfil ausente exatamente neutro e aplica vieses por família', () => {
+    const brain = new OpponentBrain();
+    const probabilityFor = (input: StrategyDecisionContext, family: string) =>
+      brain
+        .decide(input)
+        .candidates.filter((candidate) => candidate.family === family)
+        .reduce((sum, candidate) => sum + candidate.probability, 0);
+
+    for (const [kind, family] of [
+      ['serve', 'float-deep'],
+      ['set', 'accelerated'],
+      ['attack', 'tip'],
+    ] as const) {
+      const base = context(kind);
+      expect(brain.decide({ ...base, tacticalProfile: {} })).toEqual(brain.decide(base));
+      expect(
+        probabilityFor(
+          { ...base, tacticalProfile: { familyBias: { [kind]: { [family]: 0.1 } } } },
+          family,
+        ),
+      ).toBeGreaterThan(probabilityFor(base, family));
+    }
+  });
+
+  it('rejeita perfis fora do limite ou com famílias desconhecidas', () => {
+    const valid = context('serve');
+    expect(() =>
+      new OpponentBrain().decide({
+        ...valid,
+        tacticalProfile: { familyBias: { serve: { 'float-deep': 0.121 } } },
+      }),
+    ).toThrow(/perfil|viés/i);
+    expect(() =>
+      new OpponentBrain().decide({
+        ...valid,
+        tacticalProfile: { familyBias: { serve: { desconhecida: 0.1 } } },
+      }),
+    ).toThrow(/perfil|família/i);
+  });
 });

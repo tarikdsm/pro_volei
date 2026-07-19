@@ -1,6 +1,29 @@
 import { DIFFICULTIES, MATCH_FORMATS } from '../core/constants';
 import { MatchStats } from '../game/Match';
 
+export interface CupMenuRound {
+  readonly name: string;
+  readonly round: string;
+  readonly identity: string;
+  readonly rewardId: string;
+  readonly losses: number;
+  readonly status: 'won' | 'current' | 'locked';
+}
+
+export interface CupMenuState {
+  readonly completed: boolean;
+  readonly rounds: readonly CupMenuRound[];
+}
+
+export interface CupResultView {
+  readonly homeWon: boolean;
+  readonly stats: MatchStats;
+  readonly scoreline: string;
+  readonly status: 'retry' | 'next' | 'champion';
+  readonly opponentName: string;
+  readonly rewardId?: string;
+}
+
 // Telas: título (com seleção de dificuldade/formato), pausa, fim de partida e, no touch,
 // a pausa de portrait (§7.1) e a vitória compacta com contagem de revanche.
 export class Menu {
@@ -8,9 +31,12 @@ export class Menu {
   difficulty: 0 | 1 | 2 = 1;
   format: 0 | 1 | 2 = 0;
   onStart: (() => void) | null = null;
+  onCupStart: (() => void) | null = null;
+  onCupRestart: (() => void) | null = null;
   onResume: (() => void) | null = null;
   onSelectionChange: ((difficulty: 0 | 1 | 2, format: 0 | 1 | 2) => void) | null = null;
   private countdownId: ReturnType<typeof setInterval> | null = null;
+  private cupState: CupMenuState = { completed: false, rounds: [] };
 
   constructor(
     parent: HTMLElement,
@@ -44,7 +70,10 @@ export class Menu {
             ${MATCH_FORMATS.map((f, i) => `<button data-i="${i}" class="${i === this.format ? 'sel' : ''}">${f.name}</button>`).join('')}
           </div>
         </div>
-        <button id="btn-start" class="big-btn">JOGAR</button>
+        <div class="menu-actions">
+          <button id="btn-start" class="big-btn">JOGAR</button>
+          <button id="btn-cup" class="big-btn cup-btn">COPA</button>
+        </div>
         <div class="controls-help">
           ${
             this.touchMode
@@ -66,6 +95,48 @@ export class Menu {
       this.hide();
       this.onStart?.();
     });
+    this.root.querySelector('#btn-cup')!.addEventListener('click', () => this.showCup());
+  }
+
+  setCupState(state: CupMenuState): void {
+    this.cupState = state;
+  }
+
+  showCup(): void {
+    this.clearCountdown();
+    this.root.style.display = 'flex';
+    const champion = this.cupState.completed;
+    this.root.innerHTML = `
+      <div class="panel cup-panel">
+        <h1 class="endtitle ${champion ? 'win' : ''}">${champion ? '🏆 CAMPEÃ DA COPA' : 'COPA PRÓ VOLEI'}</h1>
+        <p class="tagline">quatro confrontos · formato Oficial 2.0</p>
+        <div class="cup-bracket">
+          ${this.cupState.rounds
+            .map(
+              (entry) => `
+                <article class="cup-round ${entry.status}" data-status="${entry.status}">
+                  <span class="cup-round-name">${escapeHtml(entry.round)}</span>
+                  <strong>${escapeHtml(entry.name)}</strong>
+                  <span>Identidade: ${escapeHtml(entry.identity)}</span>
+                  <span>Recompensa: ${escapeHtml(rewardLabel(entry.rewardId))}</span>
+                  ${entry.losses > 0 ? `<span>${entry.losses} tentativa${entry.losses === 1 ? '' : 's'} extra${entry.losses === 1 ? '' : 's'}</span>` : ''}
+                </article>`,
+            )
+            .join('')}
+        </div>
+        <button id="btn-cup-play" class="big-btn">${champion ? 'REINICIAR COPA' : 'CONTINUAR COPA'}</button>
+        <button id="btn-cup-back" class="ghost-btn">VOLTAR</button>
+      </div>`;
+    this.root.querySelector('#btn-cup-play')!.addEventListener('click', () => {
+      if (champion) {
+        this.onCupRestart?.();
+        this.showCup();
+        return;
+      }
+      this.hide();
+      this.onCupStart?.();
+    });
+    this.root.querySelector('#btn-cup-back')!.addEventListener('click', () => this.showTitle());
   }
 
   private bindOpts(): void {
@@ -88,7 +159,7 @@ export class Menu {
   }
 
   /** Pausa de portrait (§7.1): instrução de girar + meta (novo jogo/sair) — só no touch. */
-  showPortraitBreak(): void {
+  showPortraitBreak(mode: 'quick' | 'cup' = 'quick'): void {
     this.clearCountdown();
     this.root.style.display = 'flex';
     this.root.innerHTML = `
@@ -113,7 +184,8 @@ export class Menu {
     this.bindOpts();
     this.root.querySelector('#btn-new')!.addEventListener('click', () => {
       this.hide();
-      this.onStart?.();
+      if (mode === 'cup') this.onCupStart?.();
+      else this.onStart?.();
     });
     this.root.querySelector('#btn-quit-portrait')!.addEventListener('click', () => {
       location.reload();
@@ -193,6 +265,41 @@ export class Menu {
     });
   }
 
+  showCupResult(view: CupResultView): void {
+    this.clearCountdown();
+    this.root.style.display = 'flex';
+    const champion = view.status === 'champion';
+    const action = champion
+      ? 'VER CHAVE'
+      : view.status === 'retry'
+        ? 'REPETIR CONFRONTO'
+        : 'PRÓXIMA PARTIDA';
+    this.root.innerHTML = `
+      <div class="panel cup-result-panel">
+        <h1 class="endtitle ${view.homeWon ? 'win' : 'lose'}">${champion ? '🏆 CAMPEÃ DA COPA!' : view.homeWon ? 'VITÓRIA NA COPA' : 'DERROTA NA COPA'}</h1>
+        <p class="tagline">${escapeHtml(view.opponentName)} · Sets ${escapeHtml(view.scoreline)}</p>
+        <div class="stats">
+          <div><span>${view.stats.points[0]}</span>seus pontos</div>
+          <div><span>${view.stats.aces}</span>aces</div>
+          <div><span>${view.stats.blocks}</span>bloqueios</div>
+          <div><span>${view.stats.longestRally}</span>maior rally</div>
+        </div>
+        ${view.rewardId ? `<p class="cup-reward">Recompensa liberada: ${escapeHtml(rewardLabel(view.rewardId))}</p>` : ''}
+        <button id="btn-cup-result" class="big-btn">${action}</button>
+        <button id="btn-cup-result-back" class="ghost-btn">VOLTAR AO MENU</button>
+      </div>`;
+    this.root.querySelector('#btn-cup-result')!.addEventListener('click', () => {
+      if (champion) this.showCup();
+      else {
+        this.hide();
+        this.onCupStart?.();
+      }
+    });
+    this.root
+      .querySelector('#btn-cup-result-back')!
+      .addEventListener('click', () => this.showTitle());
+  }
+
   hide(): void {
     this.clearCountdown();
     this.root.style.display = 'none';
@@ -201,6 +308,23 @@ export class Menu {
   get visible(): boolean {
     return this.root.style.display !== 'none';
   }
+}
+
+function rewardLabel(rewardId: string): string {
+  return rewardId.split('.').slice(1).join(' ').replaceAll('-', ' ');
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (character) => {
+    const entities: Record<string, string> = {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#039;',
+    };
+    return entities[character];
+  });
 }
 
 function validIndex(value: number | undefined, length: number, fallback: 0 | 1 | 2): 0 | 1 | 2 {

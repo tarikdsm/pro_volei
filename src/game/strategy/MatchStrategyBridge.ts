@@ -45,7 +45,12 @@ import {
   type StrategicOffenseBoundarySnapshot,
 } from './StrategicOffenseSystem';
 import type { OwnContactReadSource } from './OwnContactRead';
-import type { StrategyDifficulty, StrategyMemorySnapshot, StrategyPhase } from './StrategyTypes';
+import type {
+  StrategyBiasProfile,
+  StrategyDifficulty,
+  StrategyMemorySnapshot,
+  StrategyPhase,
+} from './StrategyTypes';
 
 export type MatchStrategyTickSource = Omit<StrategyObservationSource, 'ball'> &
   Readonly<{
@@ -91,7 +96,7 @@ type ServeGuardStage = 'toss' | 'hit';
 /** Fronteira estrutural injetada pelo Match; os sistemas adaptativos permanecem privados. */
 export interface MatchStrategyPort {
   readonly matchEpoch: number;
-  startMatch(): void;
+  startMatch(awayTacticalProfile?: Readonly<StrategyBiasProfile>): void;
   startSet(): void;
   captureTick(source: MatchStrategyTickSource): void;
   beginServe(side: TeamSide, serverAthleteId: number): ServeEpochToken;
@@ -193,9 +198,10 @@ export class MatchStrategyBridge implements MatchStrategyPort {
     return this.#currentMatchEpoch;
   }
 
-  startMatch(): void {
+  startMatch(awayTacticalProfile?: Readonly<StrategyBiasProfile>): void {
     const nextEpoch = this.#currentMatchEpoch + 1;
     if (!Number.isSafeInteger(nextEpoch)) throw new RangeError('matchEpoch excedeu o limite');
+    this.#strategy.setAwayTacticalProfile(awayTacticalProfile);
     this.#serves.startMatch();
     this.#currentMatchEpoch = nextEpoch;
     this.#offense.resetForMatch(nextEpoch);

@@ -16,7 +16,7 @@ import type {
   SetPlanIdentity,
 } from './StrategicOffenseSystem';
 import type { CpuTouchExecution } from './StrategicTouchExecution';
-import type { StrategyDifficulty, StrategyPhase } from './StrategyTypes';
+import type { StrategyBiasProfile, StrategyDifficulty, StrategyPhase } from './StrategyTypes';
 
 export type MatchStrategyState = 'idle' | 'servePrep' | 'rally' | 'point' | 'setEnd' | 'matchEnd';
 
@@ -61,8 +61,8 @@ export class MatchStrategyCoordinator {
     private readonly runtime: MatchStrategyCoordinatorRuntime,
   ) {}
 
-  startMatch(): void {
-    this.strategy.startMatch();
+  startMatch(awayTacticalProfile?: Readonly<StrategyBiasProfile>): void {
+    this.strategy.startMatch(awayTacticalProfile);
     this.clearOffenseState();
   }
 

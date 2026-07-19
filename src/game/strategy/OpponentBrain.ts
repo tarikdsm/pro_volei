@@ -57,6 +57,12 @@ const KNOWN_OPTION_IDS = new Set<StrategyOptionId>([
   ...canonicalStrategyOptions('set').map((option) => option.optionId),
   ...canonicalStrategyOptions('attack', { attackOriginZ: 0 }).map((option) => option.optionId),
 ]);
+const KNOWN_FAMILIES: Readonly<Record<StrategyDecisionKind, ReadonlySet<string>>> = Object.freeze({
+  serve: new Set(['float-deep', 'float-short', 'power-deep']),
+  set: new Set(['accelerated', 'high', 'quick']),
+  attack: new Set(['placed', 'power', 'tip']),
+});
+const MAX_TACTICAL_BIAS = 0.12;
 
 const SCORE_WEIGHTS = {
   serve: { space: 0.3, seamEta: 0.25, memory: 0.2, technical: 0.15, variety: 0.1 },
@@ -93,6 +99,14 @@ interface CandidateDraft {
 
 function clamp01(value: number): number {
   return Math.max(0, Math.min(1, value));
+}
+
+function tacticalBias(context: StrategyDecisionContext, option: CanonicalStrategyOption): number {
+  const profile = context.tacticalProfile;
+  if (!profile) return 0;
+  const family = profile.familyBias?.[context.kind]?.[option.family] ?? 0;
+  const choice = profile.optionBias?.[option.optionId] ?? 0;
+  return Math.max(-MAX_TACTICAL_BIAS, Math.min(MAX_TACTICAL_BIAS, family + choice));
 }
 
 function distance(a: StrategyPoint2, b: StrategyPoint2): number {
@@ -450,6 +464,7 @@ function validateContext(context: StrategyDecisionContext): void {
   assertUint32(context.ticket.variation);
   if (![0, 1, 2].includes(context.difficulty))
     throw new RangeError('Dificuldade estratégica inválida');
+  validateTacticalProfile(context.tacticalProfile);
   if (!Number.isSafeInteger(context.observation.tick) || context.observation.tick < 0) {
     throw new RangeError('Tick observado inválido');
   }
@@ -568,6 +583,38 @@ function validateContext(context: StrategyDecisionContext): void {
   }
 }
 
+function validateTacticalProfile(profile: StrategyDecisionContext['tacticalProfile']): void {
+  if (profile === undefined) return;
+  if (profile === null || typeof profile !== 'object' || Array.isArray(profile)) {
+    throw new RangeError('Perfil tático inválido');
+  }
+  for (const [kind, entries] of Object.entries(profile.familyBias ?? {})) {
+    if (!['serve', 'set', 'attack'].includes(kind) || !entries || typeof entries !== 'object') {
+      throw new RangeError('Perfil tático contém família inválida');
+    }
+    for (const [family, bias] of Object.entries(entries)) {
+      if (!KNOWN_FAMILIES[kind as StrategyDecisionKind].has(family)) {
+        throw new RangeError('Perfil tático contém família desconhecida');
+      }
+      validateBias(bias);
+    }
+  }
+  for (const [optionId, bias] of Object.entries(profile.optionBias ?? {})) {
+    if (!KNOWN_OPTION_IDS.has(optionId as StrategyOptionId)) {
+      throw new RangeError('Perfil tático contém opção desconhecida');
+    }
+    validateBias(bias);
+  }
+}
+
+function validateBias(value: unknown): void {
+  if (typeof value !== 'number' || !Number.isFinite(value) || Math.abs(value) > MAX_TACTICAL_BIAS) {
+    throw new RangeError(
+      `Viés de perfil tático deve estar em [-${MAX_TACTICAL_BIAS}, ${MAX_TACTICAL_BIAS}]`,
+    );
+  }
+}
+
 export class OpponentBrain {
   decide(context: StrategyDecisionContext): StrategyProposal {
     validateContext(context);
@@ -636,7 +683,7 @@ export class OpponentBrain {
       return {
         option,
         components,
-        score: weightedScore(components, weights),
+        score: clamp01(weightedScore(components, weights) + tacticalBias(context, option)),
         target: strategyToWorld(strategySubtarget(option, context.ticket.variation), context.side),
       };
     });

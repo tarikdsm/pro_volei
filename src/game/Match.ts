@@ -45,7 +45,7 @@ import type {
 import { TeamTacticsSystem } from './team/TeamTacticsSystem';
 import type { AthleteTacticalSnapshot, TeamPlan, TeamTacticsPhase } from './team/TeamTactics';
 import { MatchStrategyBridge, type MatchStrategyPort } from './strategy/MatchStrategyBridge';
-import type { StrategyDifficulty } from './strategy/StrategyTypes';
+import type { StrategyBiasProfile, StrategyDifficulty } from './strategy/StrategyTypes';
 import { MatchStrategyCoordinator } from './strategy/MatchStrategyCoordinator';
 
 export type { MatchHooks as Hooks, MatchStats } from './ports/MatchHooks';
@@ -75,6 +75,10 @@ export interface MatchOptions {
   readonly teamFactory?: TeamFactory;
   readonly telemetry?: SimulationTelemetryPort;
   readonly strategy?: MatchStrategyPort;
+}
+
+export interface MatchStartOptions {
+  readonly awayTacticalProfile?: Readonly<StrategyBiasProfile>;
 }
 
 export class Match {
@@ -191,9 +195,9 @@ export class Match {
     });
   }
 
-  startMatch(diffIdx: number, fmtIdx: number): void {
+  startMatch(diffIdx: number, fmtIdx: number, options: MatchStartOptions = {}): void {
     this.simulationTick = 0;
-    this.strategyCoordinator.startMatch();
+    this.strategyCoordinator.startMatch(options.awayTacticalProfile);
     this.teamTactics.reset();
     const difficultyIndex = clamp(diffIdx, 0, DIFFICULTIES.length - 1) as StrategyDifficulty;
     this.strategyDifficulty = difficultyIndex;

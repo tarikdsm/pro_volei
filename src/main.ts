@@ -10,7 +10,7 @@ import { Match, type MatchStats } from './game/Match';
 import { Input } from './core/Input';
 import { AudioEngine } from './core/AudioEngine';
 import { HUD } from './ui/HUD';
-import { Menu } from './ui/Menu';
+import { Menu, type CupResultView } from './ui/Menu';
 import { TouchControls } from './ui/TouchControls';
 import { AppState, nextAppState } from './ui/appState';
 import { COLORS, QUALITY_TIERS, SIMULATION_TIMING } from './core/constants';
@@ -31,6 +31,8 @@ import { loadAudioSettings, type AudioSettingsStorage } from './core/audio/Audio
 import { registerPwa, type PwaCoordinator } from './platform/PwaCoordinator';
 import { bindAudioUnlock } from './platform/AudioUnlock';
 import { createSaveRepository, type SaveStorage } from './platform/save/SaveRepository';
+import { CupSession, recordCareerResult, type CupMatchConfig } from './meta/cup/CupSession';
+import { CUP_OPPONENTS } from './meta/cup/CupOpponents';
 
 const app = document.getElementById('app')!;
 const loadingShell = document.getElementById('loading-shell');
@@ -156,6 +158,7 @@ try {
 const saveRepository = createSaveRepository(saveStorage, {
   legacyAudio: loadAudioSettings(saveStorage),
 });
+const cupSession = new CupSession(saveRepository);
 const initialSave = saveRepository.snapshot();
 const audio = new AudioEngine(initialSave.preferences.audio, () =>
   THREE.MathUtils.clamp(director.ballPos.z / 9, -0.65, 0.65),
@@ -173,6 +176,21 @@ menu.onSelectionChange = (difficulty, format) => {
     preferences: { ...current.preferences, difficulty, format },
   }));
 };
+function refreshCupMenu(): void {
+  const cup = cupSession.snapshot().cup;
+  menu.setCupState({
+    completed: cup.completed,
+    rounds: CUP_OPPONENTS.map((opponent, index) => ({
+      name: opponent.name,
+      round: opponent.round,
+      identity: opponent.identity,
+      rewardId: opponent.rewardId,
+      losses: cup.attempts[index] ?? 0,
+      status: index < cup.currentRound ? 'won' : index === cup.currentRound ? 'current' : 'locked',
+    })),
+  });
+}
+refreshCupMenu();
 const touch = isTouch ? new TouchControls(app, input) : null;
 window.addEventListener('blur', () => touch?.resetPointers());
 hud.show(false);
@@ -243,6 +261,10 @@ function activatePwaUpdateIfSafe(): void {
 }
 
 // ---------- partida ----------
+let activeMatchMode: 'quick' | 'cup' = 'quick';
+let activeCupMatch: Readonly<CupMatchConfig> | null = null;
+let lastVictory: { homeWon: boolean; stats: MatchStats; scoreline: string } | null = null;
+let lastCupResult: CupResultView | null = null;
 const match = new Match(
   {
     banner: (t, s) => hud.banner(t, s),
@@ -278,12 +300,34 @@ const match = new Match(
       updateTouchOrientationPresentation();
       hud.show(false);
       touch?.show(false);
-      lastVictory = { homeWon, stats, scoreline };
-      if (isTouch && !portraitBlocked) {
-        // §7.1: em landscape o resultado é compacto e a revanche entra sozinha na contagem.
-        menu.showVictoryCompact(homeWon, scoreline, rematchSeconds, startMatchFromMenu);
+      if (activeMatchMode === 'cup' && activeCupMatch) {
+        const opponent = activeCupMatch.opponent;
+        const result = cupSession.recordResult(activeCupMatch.token, homeWon, stats);
+        refreshCupMenu();
+        lastVictory = null;
+        lastCupResult = {
+          homeWon,
+          stats,
+          scoreline,
+          status: result.status,
+          opponentName: opponent.name,
+          rewardId: result.rewardId,
+        };
+        activeCupMatch = null;
+        menu.showCupResult(lastCupResult);
       } else {
-        menu.showVictory(homeWon, stats, scoreline);
+        saveRepository.update((current) => ({
+          ...current,
+          stats: recordCareerResult(current.stats, homeWon, stats),
+        }));
+        lastCupResult = null;
+        lastVictory = { homeWon, stats, scoreline };
+        if (isTouch && !portraitBlocked) {
+          // §7.1: em landscape o resultado é compacto e a revanche entra sozinha na contagem.
+          menu.showVictoryCompact(homeWon, scoreline, rematchSeconds, startMatchFromMenu);
+        } else {
+          menu.showVictory(homeWon, stats, scoreline);
+        }
       }
       markCameraLayoutDirty();
     },
@@ -315,8 +359,6 @@ if (debugEnabled) {
   });
 }
 
-// Resultado da última partida (para reabrir o painel completo se girar durante a contagem).
-let lastVictory: { homeWon: boolean; stats: MatchStats; scoreline: string } | null = null;
 // Contagem de revanche (§7.1); ?rematch=N em DEV/?debug encurta para os E2E.
 const rematchParam = debugEnabled
   ? Number(new URLSearchParams(location.search).get('rematch'))
@@ -324,8 +366,11 @@ const rematchParam = debugEnabled
 const rematchSeconds =
   Number.isInteger(rematchParam) && rematchParam >= 1 && rematchParam <= 10 ? rematchParam : 5;
 
-/** Início/reinício de partida com as configurações atuais do menu (in-place, sem reload). */
-function startMatchFromMenu(): void {
+function startConfiguredMatch(
+  difficulty: 0 | 1 | 2,
+  format: 0 | 1 | 2,
+  awayTacticalProfile?: CupMatchConfig['awayTacticalProfile'],
+): void {
   audio.uiClick();
   appState = nextAppState(appState, 'start');
   activatePwaUpdateIfSafe();
@@ -334,21 +379,45 @@ function startMatchFromMenu(): void {
   if (debugEnabled) {
     debugJournal = new RallyJournal({
       seed: matchSeed,
-      difficulty: menu.difficulty,
-      format: menu.format,
+      difficulty,
+      format,
       simulationHz: SIMULATION_TIMING.hz,
     });
   }
-  match.startMatch(menu.difficulty, menu.format);
+  match.startMatch(difficulty, format, { awayTacticalProfile });
   if (portraitBlocked) {
     cancelGameplayInput('portrait');
     audio.suspend();
-    menu.showPortraitBreak();
+    menu.showPortraitBreak(activeMatchMode);
   }
   updateTouchOrientationPresentation();
   markCameraLayoutDirty();
 }
+
+/** Início/reinício de partida rápida com as configurações atuais do menu. */
+function startMatchFromMenu(): void {
+  activeMatchMode = 'quick';
+  activeCupMatch = null;
+  startConfiguredMatch(menu.difficulty, menu.format);
+}
+
+function startCupFromMenu(): void {
+  const cupMatch = cupSession.startCurrent();
+  if (!cupMatch) {
+    refreshCupMenu();
+    menu.showCup();
+    return;
+  }
+  activeMatchMode = 'cup';
+  activeCupMatch = cupMatch;
+  startConfiguredMatch(cupMatch.difficulty, cupMatch.format, cupMatch.awayTacticalProfile);
+}
 menu.onStart = startMatchFromMenu;
+menu.onCupStart = startCupFromMenu;
+menu.onCupRestart = () => {
+  cupSession.restart();
+  refreshCupMenu();
+};
 menu.onResume = () => {
   // botão CONTINUAR: o Menu já chamou hide(); aqui só destravamos o estado.
   match.snapPresentation();
@@ -410,15 +479,17 @@ function syncTouchOrientation(): void {
     if (nextBlocked) {
       // §7.1: portrait pausa e vira área de menu (girar + novo jogo + sair), áudio suspenso.
       audio.suspend();
-      menu.showPortraitBreak();
+      menu.showPortraitBreak(activeMatchMode);
     } else {
       menu.hide();
       match.snapPresentation();
       audio.resume();
     }
-  } else if (appState === 'ended' && nextBlocked && lastVictory) {
-    // Girar durante a contagem de revanche interrompe a continuidade e abre o painel completo.
-    menu.showVictory(lastVictory.homeWon, lastVictory.stats, lastVictory.scoreline);
+  } else if (appState === 'ended' && nextBlocked) {
+    // Girar durante um resumo interrompe a continuidade e abre o painel completo correspondente.
+    if (lastCupResult) menu.showCupResult(lastCupResult);
+    else if (lastVictory)
+      menu.showVictory(lastVictory.homeWon, lastVictory.stats, lastVictory.scoreline);
   }
   updateTouchOrientationPresentation();
   markCameraLayoutDirty();
