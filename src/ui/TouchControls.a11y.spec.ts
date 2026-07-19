@@ -4,8 +4,8 @@ import { TOUCH_A11Y } from './TouchControls';
 // Trava a rotulagem de acessibilidade dos controles de toque contra regressão, sem precisar
 // de DOM: os atributos são aplicados a partir deste mapa exportado (ver TouchControls.ts).
 describe('TOUCH_A11Y — rótulos de acessibilidade dos controles de toque', () => {
-  it('cobre os três controles de toque (stick, ação, pausa)', () => {
-    expect(Object.keys(TOUCH_A11Y).sort()).toEqual(['tc-action', 'tc-pause', 'tc-stick']);
+  it('cobre apenas ação e movimento; portrait substitui a pausa mobile', () => {
+    expect(Object.keys(TOUCH_A11Y).sort()).toEqual(['tc-action-zone', 'tc-move-zone']);
   });
 
   it('todo controle tem role e aria-label não vazios', () => {
@@ -15,18 +15,13 @@ describe('TOUCH_A11Y — rótulos de acessibilidade dos controles de toque', () 
     }
   });
 
-  it('tc-action é role="button" com rótulo em pt-BR', () => {
-    expect(TOUCH_A11Y['tc-action'].role).toBe('button');
-    expect(TOUCH_A11Y['tc-action'].ariaLabel.toLowerCase()).toContain('sacar');
+  it('a zona de ação é role="button" com rótulo em pt-BR', () => {
+    expect(TOUCH_A11Y['tc-action-zone'].role).toBe('button');
+    expect(TOUCH_A11Y['tc-action-zone'].ariaLabel.toLowerCase()).toContain('sacar');
   });
 
-  it('tc-pause é role="button" rotulado como pausar', () => {
-    expect(TOUCH_A11Y['tc-pause'].role).toBe('button');
-    expect(TOUCH_A11Y['tc-pause'].ariaLabel.toLowerCase()).toContain('pausar');
-  });
-
-  it('tc-stick é rotulado como direcional de movimento', () => {
-    expect(TOUCH_A11Y['tc-stick'].role).toMatch(/\S/);
-    expect(TOUCH_A11Y['tc-stick'].ariaLabel.toLowerCase()).toContain('direcional');
+  it('a zona direita é rotulada como direcional de movimento', () => {
+    expect(TOUCH_A11Y['tc-move-zone'].role).toMatch(/\S/);
+    expect(TOUCH_A11Y['tc-move-zone'].ariaLabel.toLowerCase()).toContain('direcional');
   });
 });

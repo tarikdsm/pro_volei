@@ -200,7 +200,7 @@ export async function openGameAndStartMatch(
 
 /**
  * Abre o jogo em modo toque (?touch=1 força os controles no desktop) e inicia a partida.
- * Confirma que o joystick, o botão de ação e a pausa aparecem quando o jogo começa.
+ * Confirma que as zonas independentes de ação e movimento aparecem quando o jogo começa.
  */
 export async function openWithTouch(page: Page): Promise<void> {
   await page.goto('/?touch=1');
@@ -210,9 +210,11 @@ export async function openWithTouch(page: Page): Promise<void> {
   await expect(page.locator('#menu')).toBeHidden();
   await expect(page.locator('#hud')).toBeVisible();
   await expect(page.locator('#touch-controls')).toBeVisible();
+  await expect(page.locator('#tc-move-zone')).toBeVisible();
+  await expect(page.locator('#tc-action-zone')).toBeVisible();
   await expect(page.locator('#tc-stick')).toBeVisible();
   await expect(page.locator('#tc-action')).toBeVisible();
-  await expect(page.locator('#tc-pause')).toBeVisible();
+  await expect(page.locator('#tc-pause')).toHaveCount(0);
   await expect
     .poll(() => page.evaluate(() => Boolean((window as unknown as { __match?: unknown }).__match)))
     .toBe(true);

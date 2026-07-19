@@ -1,11 +1,12 @@
 import type { InputCancelReason, InputSink } from '../core/input/InputFrame';
 import { screenAxisFromStick } from './touchMapping';
+import { solveTouchLayout } from './TouchLayout';
+import type { SafeInsets, ViewportSize } from '../systems/camera/CameraFrame';
 
 // Rótulos de acessibilidade (role + aria-label, pt-BR) dos controles de toque.
 export const TOUCH_A11Y = {
-  'tc-stick': { role: 'application', ariaLabel: 'Direcional de movimento' },
-  'tc-action': { role: 'button', ariaLabel: 'Sacar, passar, pular ou bloquear' },
-  'tc-pause': { role: 'button', ariaLabel: 'Pausar' },
+  'tc-move-zone': { role: 'application', ariaLabel: 'Direcional de movimento' },
+  'tc-action-zone': { role: 'button', ariaLabel: 'Sacar, passar, pular ou bloquear' },
 } as const;
 
 /** Controles touch ligados diretamente ao vocabulário semântico do jogo. */
@@ -13,28 +14,31 @@ export class TouchControls {
   private readonly root: HTMLElement;
   private readonly knob: HTMLElement;
   private readonly stickBase: HTMLElement;
+  private readonly moveZone: HTMLElement;
   private readonly actionButton: HTMLElement;
+  private readonly actionZone: HTMLElement;
   private stickPointer: number | null = null;
   private actionPointer: number | null = null;
   private baseCx = 0;
   private baseCy = 0;
+  private stickRadius = 52;
 
   constructor(
     parent: HTMLElement,
     private readonly input: InputSink,
-    private readonly onPause: () => void,
     private readonly now: () => number = () => performance.now(),
   ) {
     this.root = document.createElement('div');
     this.root.id = 'touch-controls';
     this.root.innerHTML = `
-      <div id="tc-stick"><div id="tc-knob"></div></div>
-      <div id="tc-action">🏐</div>
-      <div id="tc-pause">⏸</div>
+      <div id="tc-action-zone"><div id="tc-action" aria-hidden="true">🏐</div></div>
+      <div id="tc-move-zone"><div id="tc-stick" aria-hidden="true"><div id="tc-knob"></div></div></div>
     `;
     parent.appendChild(this.root);
+    this.moveZone = this.root.querySelector('#tc-move-zone')!;
     this.stickBase = this.root.querySelector('#tc-stick')!;
     this.knob = this.root.querySelector('#tc-knob')!;
+    this.actionZone = this.root.querySelector('#tc-action-zone')!;
     this.actionButton = this.root.querySelector('#tc-action')!;
 
     for (const [id, a11y] of Object.entries(TOUCH_A11Y)) {
@@ -44,12 +48,35 @@ export class TouchControls {
         element.setAttribute('aria-label', a11y.ariaLabel);
       }
     }
-    this.knob.setAttribute('aria-hidden', 'true');
-
     this.bindStick();
     this.bindAction();
-    this.bindPause(this.root.querySelector('#tc-pause')!);
+    this.refreshLayout();
     this.show(false);
+  }
+
+  /** Recalcula hit areas e posições de repouso sem invadir o terço central. */
+  refreshLayout(
+    viewport: ViewportSize = { width: window.innerWidth, height: window.innerHeight },
+    insets: SafeInsets = this.readSafeInsets(),
+  ): void {
+    const layout = solveTouchLayout(viewport, insets);
+    this.stickRadius = layout.stickRadius;
+    this.placeRect(this.actionZone, layout.action);
+    this.placeRect(this.moveZone, layout.movement);
+    if (this.actionPointer === null) {
+      this.positionVisual(
+        this.actionButton,
+        layout.action.width * 0.48,
+        layout.action.height * 0.72,
+      );
+    }
+    if (this.stickPointer === null) {
+      this.positionVisual(
+        this.stickBase,
+        layout.movement.width * 0.52,
+        layout.movement.height * 0.72,
+      );
+    }
   }
 
   show(visible: boolean): void {
@@ -72,18 +99,25 @@ export class TouchControls {
     this.stickPointer = null;
     this.actionPointer = null;
     this.resetVisuals();
-    this.releaseCapture(this.stickBase, stickPointer);
-    this.releaseCapture(this.actionButton, actionPointer);
+    this.releaseCapture(this.moveZone, stickPointer);
+    this.releaseCapture(this.actionZone, actionPointer);
   }
 
   private bindStick(): void {
-    const element = this.stickBase;
+    const element = this.moveZone;
     element.addEventListener('pointerdown', (event) => {
       if (this.stickPointer !== null) return;
       this.stickPointer = event.pointerId;
       const bounds = element.getBoundingClientRect();
-      this.baseCx = bounds.left + bounds.width / 2;
-      this.baseCy = bounds.top + bounds.height / 2;
+      this.baseCx = Math.max(
+        bounds.left + this.stickRadius,
+        Math.min(bounds.right - this.stickRadius, event.clientX),
+      );
+      this.baseCy = Math.max(
+        bounds.top + this.stickRadius,
+        Math.min(bounds.bottom - this.stickRadius, event.clientY),
+      );
+      this.positionVisual(this.stickBase, this.baseCx - bounds.left, this.baseCy - bounds.top);
       element.setPointerCapture(event.pointerId);
       this.updateStick(event.clientX, event.clientY);
       event.preventDefault();
@@ -104,7 +138,7 @@ export class TouchControls {
   }
 
   private updateStick(pointerX: number, pointerY: number): void {
-    const radius = 52;
+    const radius = this.stickRadius;
     let dx = pointerX - this.baseCx;
     let dy = pointerY - this.baseCy;
     const length = Math.hypot(dx, dy);
@@ -118,31 +152,24 @@ export class TouchControls {
   }
 
   private bindAction(): void {
-    const element = this.actionButton;
+    const element = this.actionZone;
     element.addEventListener('pointerdown', (event) => {
       if (this.actionPointer !== null) return;
       this.actionPointer = event.pointerId;
       element.setPointerCapture(event.pointerId);
-      element.classList.add('pressed');
+      this.actionButton.classList.add('pressed');
       this.input.setAction('touch', true, this.now());
       event.preventDefault();
     });
     element.addEventListener('pointerup', (event) => {
       if (event.pointerId !== this.actionPointer) return;
       this.actionPointer = null;
-      element.classList.remove('pressed');
+      this.actionButton.classList.remove('pressed');
       this.input.setAction('touch', false, this.now());
       event.preventDefault();
     });
     element.addEventListener('pointercancel', (event) => this.onPointerCancelled(event));
     element.addEventListener('lostpointercapture', (event) => this.onPointerCancelled(event));
-  }
-
-  private bindPause(element: HTMLElement): void {
-    element.addEventListener('pointerdown', (event) => {
-      this.onPause();
-      event.preventDefault();
-    });
   }
 
   private onPointerCancelled(event: PointerEvent): void {
@@ -163,5 +190,31 @@ export class TouchControls {
   private releaseCapture(element: HTMLElement, pointerId: number | null): void {
     if (pointerId === null || !element.hasPointerCapture(pointerId)) return;
     element.releasePointerCapture(pointerId);
+  }
+
+  private placeRect(
+    element: HTMLElement,
+    rect: Readonly<{ x: number; y: number; width: number; height: number }>,
+  ): void {
+    element.style.left = `${rect.x}px`;
+    element.style.top = `${rect.y}px`;
+    element.style.width = `${rect.width}px`;
+    element.style.height = `${rect.height}px`;
+  }
+
+  private positionVisual(element: HTMLElement, x: number, y: number): void {
+    element.style.left = `${x}px`;
+    element.style.top = `${y}px`;
+  }
+
+  private readSafeInsets(): SafeInsets {
+    const style = getComputedStyle(document.documentElement);
+    const read = (name: string) => Number.parseFloat(style.getPropertyValue(name)) || 0;
+    return {
+      top: read('--safe-area-top'),
+      right: read('--safe-area-right'),
+      bottom: read('--safe-area-bottom'),
+      left: read('--safe-area-left'),
+    };
   }
 }

@@ -141,7 +141,7 @@ const haptics = new Haptics();
 const feedback = new PresentationFeedback([effects, audio, haptics]);
 const hud = new HUD(app, isTouch);
 const menu = new Menu(app, isTouch);
-const touch = isTouch ? new TouchControls(app, input, togglePause) : null;
+const touch = isTouch ? new TouchControls(app, input) : null;
 window.addEventListener('blur', () => touch?.resetPointers());
 hud.show(false);
 
@@ -152,7 +152,6 @@ const cameraOverlaySelectors = [
   '#zones',
   '#tc-stick',
   '#tc-action',
-  '#tc-pause',
 ] as const;
 let cameraLayoutDirty = true;
 let meterWasVisible = false;
@@ -402,6 +401,7 @@ window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
   director.camera.aspect = window.innerWidth / window.innerHeight;
   director.camera.updateProjectionMatrix();
+  touch?.refreshLayout();
   syncTouchOrientation();
   markCameraLayoutDirty();
 });

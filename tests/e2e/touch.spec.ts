@@ -124,15 +124,43 @@ test('girar durante a contagem cancela a revanche e abre o painel completo', asy
   await expectNoBrowserProblems(browserProblems, testInfo);
 });
 
-test('joystick e ação aceitam dois dedos reais e pausa não sintetiza teclado', async ({
+test('zonas laterais preservam o centro nos viewports mobile obrigatórios', async ({ page }) => {
+  for (const viewport of [
+    { width: 568, height: 320 },
+    { width: 667, height: 375 },
+    { width: 844, height: 390 },
+    { width: 1024, height: 768 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.goto('/?touch=1');
+
+    const action = await page.locator('#tc-action-zone').boundingBox();
+    const movement = await page.locator('#tc-move-zone').boundingBox();
+    expect(action).not.toBeNull();
+    expect(movement).not.toBeNull();
+    if (!action || !movement) continue;
+
+    expect(action.x + action.width).toBeLessThanOrEqual(Math.floor(viewport.width / 3) + 1);
+    expect(movement.x).toBeGreaterThanOrEqual(viewport.width - Math.floor(viewport.width / 3) - 1);
+    expect(
+      await page.evaluate(
+        ({ x, y }) =>
+          document.elementFromPoint(x, y)?.closest('#tc-action-zone, #tc-move-zone')?.id ?? null,
+        { x: viewport.width / 2, y: viewport.height * 0.72 },
+      ),
+    ).toBeNull();
+  }
+});
+
+test('joystick e ação aceitam dois dedos reais e cancelamento não sintetiza teclado', async ({
   page,
 }, testInfo) => {
   const browserProblems = collectBrowserProblems(page);
   await openWithTouch(page);
   await forceActionServeScenario(page);
 
-  const stickBox = await page.locator('#tc-stick').boundingBox();
-  const actionBox = await page.locator('#tc-action').boundingBox();
+  const stickBox = await page.locator('#tc-move-zone').boundingBox();
+  const actionBox = await page.locator('#tc-action-zone').boundingBox();
   expect(stickBox).not.toBeNull();
   expect(actionBox).not.toBeNull();
   if (!stickBox || !actionBox) return;
@@ -193,7 +221,7 @@ test('joystick e ação aceitam dois dedos reais e pausa não sintetiza teclado'
 
   // Tap imediato pelo touch produz a técnica segura sem depender de timeout do browser.
   await forceActionServeScenario(page);
-  await page.locator('#tc-action').tap();
+  await page.locator('#tc-action-zone').tap();
   await expect.poll(async () => (await readActionSnapshot(page)).lastTechnique).toBe('float-serve');
 
   // Hold com o outro dedo movendo o joystick produz a mesma intenção potente do teclado.
@@ -217,8 +245,7 @@ test('joystick e ação aceitam dois dedos reais e pausa não sintetiza teclado'
   await expect.poll(async () => (await readActionSnapshot(page)).lastTechnique).toBe('power-serve');
   expect((await readActionSnapshot(page)).lastCharge).toBeGreaterThan(0.4);
 
-  await page.locator('#tc-pause').tap();
-  await expect(page.locator('#menu')).toContainText('PAUSA');
+  await expect(page.locator('#tc-pause')).toHaveCount(0);
 
   await testInfo.attach('touch-landscape', {
     body: await page.screenshot(),

@@ -16,6 +16,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, '../..');
 const css = readFileSync(resolve(repoRoot, 'src/style.css'), 'utf8');
 const html = readFileSync(resolve(repoRoot, 'index.html'), 'utf8');
+const touchControls = readFileSync(resolve(repoRoot, 'src/ui/TouchControls.ts'), 'utf8');
 
 // Extrai o corpo de uma regra CSS de seletor simples (sem regras aninhadas com { }).
 function bloco(seletor: string): string {
@@ -26,14 +27,12 @@ function bloco(seletor: string): string {
 }
 
 describe('safe areas nos controles de toque (B4)', () => {
-  it('recua #tc-stick, #tc-action e #tc-pause com env(safe-area-inset-*)', () => {
-    // Cada controle de canto deve recuar das áreas do sistema nas suas propriedades de offset.
-    expect(bloco('#tc-stick')).toMatch(/left:\s*calc\([^;]*env\(safe-area-inset-left/);
-    expect(bloco('#tc-stick')).toMatch(/bottom:\s*calc\([^;]*env\(safe-area-inset-bottom/);
-    expect(bloco('#tc-action')).toMatch(/right:\s*calc\([^;]*env\(safe-area-inset-right/);
-    expect(bloco('#tc-action')).toMatch(/bottom:\s*calc\([^;]*env\(safe-area-inset-bottom/);
-    expect(bloco('#tc-pause')).toMatch(/right:\s*calc\([^;]*env\(safe-area-inset-right/);
-    expect(bloco('#tc-pause')).toMatch(/top:\s*calc\([^;]*env\(safe-area-inset-top/);
+  it('alimenta o solver das zonas laterais com as quatro safe areas', () => {
+    expect(touchControls).toContain("read('--safe-area-top')");
+    expect(touchControls).toContain("read('--safe-area-right')");
+    expect(touchControls).toContain("read('--safe-area-bottom')");
+    expect(touchControls).toContain("read('--safe-area-left')");
+    expect(touchControls).toContain('solveTouchLayout(viewport, insets)');
   });
 
   it('substitui o calc(100vw - 400px) frágil por um max() com piso e insets', () => {
