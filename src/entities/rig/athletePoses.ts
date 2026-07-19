@@ -96,6 +96,18 @@ function ease01(t: number): number {
   return 1 - Math.pow(1 - x, 3);
 }
 
+/** Normaliza t no intervalo [start, end] com clamp em [0, 1]. */
+export function phase(t: number, start: number, end: number): number {
+  return Math.min(1, Math.max(0, (t - start) / (end - start)));
+}
+
+/** Ease com overshoot contido (snap de jogada): passa do alvo e acomoda. */
+export function easeOutBack(t: number, s = 1.4): number {
+  const x = Math.min(1, Math.max(0, t));
+  const c = s + 1;
+  return 1 + c * Math.pow(x - 1, 3) + s * Math.pow(x - 1, 2);
+}
+
 /**
  * Pose-alvo da ação no instante `t` (s desde o setAction). `idleClock` é o relógio acumulado do
  * personagem e `phaseSeed` dessincroniza atletas de forma determinística (ex.: número da camisa).
@@ -135,31 +147,33 @@ export function poseFor(
       break;
     }
     case 'bump': {
-      // manchete: braços juntos estendidos à frente/baixo
-      const k = ease01(t * 6);
-      p.torsoPitch = 0.5 * k;
-      p.hips = 0.5;
-      p.knees = -0.8;
-      p.lShX = 1.05 * k;
-      p.rShX = 1.05 * k;
-      p.lShZ = -0.25 * k;
-      p.rShZ = 0.25 * k;
+      // manchete: dip curto (anticipação) e extensão com leve overshoot
+      const dip = ease01(phase(t, 0, 0.07) * 3);
+      const ext = easeOutBack(phase(t, 0.05, 0.24), 1.2);
+      p.torsoPitch = 0.12 * dip + 0.4 * ext;
+      p.hips = 0.5 + 0.12 * dip - 0.06 * ext;
+      p.knees = -0.8 - 0.2 * dip + 0.1 * ext;
+      p.lShX = 0.3 * dip + 0.78 * ext;
+      p.rShX = 0.3 * dip + 0.78 * ext;
+      p.lShZ = -0.25 * ext;
+      p.rShZ = 0.25 * ext;
       p.lElX = 0;
       p.rElX = 0;
       break;
     }
     case 'set': {
-      // toque: mãos acima da testa
-      const k = ease01(t * 6);
-      p.torsoPitch = -0.08 * k;
-      p.hips = 0.25;
-      p.knees = -0.4;
-      p.lShX = 2.6 * k;
-      p.rShX = 2.6 * k;
-      p.lShZ = -0.4 * k;
-      p.rShZ = 0.4 * k;
-      p.lElX = -0.85 * k;
-      p.rElX = -0.85 * k;
+      // toque: mãos sobem acima da testa e os cotovelos "estalam" no release
+      const rise = easeOutBack(phase(t, 0, 0.18), 1.1);
+      const flick = ease01(phase(t, 0.2, 0.38) * 2);
+      p.torsoPitch = -0.08 * rise;
+      p.hips = 0.25 + 0.08 * (1 - rise);
+      p.knees = -0.4 - 0.15 * (1 - rise);
+      p.lShX = 2.6 * rise;
+      p.rShX = 2.6 * rise;
+      p.lShZ = -0.4 * rise;
+      p.rShZ = 0.4 * rise;
+      p.lElX = -0.85 * rise + 0.35 * flick;
+      p.rElX = -0.85 * rise + 0.35 * flick;
       break;
     }
     case 'spikeWindup': {
@@ -178,24 +192,24 @@ export function poseFor(
       break;
     }
     case 'spikeHit': {
-      // chicotada do braço
-      const k = ease01(t * 10);
-      p.torsoPitch = 0.35 * k;
-      p.torsoYaw = 0.25 * k;
-      p.rShX = -2.4 + 3.4 * k; // whip: de trás para frente/baixo
+      // chicotada: whip com overshoot + crunch do tronco e recolhida das pernas
+      const whip = easeOutBack(phase(t, 0, 0.14), 1.7);
+      p.torsoPitch = 0.42 * whip;
+      p.torsoYaw = 0.28 * whip;
+      p.rShX = -2.4 + 3.4 * whip;
       p.rElX = -0.15;
       p.lShX = 0.6;
       p.lElX = -0.5;
-      p.lKneeX = -0.5;
-      p.rKneeX = -0.5;
+      p.lKneeX = -0.5 - 0.25 * whip;
+      p.rKneeX = -0.5 - 0.25 * whip;
       break;
     }
     case 'block': {
-      // braços retos para cima
-      const k = ease01(t * 8);
-      p.torsoPitch = 0.02;
-      p.lShX = 2.95 * k;
-      p.rShX = 2.95 * k;
+      // braços disparam retos para cima com leve overshoot e pressão à frente
+      const rise = easeOutBack(phase(t, 0, 0.13), 1.3);
+      p.torsoPitch = 0.02 + 0.05 * rise;
+      p.lShX = 2.95 * rise;
+      p.rShX = 2.95 * rise;
       p.lShZ = -0.18;
       p.rShZ = 0.18;
       p.lElX = 0;
@@ -203,8 +217,12 @@ export function poseFor(
       break;
     }
     case 'serveToss': {
+      // lançamento com carga nas pernas (anticipação do saque por cima)
       const k = ease01(t * 4);
+      const load = ease01(phase(t, 0, 0.2) * 2);
       p.torsoPitch = -0.1;
+      p.hips = 0.12 + 0.18 * load;
+      p.knees = -0.2 - 0.3 * load;
       p.lShX = 2.6 * k; // braço esquerdo lança a bola
       p.lElX = -0.2;
       p.rShX = -1.9 * k; // direito armado atrás
