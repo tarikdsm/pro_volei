@@ -9,6 +9,8 @@ export const TOUCH_A11Y = {
   'tc-action-zone': { role: 'button', ariaLabel: 'Sacar, passar, pular ou bloquear' },
 } as const;
 
+const TOUCH_KNOB_RADIUS = 29;
+
 /** Controles touch ligados diretamente ao vocabulário semântico do jogo. */
 export class TouchControls {
   private readonly root: HTMLElement;
@@ -22,6 +24,7 @@ export class TouchControls {
   private baseCx = 0;
   private baseCy = 0;
   private stickRadius = 52;
+  private stickTravelRadius = 23;
 
   constructor(
     parent: HTMLElement,
@@ -61,6 +64,9 @@ export class TouchControls {
   ): void {
     const layout = solveTouchLayout(viewport, insets);
     this.stickRadius = layout.stickRadius;
+    this.stickTravelRadius = Math.max(1, layout.stickRadius - TOUCH_KNOB_RADIUS);
+    this.stickBase.style.setProperty('--touch-stick-diameter', `${layout.stickRadius * 2}px`);
+    this.stickBase.style.setProperty('--touch-knob-diameter', `${TOUCH_KNOB_RADIUS * 2}px`);
     this.placeRect(this.actionZone, layout.action);
     this.placeRect(this.moveZone, layout.movement);
     if (this.actionPointer === null) {
@@ -138,7 +144,7 @@ export class TouchControls {
   }
 
   private updateStick(pointerX: number, pointerY: number): void {
-    const radius = this.stickRadius;
+    const radius = this.stickTravelRadius;
     let dx = pointerX - this.baseCx;
     let dy = pointerY - this.baseCy;
     const length = Math.hypot(dx, dy);

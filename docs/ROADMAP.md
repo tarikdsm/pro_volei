@@ -4,12 +4,12 @@ Do protótipo jogável ao produto profissional. Ordenado por dependência, não 
 Escopo fixado: **single-player vs CPU** (sem multiplayer/online); publicar em **Web, Desktop/Steam
 e Mobile** a partir do mesmo código web.
 
-Estado atual: **v1.1.0** jogável, com as **Fases 1–2 e subfases 3A–3D concluídas**.
+Estado atual: **v1.1.0** jogável, com as **Fases 1–5 concluídas** e o trabalho do release 2.0.0
+em andamento.
 **Design 2.0 aprovado**, documentado em
 [`2026-07-12-pro-volei-2-0-design.md`](superpowers/specs/2026-07-12-pro-volei-2-0-design.md).
-Em 18/07/2026 o proprietário autorizou explicitamente a retomada (3D e 4A–4E); **todo o mandato
-foi entregue no mesmo dia**, cada subfase publicada com CI/Pages verdes. As Fases 5–7 aguardam
-nova autorização explícita.
+Em 19/07/2026 o proprietário autorizou explicitamente a conclusão das Fases 5–7 e do release
+2.0.0. A Fase 5 foi concluída localmente; Fases 6–7 e a publicação permanecem em execução.
 
 ### Fundação 2.0 — estado das subfases
 
@@ -138,12 +138,28 @@ nova autorização explícita.
   latente da 3D corrigida no matchEnd.spec — o CI de smoke não cobria os E2E completos).
   988 testes + 11 E2E verdes; o commit funcional `6d3f09b` passou `npm run check` e smoke prod
   local; o run `29670349914` publicou o deploy Pages verde com smoke público limpo.
+- **Fase 5B — concluída:** duas zonas full-height reservam apenas os terços laterais: ação à
+  esquerda e joystick flutuante à direita, com ponteiros independentes, safe areas e centro
+  livre para quadra/rede/bola. O botão de pausa foi removido de touch landscape. Hit-testing e
+  multitouch real passaram em 568×320, 667×375, 844×390 e tablet.
+- **Fase 5C — concluída:** placar esportivo de faixa única, dicas temporárias de 2,5 s e escala
+  85%/100%/115%. O HUD mediu 40,6 px no playtest 844×390 e 50,6 px no menor viewport, abaixo do
+  teto de 54 px, sem instruções permanentes nem invasão do safe frame.
+- **Fase 5D — concluída:** mixer Web Audio com canais master/effects/crowd/music, limiter,
+  panning/atenuação espacial, scheduler pelo relógio do `AudioContext`, persistência resiliente,
+  legendas curtas e haptics opcionais. Sequências não usam timers DOM e storage bloqueado ou
+  corrompido volta aos defaults seguros.
+- **Fase 5E — concluída:** manifest/ícone/loading shell e service worker gerado pelo build com
+  cache versionado e instalação atômica. Updates só são ativados fora de partida e o cache é
+  limitado a GET same-origin. Uma instalação limpa foi recarregada offline e completou uma
+  partida rápida CPU×CPU real. Evidências locais: 1.017 testes, 21 E2E dev, smoke do `dist`, E2E
+  offline e playtest desktop/844×390 sem erros; bundle principal 212,52 kB gzip (≤ 250 kB).
 
-### Marco atual — mandato 3D + 4A–4E completo
+### Marco atual — Fase 5 completa; release 2.0.0 em andamento
 
-- **Entregue:** Fases 1A–1D, 2A–2E, 3A–3D e 4A–4E — todo o escopo autorizado em 18/07/2026.
-- **Não iniciado:** Fases 5–7 do design 2.0 (áudio/mobile, Copa, release 2.0.0) — aguardam nova
-  autorização explícita do proprietário.
+- **Entregue:** Fases 1A–1D, 2A–2E, 3A–3D, 4A–4E e 5A–5E.
+- **Em execução:** Fase 6 (persistência, Copa, cosméticos, opções/acessibilidade), seguida da
+  Fase 7 (balanceamento, matriz física, auditoria e publicação 2.0.0).
 - O índice canônico dos planos e suas evidências está em
   [`superpowers/plans/README.md`](superpowers/plans/README.md).
 
@@ -207,8 +223,8 @@ Elevar qualidade percebida e garantir 60fps em mobile.
 
 Mesmo código web, três alvos de loja. Guias em [docs/deployment/](deployment/).
 
-- [ ] **Web:** deploy, rollback e remoção do legado concluídos nas Fases 1C/1D; itch.io,
-      `<meta>` de PWA e tela de carregamento permanecem pendentes
+- [ ] **Web:** deploy, rollback e remoção do legado concluídos nas Fases 1C/1D; manifest,
+      service worker offline e tela de carregamento concluídos na 5E; itch.io permanece pendente
 - [ ] **Desktop/Steam:** wrapper [Tauri](deployment/desktop-steam.md) (build Win/Mac/Linux,
       ícones, integração Steamworks, página na loja)
 - [ ] **Mobile:** wrapper [Capacitor](deployment/mobile.md) (iOS/Android, ícones/splash,

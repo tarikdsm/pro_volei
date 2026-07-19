@@ -24,6 +24,7 @@ test('HUD mobile mantém placar compacto e remove instruções permanentes', asy
   expect(scoreboard).not.toBeNull();
   expect(scoreboard!.height).toBeLessThanOrEqual(54);
   await expect(page.locator('#hint')).not.toHaveText('');
+  await page.keyboard.press('Escape');
   await expect(page.locator('#hint')).toHaveText('', { timeout: 5_000 });
 });
 

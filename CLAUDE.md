@@ -11,10 +11,10 @@ a versão 2.0 também pode usar assets locais otimizados e versionados.
 - **Alvos de publicação:** Web (atual) → Desktop/Steam (Tauri) → Mobile (Capacitor). Mesmo
   código web em todos; wrappers nativos entram depois. Ver [docs/ROADMAP.md](docs/ROADMAP.md).
 - **Multiplayer:** fora de escopo — foco em single-player vs CPU. Não introduzir backend/netcode.
-- **Marco atual:** Fases 1–2, 3A–3D, 4A–4E e 5A concluídas (IA coletiva 2.0 balanceada,
-  formato 11·11·7, atleta rigada, elenco, arena premium, quality tiers e orientation gate
-  completo). Próximas na fila da Fase 5, mediante autorização: **5B** (layout/hit-testing
-  multitouch), 5C (HUD compacto), 5D (mixer/haptics), 5E (PWA/offline); depois Fases 6–7.
+- **Marco atual:** Fases 1–2, 3A–3D, 4A–4E e 5A–5E concluídas (IA coletiva 2.0 balanceada,
+  formato 11·11·7, atleta rigada, elenco, arena premium, quality tiers, experiência mobile,
+  mixer/haptics e PWA offline). Próxima na fila: **Fase 6** (persistência, Copa curta,
+  cosméticos, opções e acessibilidade), seguida da Fase 7 e do release 2.0.0.
   Estado canônico em [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Stack
@@ -43,6 +43,7 @@ npm run test         # vitest run   (test:watch para modo watch)
 npm run test:coverage # testes + cobertura V8 de todo src
 npm run workflow:check # valida sintaxe/schema do GitHub Actions
 npm run test:e2e:smoke:prod # smoke Chromium do dist servido por vite preview
+npm run test:e2e:offline # instalação limpa, reload offline e partida completa no dist
 npm run check        # workflow + typecheck + lint + format:check + cobertura
 ```
 

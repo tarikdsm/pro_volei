@@ -72,6 +72,15 @@ Todas as mudanças notáveis do Pró Volei. Formato baseado em
   horizontal já entra na partida rápida padrão; fim de partida em landscape tem resultado
   compacto com contagem de revanche in-place (girar cancela). JOGAR DE NOVO reinicia sem
   recarregar a página também no desktop.
+- Layout touch por polegares: ação no terço esquerdo, joystick flutuante no terço direito,
+  ponteiros simultâneos e centro livre; o HUD esportivo compacto usa dicas transitórias e três
+  escalas sem encobrir a quadra nos viewports mobile suportados.
+- Mixer Web Audio em quatro canais (`master`, `effects`, `crowd`, `music`) com limiter,
+  espacialização, agenda pelo relógio de áudio, preferências locais resilientes, legendas de
+  eventos e haptics opcionais.
+- PWA instalável com manifest, ícone local, loading shell e service worker gerado pelo build. O
+  app shell usa cache versionado/atômico, update somente em estado seguro e suporta reload mais
+  uma partida completa sem rede.
 - Ferramental de qualidade: ESLint 10 (flat config) + Prettier 3, `.editorconfig`,
   `.gitattributes` (LF), `.nvmrc` (Node 22).
 - Testes com Vitest 4 e primeira suíte cobrindo os solvers balísticos (`math3d`).

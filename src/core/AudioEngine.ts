@@ -13,7 +13,7 @@ export interface AudioCaption {
 }
 
 type AudioCaptionSink = (caption: Readonly<AudioCaption>) => void;
-type MixerChannel = 'effects' | 'music';
+type MixerChannel = 'effects' | 'crowd' | 'music';
 
 export class AudioEngine {
   private ctx: AudioContext | null = null;
@@ -125,6 +125,7 @@ export class AudioEngine {
     type: BiquadFilterType = 'bandpass',
     when = this.ctx?.currentTime ?? 0,
     pan = 0,
+    channel: MixerChannel = 'effects',
   ): void {
     if (!this.ctx || !this.enabled) return;
     const ctx = this.ctx;
@@ -140,7 +141,7 @@ export class AudioEngine {
     envelope.gain.setValueAtTime(gain * attenuation, when);
     envelope.gain.exponentialRampToValueAtTime(0.001, when + dur);
     src.connect(filter).connect(envelope);
-    this.connectToChannel(envelope, 'effects', pan);
+    this.connectToChannel(envelope, channel, pan);
     src.start(when, Math.random() * 1.2, dur + 0.05);
   }
 
@@ -172,7 +173,8 @@ export class AudioEngine {
 
   private connectToChannel(source: AudioNode, channel: MixerChannel, pan: number): void {
     if (!this.ctx) return;
-    const destination = channel === 'music' ? this.musicGain : this.effectsGain;
+    const destination =
+      channel === 'music' ? this.musicGain : channel === 'crowd' ? this.crowdBus : this.effectsGain;
     if (typeof this.ctx.createStereoPanner === 'function') {
       const panner = this.ctx.createStereoPanner();
       panner.pan.value = clampPan(pan);
@@ -262,6 +264,8 @@ export class AudioEngine {
         big ? 0.26 : 0.15,
         'bandpass',
         when,
+        0,
+        'crowd',
       );
     }
     this.excite(big ? 1 : 0.55);
@@ -280,7 +284,7 @@ export class AudioEngine {
       Array.from({ length: count }, () => Math.random() * dur),
     );
     for (const when of times) {
-      this.noiseBurst(0.025, 1800 + Math.random() * 1400, 2.5, 0.09, 'bandpass', when);
+      this.noiseBurst(0.025, 1800 + Math.random() * 1400, 2.5, 0.09, 'bandpass', when, 0, 'crowd');
     }
   }
 

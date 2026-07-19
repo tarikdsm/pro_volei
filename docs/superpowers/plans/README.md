@@ -4,9 +4,8 @@ Fonte única para saber quais planos foram executados. Os arquivos individuais p
 ordem TDD e evidências do momento; caixas abertas em blueprints históricos não significam trabalho
 ativo. O estado de produto continua em [`docs/ROADMAP.md`](../../ROADMAP.md).
 
-**Marco atual — 19/07/2026:** Fases 1–2, 3A–3D e 4A–4E entregues. O proprietário autorizou a
-**Fase 5A (orientation gate)** em 19/07/2026 — plano ativo abaixo. As demais subfases da Fase 5
-e as Fases 6–7 aguardam autorização.
+**Marco atual — 19/07/2026:** Fases 1–5 entregues localmente. O proprietário autorizou a
+conclusão das Fases 5–7 e do release 2.0.0; a Fase 6 é a próxima etapa ativa.
 
 | Plano | Estado | Resultado |
 |---|---|---|
@@ -30,9 +29,9 @@ e as Fases 6–7 aguardam autorização.
 | [`2026-07-18-fase-4d-arena-premium.md`](2026-07-18-fase-4d-arena-premium.md) | concluído | Paleta navy/teal/coral, torcida silenciada, contra-luz de TV e anel duplo de seleção daltônico-legível |
 | [`2026-07-18-fase-4e-quality-tiers.md`](2026-07-18-fase-4e-quality-tiers.md) | concluído | QualityManager com histerese entre pontos; arquibancada mesclada (48→2 meshes) e rally ≤ 250 dc |
 | [`2026-07-19-fase-5a-orientation-gate.md`](2026-07-19-fase-5a-orientation-gate.md) | concluído | Portrait = área de menu, autostart em landscape, revanche com contagem cancelável por giro, áudio suspenso |
+| [`2026-07-19-fase-5-mobile-audio-pwa.md`](2026-07-19-fase-5-mobile-audio-pwa.md) | concluído | Layout multitouch, HUD compacto, mixer/haptics e PWA com partida completa offline |
 
 ## Retomada de desenvolvimento
 
-- Autorização explícita do proprietário em 18/07/2026 cobre a Fase 3D e as subfases 4A–4E, nesta
-  ordem, cada uma com plano detalhado antes de alterar produção.
-- Fases 5–7 do design 2.0 permanecem aguardando o término dessas etapas.
+- Autorização explícita do proprietário em 19/07/2026 cobre as Fases 5–7 e o release 2.0.0.
+- Cada fase não trivial recebe plano detalhado e gates antes de alterar produção.

@@ -11,6 +11,8 @@ let resumeSpy: ReturnType<typeof vi.fn>;
 let suspendSpy: ReturnType<typeof vi.fn>;
 let oscillatorStarts = 0;
 let gainValues: Array<{ value: number }> = [];
+let gainNodes: unknown[] = [];
+let pannerDestinations: unknown[] = [];
 let compressorCount = 0;
 let pannerCount = 0;
 // permite cada teste escolher se resume() resolve ou rejeita (simula contexto suspenso/iOS)
@@ -43,7 +45,9 @@ class MockAudioContext {
       exponentialRampToValueAtTime: () => {},
     };
     gainValues.push(gain);
-    return fakeNode({ gain });
+    const node = fakeNode({ gain });
+    gainNodes.push(node);
+    return node;
   }
   createDynamicsCompressor(): Record<string, unknown> {
     compressorCount++;
@@ -57,7 +61,13 @@ class MockAudioContext {
   }
   createStereoPanner(): Record<string, unknown> {
     pannerCount++;
-    return fakeNode({ pan: { value: 0 } });
+    return {
+      pan: { value: 0 },
+      connect: (destination: unknown) => {
+        pannerDestinations.push(destination);
+        return destination;
+      },
+    };
   }
   createBuffer(_channels: number, len: number): Record<string, unknown> {
     return { getChannelData: () => new Float32Array(len) };
@@ -85,6 +95,8 @@ beforeEach(() => {
   ctorCalls = 0;
   oscillatorStarts = 0;
   gainValues = [];
+  gainNodes = [];
+  pannerDestinations = [];
   compressorCount = 0;
   pannerCount = 0;
   resumeImpl = () => Promise.resolve();
@@ -216,6 +228,18 @@ describe('AudioEngine mixer', () => {
 
     expect(timeout).not.toHaveBeenCalled();
     expect(pannerCount).toBeGreaterThan(0);
+  });
+
+  it('roteia torcida e aplausos exclusivamente pelo canal crowd', () => {
+    const audio = new AudioEngine();
+    audio.init();
+    pannerDestinations = [];
+
+    audio.cheer();
+    audio.applause(0.1);
+
+    expect(pannerDestinations).toContain(gainNodes[2]);
+    expect(pannerDestinations).not.toContain(gainNodes[1]);
   });
 
   it('emite legenda curta pelo mesmo método que dispara o som', () => {

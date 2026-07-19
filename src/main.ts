@@ -32,8 +32,17 @@ import {
   saveAudioSettings,
   type AudioSettingsStorage,
 } from './core/audio/AudioSettings';
+import { registerPwa, type PwaCoordinator } from './platform/PwaCoordinator';
+import { bindAudioUnlock } from './platform/AudioUnlock';
 
 const app = document.getElementById('app')!;
+const loadingShell = document.getElementById('loading-shell');
+let loadingShellRemoved = false;
+function finishLoading(): void {
+  if (loadingShellRemoved) return;
+  loadingShellRemoved = true;
+  loadingShell?.remove();
+}
 const debugWindow = window as unknown as {
   __match?: Match;
   __renderer?: THREE.WebGLRenderer;
@@ -151,9 +160,11 @@ const audio = new AudioEngine(loadAudioSettings(audioStorage), () =>
   THREE.MathUtils.clamp(director.ballPos.z / 9, -0.65, 0.65),
 );
 saveAudioSettings(audioStorage, audio.settingsSnapshot());
+bindAudioUnlock(document, audio);
 const haptics = new Haptics();
 const feedback = new PresentationFeedback([effects, audio, haptics]);
 const hud = new HUD(app, isTouch);
+audio.setCaptionSink(({ text, durationMs }) => hud.caption(text, durationMs));
 const menu = new Menu(app, isTouch);
 const touch = isTouch ? new TouchControls(app, input) : null;
 window.addEventListener('blur', () => touch?.resetPointers());
@@ -162,6 +173,7 @@ hud.show(false);
 const cameraOverlaySelectors = [
   '#scoreboard',
   '#hint',
+  '#caption',
   '#meter',
   '#zones',
   '#tc-stick',
@@ -218,6 +230,10 @@ function slowMo(scale: number, dur: number): void {
 
 // ---------- estado do app (título → jogo → pausa → fim) ----------
 let appState: AppState = 'title';
+let pwaCoordinator: PwaCoordinator | null = null;
+function activatePwaUpdateIfSafe(): void {
+  pwaCoordinator?.activateUpdateIfSafe();
+}
 
 // ---------- partida ----------
 const match = new Match(
@@ -251,6 +267,7 @@ const match = new Match(
       // fim da partida: trava o estado em 'ended' para o Escape não abrir a pausa
       // sobre a tela de vitória (sobrescreveria o innerHTML e travaria a UI).
       appState = nextAppState(appState, 'matchEnded');
+      activatePwaUpdateIfSafe();
       updateTouchOrientationPresentation();
       hud.show(false);
       touch?.show(false);
@@ -302,9 +319,9 @@ const rematchSeconds =
 
 /** Início/reinício de partida com as configurações atuais do menu (in-place, sem reload). */
 function startMatchFromMenu(): void {
-  audio.init();
   audio.uiClick();
   appState = nextAppState(appState, 'start');
+  activatePwaUpdateIfSafe();
   hud.show(true);
   touch?.show(true);
   if (debugEnabled) {
@@ -329,6 +346,7 @@ menu.onResume = () => {
   // botão CONTINUAR: o Menu já chamou hide(); aqui só destravamos o estado.
   match.snapPresentation();
   appState = nextAppState(appState, 'resume');
+  activatePwaUpdateIfSafe();
   cancelGameplayInput(portraitBlocked ? 'portrait' : 'pause');
   updateTouchOrientationPresentation();
   audio.uiClick();
@@ -349,6 +367,7 @@ function togglePause(): void {
 
   const previous = appState;
   appState = nextAppState(appState, 'togglePause');
+  activatePwaUpdateIfSafe();
   if (appState === 'paused') {
     cancelGameplayInput('pause');
     audio.suspend();
@@ -377,6 +396,7 @@ function syncTouchOrientation(): void {
   const nextBlocked = isTouch && portraitQuery.matches;
   if (nextBlocked === portraitBlocked) return;
   portraitBlocked = nextBlocked;
+  activatePwaUpdateIfSafe();
 
   if (appState === 'playing') {
     cancelGameplayInput('portrait');
@@ -502,6 +522,22 @@ function frame(now: number): void {
   }
 
   renderer.render(scene, director.camera);
+  finishLoading();
+}
+
+if (import.meta.env.PROD) {
+  pwaCoordinator = registerPwa({
+    state: () => ({ appState, portrait: portraitBlocked }),
+    onUpdateReady: () => {
+      document.documentElement.dataset.updateReady = 'true';
+    },
+    onOfflineReady: () => {
+      document.documentElement.dataset.offlineReady = 'true';
+    },
+    onError: () => {
+      document.documentElement.dataset.offlineReady = 'false';
+    },
+  });
 }
 
 // Galeria de aceite do elenco (Fase 4C, DEV/?debug + ?gallery): cena própria no mesmo
@@ -530,6 +566,7 @@ if (galleryEnabled) {
       const dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
       last = now;
       stepGallery(dt);
+      finishLoading();
     };
     requestAnimationFrame(galleryFrame);
   });

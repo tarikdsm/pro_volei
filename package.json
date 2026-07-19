@@ -20,6 +20,7 @@
     "test:e2e": "playwright test",
     "test:e2e:smoke": "playwright test tests/e2e/smoke.spec.ts",
     "test:e2e:smoke:prod": "playwright test --config=playwright.preview.config.ts tests/e2e/smoke.spec.ts --project=chromium",
+    "test:e2e:offline": "playwright test --config=playwright.preview.config.ts tests/e2e/offline.spec.ts --project=chromium",
     "test:e2e:perf": "playwright test tests/e2e/performance.spec.ts",
     "perf:baseline": "playwright test tests/e2e/performance.spec.ts",
     "check": "npm run workflow:check && npm run typecheck && npm run lint && npm run format:check && npm run test:coverage"

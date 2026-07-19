@@ -188,6 +188,23 @@ body,
   box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45);
 }
 
+#caption {
+  position: absolute;
+  top: max(calc(var(--safe-area-top) + 58px), 58px);
+  left: 50%;
+  transform: translateX(-50%);
+  color: rgba(255, 255, 255, 0.88);
+  background: rgba(8, 14, 24, 0.68);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  opacity: 0;
+  transition: opacity 0.2s;
+  pointer-events: none;
+}
+
 #meter {
   position: absolute;
   bottom: 80px;
@@ -261,8 +278,8 @@ body,
 }
 #tc-stick {
   position: absolute;
-  width: clamp(96px, 24vh, 128px);
-  height: clamp(96px, 24vh, 128px);
+  width: var(--touch-stick-diameter, 96px);
+  height: var(--touch-stick-diameter, 96px);
   border-radius: 50%;
   background: radial-gradient(circle, rgba(30, 50, 80, 0.35), rgba(15, 25, 42, 0.55));
   border: 2px solid rgba(140, 190, 255, 0.35);
@@ -273,8 +290,8 @@ body,
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 58px;
-  height: 58px;
+  width: var(--touch-knob-diameter, 58px);
+  height: var(--touch-knob-diameter, 58px);
   border-radius: 50%;
   background: linear-gradient(135deg, rgba(90, 150, 240, 0.9), rgba(50, 100, 190, 0.9));
   border: 2px solid rgba(200, 225, 255, 0.7);

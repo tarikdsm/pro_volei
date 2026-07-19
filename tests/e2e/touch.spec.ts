@@ -149,6 +149,26 @@ test('zonas laterais preservam o centro nos viewports mobile obrigatórios', asy
         { x: viewport.width / 2, y: viewport.height * 0.72 },
       ),
     ).toBeNull();
+
+    await page.mouse.move(movement.x + movement.width - 1, movement.y + movement.height - 1);
+    await page.mouse.down();
+    const stick = await page.locator('#tc-stick').boundingBox();
+    const knob = await page.locator('#tc-knob').boundingBox();
+    await page.mouse.up();
+    expect(stick).not.toBeNull();
+    expect(knob).not.toBeNull();
+    if (stick) {
+      expect(stick.x).toBeGreaterThanOrEqual(movement.x - 1);
+      expect(stick.y).toBeGreaterThanOrEqual(movement.y - 1);
+      expect(stick.x + stick.width).toBeLessThanOrEqual(movement.x + movement.width + 1);
+      expect(stick.y + stick.height).toBeLessThanOrEqual(movement.y + movement.height + 1);
+    }
+    if (knob) {
+      expect(knob.x).toBeGreaterThanOrEqual(movement.x - 1);
+      expect(knob.y).toBeGreaterThanOrEqual(movement.y - 1);
+      expect(knob.x + knob.width).toBeLessThanOrEqual(movement.x + movement.width + 1);
+      expect(knob.y + knob.height).toBeLessThanOrEqual(movement.y + movement.height + 1);
+    }
   }
 });
 

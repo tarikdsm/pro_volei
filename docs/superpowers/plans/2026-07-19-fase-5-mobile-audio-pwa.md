@@ -12,6 +12,10 @@ em vez de novas regras de domínio.
 
 **Tech Stack:** TypeScript strict, DOM/CSS, Web Audio API, Vite 8, Vitest 4, Playwright 1.61.
 
+**Status:** Concluído em 19/07/2026. Evidências finais: `npm run check` com 1.017 testes,
+21 E2E de desenvolvimento, smoke do build, jornada de instalação/reload/partida offline e
+playtest real desktop + 844×390 sem erros de console. Bundle principal: 212,52 kB gzip.
+
 ## Global Constraints
 
 - Runtime 100% offline e zero URLs remotas.

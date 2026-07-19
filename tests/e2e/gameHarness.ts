@@ -183,17 +183,20 @@ export async function openGameAndStartMatch(
 
   await expect(page.locator('#app')).toBeVisible();
   await expect(page.locator('canvas')).toBeVisible();
-  await expect(page.locator('#menu')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'JOGAR' })).toBeVisible();
+  const menu = page.locator('#menu');
 
   // formato opcional: 0 = Oficial 2.0 (melhor de 3 a 11·11·7), 1 = Rápida 1×15, 2 = Clássica
-  if (opts.format !== undefined) {
-    await page.locator(`#opt-fmt button[data-i="${opts.format}"]`).click();
+  if (await menu.isVisible()) {
+    await expect(page.getByRole('button', { name: 'JOGAR' })).toBeVisible();
+    if (opts.format !== undefined) {
+      await page.locator(`#opt-fmt button[data-i="${opts.format}"]`).click();
+    }
+    await page.getByRole('button', { name: 'JOGAR' }).click();
+  } else if (opts.format !== undefined) {
+    throw new Error('não é possível trocar o formato depois do autostart touch');
   }
 
-  await page.getByRole('button', { name: 'JOGAR' }).click();
-
-  await expect(page.locator('#menu')).toBeHidden();
+  await expect(menu).toBeHidden();
   await expect(page.locator('#hud')).toBeVisible();
   await expect(page.locator('#score-main')).toHaveText(/\d+\s:\s\d+/);
 }

@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
 import { Crowd, advanceCrowdTick } from './Crowd';
 import type { Arena } from './Arena';
@@ -36,9 +36,11 @@ describe('Crowd.setQuality (tiers 4E)', () => {
   });
 
   it('densidade inicial do construtor também vira prefixo', () => {
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
     const fullCrowd = new Crowd(stubArena(), 1, 20);
     const halfCrowd = new Crowd(stubArena(), 0.5, 20);
     expect(halfCrowd.mesh.count).toBeLessThan(fullCrowd.mesh.count);
+    random.mockRestore();
   });
 });
 

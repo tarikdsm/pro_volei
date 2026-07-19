@@ -15,6 +15,7 @@ const EXPECTED_CHECK_STEPS = [
   'run:npm run build',
   'run:npx playwright install --with-deps chromium',
   'run:npm run test:e2e:smoke:prod',
+  'run:npm run test:e2e:offline',
   'uses:actions/upload-pages-artifact@v5',
 ];
 

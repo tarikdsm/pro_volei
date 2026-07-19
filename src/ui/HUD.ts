@@ -12,11 +12,13 @@ export class HUD {
   private bannerEl!: HTMLElement;
   private bannerSub!: HTMLElement;
   private hintEl!: HTMLElement;
+  private captionEl!: HTMLElement;
   private meterWrap!: HTMLElement;
   private meterFill!: HTMLElement;
   private zonesEl!: HTMLElement;
   private bannerTimer = 0;
   private hintState: HintState = { text: '', remaining: 0 };
+  private captionState: HintState = { text: '', remaining: 0 };
 
   constructor(
     parent: HTMLElement,
@@ -32,6 +34,7 @@ export class HUD {
       </div>
       <div id="banner"><div id="banner-text"></div><div id="banner-sub"></div></div>
       <div id="hint"></div>
+      <div id="caption" role="status" aria-live="polite"></div>
       <div id="meter"><div id="meter-perfect"></div><div id="meter-fill"></div></div>
       <div id="zones" aria-label="Direção do levantamento">
         ${ZONE_LABELS.map((label, zone) => `<span data-z="${zone}">${label}</span>`).join('')}
@@ -42,6 +45,7 @@ export class HUD {
     this.bannerEl = this.root.querySelector('#banner-text')!;
     this.bannerSub = this.root.querySelector('#banner-sub')!;
     this.hintEl = this.root.querySelector('#hint')!;
+    this.captionEl = this.root.querySelector('#caption')!;
     this.meterWrap = this.root.querySelector('#meter')!;
     this.meterFill = this.root.querySelector('#meter-fill')!;
     this.zonesEl = this.root.querySelector('#zones')!;
@@ -97,6 +101,15 @@ export class HUD {
     this.renderHint();
   }
 
+  caption(text: string, durationMs: number): void {
+    this.captionState = reduceHint(this.captionState, {
+      type: 'show',
+      text,
+      seconds: Math.max(0, durationMs) / 1000,
+    });
+    this.renderCaption();
+  }
+
   serveMeter(visible: boolean, value = 0): void {
     this.meterWrap.style.display = visible ? 'block' : 'none';
     if (visible) {
@@ -131,10 +144,22 @@ export class HUD {
     } else {
       this.hintState = nextHint;
     }
+    const nextCaption = reduceHint(this.captionState, { type: 'tick', dt });
+    if (nextCaption.text !== this.captionState.text) {
+      this.captionState = nextCaption;
+      this.renderCaption();
+    } else {
+      this.captionState = nextCaption;
+    }
   }
 
   private renderHint(): void {
     this.hintEl.textContent = this.hintState.text;
     this.hintEl.style.opacity = this.hintState.text ? '1' : '0';
+  }
+
+  private renderCaption(): void {
+    this.captionEl.textContent = this.captionState.text;
+    this.captionEl.style.opacity = this.captionState.text ? '1' : '0';
   }
 }

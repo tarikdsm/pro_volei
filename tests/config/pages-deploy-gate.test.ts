@@ -24,6 +24,7 @@ const CHECK_STEPS = [
   'run:npm run build',
   'run:npx playwright install --with-deps chromium',
   'run:npm run test:e2e:smoke:prod',
+  'run:npm run test:e2e:offline',
   'uses:actions/upload-pages-artifact@v5',
 ];
 const PAGES_ARTIFACT_NAME = 'github-pages-${{ github.run_attempt }}';
@@ -229,6 +230,7 @@ jobs:
       - run: npm run build
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e:smoke:prod
+      - run: npm run test:e2e:offline
       - uses: actions/upload-pages-artifact@v5
         with:
           name: github-pages-\${{ github.run_attempt }}

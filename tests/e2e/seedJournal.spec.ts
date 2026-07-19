@@ -28,11 +28,14 @@ async function runNeutralAutoplay(
     type DebugWindow = Window & {
       __match?: { update(dt: number, frame: unknown): void };
       __readJournal?: () => JournalSnapshot;
+      __simulationClock?: { tick: number };
     };
     const debug = window as DebugWindow;
     if (!debug.__match || !debug.__readJournal) throw new Error('costura de journal ausente');
 
-    for (let tick = 1; tick <= 7_200; tick++) {
+    const firstTick = (debug.__simulationClock?.tick ?? 0) + 1;
+    const lastTick = firstTick + 7_199;
+    for (let tick = firstTick; tick <= lastTick; tick++) {
       debug.__match.update(1 / 60, {
         simulationTick: tick,
         sampledAtMs: tick * (1_000 / 60),

@@ -1,0 +1,21 @@
+{
+  "id": "./",
+  "name": "Pró Volei",
+  "short_name": "Pró Volei",
+  "description": "Vôlei 3D offline, humano contra CPU.",
+  "lang": "pt-BR",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#071522",
+  "theme_color": "#071522",
+  "icons": [
+    {
+      "src": "./icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -7,13 +7,38 @@
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
     />
     <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="theme-color" content="#071522" />
+    <meta name="description" content="Pró Volei — jogo de vôlei 3D offline, humano contra CPU." />
+    <link rel="manifest" href="./manifest.webmanifest" />
     <title>Pró Volei — Vôlei 3D</title>
-    <link
-      rel="icon"
-      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏐</text></svg>"
-    />
+    <link rel="icon" href="./icons/icon.svg" type="image/svg+xml" />
+    <style>
+      #loading-shell {
+        position: fixed;
+        inset: 0;
+        z-index: 100;
+        display: grid;
+        place-items: center;
+        background: #071522;
+        color: #f7fbff;
+        font:
+          700 16px/1.4 system-ui,
+          sans-serif;
+        letter-spacing: 0.08em;
+      }
+      #loading-shell span {
+        display: block;
+        margin-top: 12px;
+        color: #69e1d1;
+        text-align: center;
+      }
+    </style>
   </head>
   <body>
+    <div id="loading-shell" role="status" aria-live="polite">
+      🏐<span>PREPARANDO A QUADRA</span>
+    </div>
     <div id="app"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>

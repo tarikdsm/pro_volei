@@ -38,6 +38,9 @@ jobs:
       - name: Production smoke
         run: npm run test:e2e:smoke:prod
 
+      - name: Offline journey
+        run: npm run test:e2e:offline
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v5
         with:

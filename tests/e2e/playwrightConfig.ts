@@ -8,6 +8,8 @@ const SERVER_COMMAND: Record<TestServerMode, string> = {
 };
 
 export function makePlaywrightConfig(mode: TestServerMode) {
+  const desktopTestIgnore =
+    mode === 'dev' ? [/touch\.spec\.ts/, /offline\.spec\.ts/] : /touch\.spec\.ts/;
   return defineConfig({
     testDir: './tests/e2e',
     // Os E2E validam comportamento, não latência: no runner do CI o WebGL é software
@@ -40,7 +42,7 @@ export function makePlaywrightConfig(mode: TestServerMode) {
         // desktop: smoke, pausa, fim de partida e perfil — tudo menos a suíte de toque
         name: 'chromium',
         use: { ...devices['Desktop Chrome'] },
-        testIgnore: /touch\.spec\.ts/,
+        testIgnore: desktopTestIgnore,
       },
       {
         // mobile: suíte de toque em landscape e gate de pausa automática em portrait.
