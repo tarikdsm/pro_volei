@@ -974,3 +974,31 @@ h2 {
   font-weight: 900;
   color: #fff;
 }
+
+/* Chip de FPS — discreto, canto superior esquerdo, fora do caminho do placar. */
+#fps {
+  position: fixed;
+  top: calc(8px + var(--safe-area-top, 0px));
+  left: calc(10px + var(--safe-area-left, 0px));
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: rgba(8, 14, 22, 0.55);
+  color: #9fd8d2;
+  font:
+    600 11px/1 system-ui,
+    'Segoe UI',
+    sans-serif;
+  letter-spacing: 0.06em;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  z-index: 5;
+}
+#fps:empty {
+  display: none;
+}
+#fps.warn {
+  color: #ffd54f;
+}
+#fps.bad {
+  color: #ff8a65;
+}

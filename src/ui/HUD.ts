@@ -16,6 +16,8 @@ export class HUD {
   private meterWrap!: HTMLElement;
   private meterFill!: HTMLElement;
   private zonesEl!: HTMLElement;
+  private fpsEl!: HTMLElement;
+  private lastFpsText = '';
   private bannerTimer = 0;
   private hintState: HintState = { text: '', remaining: 0 };
   private captionState: HintState = { text: '', remaining: 0 };
@@ -27,6 +29,7 @@ export class HUD {
     this.root = document.createElement('div');
     this.root.id = 'hud';
     this.root.innerHTML = `
+      <div id="fps" aria-hidden="true"></div>
       <div id="scoreboard">
         <div class="team home"><span class="name">VOCÊ</span><span class="serve-dot" id="serve-home">●</span></div>
         <div class="score-block"><div class="score" id="score-main">0 : 0</div><div class="sets" id="score-sets">SET 1 · 0 — 0</div></div>
@@ -49,6 +52,7 @@ export class HUD {
     this.meterWrap = this.root.querySelector('#meter')!;
     this.meterFill = this.root.querySelector('#meter-fill')!;
     this.zonesEl = this.root.querySelector('#zones')!;
+    this.fpsEl = this.root.querySelector('#fps')!;
   }
 
   show(visible: boolean): void {
@@ -57,6 +61,17 @@ export class HUD {
 
   setScale(scale: HudScale): void {
     this.root.style.setProperty('--hud-scale', String(normalizeHudScale(scale)));
+  }
+
+  /** Chip discreto de FPS (canto superior esquerdo). null = janela ainda aberta, mantém o texto. */
+  setFps(fps: number | null): void {
+    if (fps === null) return;
+    const text = `${fps} FPS`;
+    if (text === this.lastFpsText) return;
+    this.lastFpsText = text;
+    this.fpsEl.textContent = text;
+    this.fpsEl.classList.toggle('warn', fps < 55 && fps >= 30);
+    this.fpsEl.classList.toggle('bad', fps < 30);
   }
 
   setScore(h: number, a: number, hs: number, as: number, setNum: number, serving: TeamSide): void {

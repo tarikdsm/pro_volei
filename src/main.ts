@@ -15,6 +15,7 @@ import { TouchControls } from './ui/TouchControls';
 import { AppState, nextAppState } from './ui/appState';
 import { COLORS, QUALITY_TIERS, SIMULATION_TIMING } from './core/constants';
 import { QualityManager } from './core/quality/QualityManager';
+import { FpsMeter } from './core/quality/FpsMeter';
 import { exporDebugHabilitado } from './core/debug';
 import { mapScreenToCourt } from './core/input/CameraSpaceMapper';
 import { FixedStepRunner, type FixedStepDiscard } from './core/time/FixedStepRunner';
@@ -149,6 +150,7 @@ const forcedTier =
   Number.isInteger(tierParam) && tierParam >= 0 && tierParam < QUALITY_TIERS.length;
 const initialTier = forcedTier ? tierParam : isTouch ? 1 : 2;
 const quality = new QualityManager(initialTier, !forcedTier);
+const fpsMeter = new FpsMeter();
 let applyTeamShadowQuality: (enabled: boolean) => void = () => {};
 function applyQualityTier(tier: number): void {
   const q = QUALITY_TIERS[tier];
@@ -686,6 +688,7 @@ let lastPresentationNow = performance.now();
 function frame(now: number): void {
   requestAnimationFrame(frame);
   const visualDt = Math.min(0.05, Math.max(0, (now - lastPresentationNow) / 1000));
+  hud.setFps(fpsMeter.sample(visualDt));
   lastPresentationNow = Math.max(lastPresentationNow, now);
 
   // só o estado 'playing' avança a partida; título/pausa/fim congelam o tempo de jogo
