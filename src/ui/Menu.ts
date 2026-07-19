@@ -1,13 +1,15 @@
 import { DIFFICULTIES, MATCH_FORMATS } from '../core/constants';
 import { MatchStats } from '../game/Match';
 
-// Telas: título (com seleção de dificuldade/formato), pausa e fim de partida.
+// Telas: título (com seleção de dificuldade/formato), pausa, fim de partida e, no touch,
+// a pausa de portrait (§7.1) e a vitória compacta com contagem de revanche.
 export class Menu {
   private root: HTMLElement;
   difficulty = 1;
   format = 0;
   onStart: (() => void) | null = null;
   onResume: (() => void) | null = null;
+  private countdownId: ReturnType<typeof setInterval> | null = null;
 
   constructor(
     parent: HTMLElement,
@@ -20,6 +22,7 @@ export class Menu {
   }
 
   showTitle(): void {
+    this.clearCountdown();
     this.root.style.display = 'flex';
     this.root.innerHTML = `
       <div class="panel title-panel">
@@ -78,7 +81,76 @@ export class Menu {
     });
   }
 
+  /** Pausa de portrait (§7.1): instrução de girar + meta (novo jogo/sair) — só no touch. */
+  showPortraitBreak(): void {
+    this.clearCountdown();
+    this.root.style.display = 'flex';
+    this.root.innerHTML = `
+      <div class="panel" id="portrait-break">
+        <h2>↻ Gire o celular</h2>
+        <p class="tagline">a partida continua na horizontal</p>
+        <div class="opt-group">
+          <label>DIFICULDADE</label>
+          <div class="opts" id="opt-diff">
+            ${DIFFICULTIES.map((d, i) => `<button data-i="${i}" class="${i === this.difficulty ? 'sel' : ''}">${d.name}</button>`).join('')}
+          </div>
+        </div>
+        <div class="opt-group">
+          <label>PARTIDA</label>
+          <div class="opts" id="opt-fmt">
+            ${MATCH_FORMATS.map((f, i) => `<button data-i="${i}" class="${i === this.format ? 'sel' : ''}">${f.name}</button>`).join('')}
+          </div>
+        </div>
+        <button id="btn-new" class="big-btn">NOVO JOGO</button>
+        <button id="btn-quit-portrait" class="ghost-btn">SAIR</button>
+      </div>`;
+    this.bindOpts();
+    this.root.querySelector('#btn-new')!.addEventListener('click', () => {
+      this.hide();
+      this.onStart?.();
+    });
+    this.root.querySelector('#btn-quit-portrait')!.addEventListener('click', () => {
+      location.reload();
+    });
+  }
+
+  /** Vitória compacta em landscape: contagem regressiva de revanche automática (§7.1). */
+  showVictoryCompact(
+    homeWon: boolean,
+    scoreline: string,
+    seconds: number,
+    onExpire: () => void,
+  ): void {
+    this.clearCountdown();
+    this.root.style.display = 'flex';
+    let remaining = Math.max(1, Math.round(seconds));
+    this.root.innerHTML = `
+      <div class="panel compact-victory" id="compact-victory">
+        <h2 class="endtitle ${homeWon ? 'win' : 'lose'}">${homeWon ? '🏆 VITÓRIA' : 'DERROTA'} · Sets ${scoreline}</h2>
+        <p class="tagline">Revanche em <span id="rematch-count">${remaining}</span> s · gire para o menu</p>
+      </div>`;
+    const label = this.root.querySelector('#rematch-count')!;
+    this.countdownId = setInterval(() => {
+      remaining -= 1;
+      if (remaining > 0) {
+        label.textContent = String(remaining);
+        return;
+      }
+      this.clearCountdown();
+      this.hide();
+      onExpire();
+    }, 1000);
+  }
+
+  private clearCountdown(): void {
+    if (this.countdownId !== null) {
+      clearInterval(this.countdownId);
+      this.countdownId = null;
+    }
+  }
+
   showPause(): void {
+    this.clearCountdown();
     this.root.style.display = 'flex';
     this.root.innerHTML = `
       <div class="panel">
@@ -94,6 +166,7 @@ export class Menu {
   }
 
   showVictory(homeWon: boolean, stats: MatchStats, scoreline: string): void {
+    this.clearCountdown();
     this.root.style.display = 'flex';
     this.root.innerHTML = `
       <div class="panel">
@@ -107,10 +180,15 @@ export class Menu {
         </div>
         <button id="btn-again" class="big-btn">JOGAR DE NOVO</button>
       </div>`;
-    this.root.querySelector('#btn-again')!.addEventListener('click', () => location.reload());
+    // Revanche in-place (5A): preserva dificuldade/formato escolhidos, sem recarregar a página.
+    this.root.querySelector('#btn-again')!.addEventListener('click', () => {
+      this.hide();
+      this.onStart?.();
+    });
   }
 
   hide(): void {
+    this.clearCountdown();
     this.root.style.display = 'none';
   }
 
