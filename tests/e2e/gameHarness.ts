@@ -186,7 +186,7 @@ export async function openGameAndStartMatch(
   await expect(page.locator('#menu')).toBeVisible();
   await expect(page.getByRole('button', { name: 'JOGAR' })).toBeVisible();
 
-  // formato opcional: 0 = 1 set de 15 (rápida), 1 = melhor de 3 a 25 (ver MATCH_FORMATS)
+  // formato opcional: 0 = Oficial 2.0 (melhor de 3 a 11·11·7), 1 = Rápida 1×15, 2 = Clássica
   if (opts.format !== undefined) {
     await page.locator(`#opt-fmt button[data-i="${opts.format}"]`).click();
   }
@@ -205,10 +205,8 @@ export async function openGameAndStartMatch(
 export async function openWithTouch(page: Page): Promise<void> {
   await page.goto('/?touch=1');
 
-  await expect(page.locator('#menu')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'JOGAR' })).toBeVisible();
-  await page.getByRole('button', { name: 'JOGAR' }).click();
-
+  // §7.1 (Fase 5A): primeira abertura já em landscape inicia a partida rápida sozinha —
+  // não há mais botão JOGAR neste fluxo; o menu nasce escondido.
   await expect(page.locator('#menu')).toBeHidden();
   await expect(page.locator('#hud')).toBeVisible();
   await expect(page.locator('#touch-controls')).toBeVisible();

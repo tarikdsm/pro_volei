@@ -3,6 +3,7 @@ import {
   collectBrowserProblems,
   expectNoBrowserProblems,
   forceActionServeScenario,
+  forceMatchEnd,
   openWithTouch,
   readActionSnapshot,
   readActionDown,
@@ -10,18 +11,22 @@ import {
   readSimulationClock,
 } from './gameHarness';
 
-test('portrait congela a simulação e landscape retoma automaticamente', async ({
+test('portrait pausa com a área de menu e landscape retoma automaticamente', async ({
   page,
 }, testInfo) => {
   const browserProblems = collectBrowserProblems(page);
+  // portrait ANTES do goto: sem autostart — a primeira tela é o título normal
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/?touch=1&debug=1');
 
-  await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.locator('#menu')).toBeVisible();
-  await expect(page.locator('#rotate-tip')).toBeHidden();
   await page.getByRole('button', { name: 'JOGAR' }).click();
 
-  await expect(page.locator('#rotate-tip')).toBeVisible();
+  // §7.1: partida em portrait = pausa com área de menu (girar + novo jogo + sair)
+  await expect(page.locator('#portrait-break')).toBeVisible();
+  await expect(page.locator('#portrait-break')).toContainText('Gire o celular');
+  await expect(page.getByRole('button', { name: 'NOVO JOGO' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'SAIR', exact: true })).toBeVisible();
   await expect(page.locator('#touch-controls')).toBeHidden();
   await page.keyboard.down('ArrowRight');
   await page.keyboard.down('Space');
@@ -29,10 +34,9 @@ test('portrait congela a simulação e landscape retoma automaticamente', async 
   await page.waitForTimeout(350);
 
   expect((await readSimulationClock(page)).tick).toBe(frozen.tick);
-  await expect(page.locator('#menu')).toBeHidden();
 
   await page.setViewportSize({ width: 844, height: 390 });
-  await expect(page.locator('#rotate-tip')).toBeHidden();
+  await expect(page.locator('#menu')).toBeHidden();
   await expect(page.locator('#touch-controls')).toBeVisible();
   await expect
     .poll(async () => (await readSimulationClock(page)).tick)
@@ -46,8 +50,7 @@ test('portrait congela a simulação e landscape retoma automaticamente', async 
   await page.keyboard.press('Escape');
   await expect(page.locator('#menu')).toContainText('PAUSA');
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(page.locator('#rotate-tip')).toBeHidden();
-  await expect(page.locator('#menu')).toContainText('PAUSA');
+  await expect(page.locator('#menu')).toContainText('PAUSA'); // pausa explícita vence o gate
   await page.keyboard.down('ArrowLeft');
   await page.keyboard.down('Space');
   await page.setViewportSize({ width: 844, height: 390 });
@@ -57,6 +60,66 @@ test('portrait congela a simulação e landscape retoma automaticamente', async 
   await expect.poll(async () => Math.hypot(...Object.values(await readScreenAxis(page)))).toBe(0);
   await page.keyboard.up('ArrowLeft');
   await page.keyboard.up('Space');
+
+  await expectNoBrowserProblems(browserProblems, testInfo);
+});
+
+test('primeira abertura em landscape inicia a partida rápida sozinha', async ({
+  page,
+}, testInfo) => {
+  const browserProblems = collectBrowserProblems(page);
+  await page.setViewportSize({ width: 844, height: 390 });
+  await page.goto('/?touch=1&debug=1');
+
+  await expect(page.locator('#menu')).toBeHidden();
+  await expect(page.locator('#hud')).toBeVisible();
+  await expect(page.locator('#touch-controls')).toBeVisible();
+  const before = await readSimulationClock(page);
+  await expect
+    .poll(async () => (await readSimulationClock(page)).tick)
+    .toBeGreaterThan(before.tick);
+
+  await expectNoBrowserProblems(browserProblems, testInfo);
+});
+
+test('fim de partida em landscape conta e relança a revanche sozinha', async ({
+  page,
+}, testInfo) => {
+  const browserProblems = collectBrowserProblems(page);
+  await page.setViewportSize({ width: 844, height: 390 });
+  await page.goto('/?touch=1&debug=1&rematch=1');
+  await expect(page.locator('#menu')).toBeHidden(); // autostart
+
+  await forceMatchEnd(page, 0);
+  await expect(page.locator('#compact-victory')).toBeVisible();
+  await expect(page.locator('#compact-victory')).toContainText('Revanche em');
+
+  // com ?rematch=1 a contagem expira em ~1 s e a partida seguinte entra sozinha
+  await expect(page.locator('#compact-victory')).toBeHidden({ timeout: 5000 });
+  await expect(page.locator('#hud')).toBeVisible();
+  const before = await readSimulationClock(page);
+  await expect
+    .poll(async () => (await readSimulationClock(page)).tick)
+    .toBeGreaterThan(before.tick);
+
+  await expectNoBrowserProblems(browserProblems, testInfo);
+});
+
+test('girar durante a contagem cancela a revanche e abre o painel completo', async ({
+  page,
+}, testInfo) => {
+  const browserProblems = collectBrowserProblems(page);
+  await page.setViewportSize({ width: 844, height: 390 });
+  await page.goto('/?touch=1&debug=1&rematch=9');
+  await expect(page.locator('#menu')).toBeHidden();
+
+  await forceMatchEnd(page, 1);
+  await expect(page.locator('#compact-victory')).toBeVisible();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.locator('#compact-victory')).toBeHidden();
+  await expect(page.locator('#menu')).toContainText('DERROTA');
+  await expect(page.getByRole('button', { name: 'JOGAR DE NOVO' })).toBeVisible();
 
   await expectNoBrowserProblems(browserProblems, testInfo);
 });

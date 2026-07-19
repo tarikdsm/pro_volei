@@ -24,6 +24,11 @@ test('vitória do humano (1 set) mostra o painel de VITÓRIA e oculta o HUD', as
   await expect(page.getByRole('button', { name: 'JOGAR DE NOVO' })).toBeVisible();
   await expect(page.locator('#hud')).toBeHidden();
 
+  // 5A: revanche in-place — sem recarregar a página, o jogo volta com HUD e menu escondido
+  await page.getByRole('button', { name: 'JOGAR DE NOVO' }).click();
+  await expect(page.locator('#menu')).toBeHidden();
+  await expect(page.locator('#hud')).toBeVisible();
+
   await expectNoBrowserProblems(browserProblems, testInfo);
 });
 
@@ -44,7 +49,8 @@ test('derrota do humano (1 set) mostra o painel de DERROTA', async ({ page }, te
 test('melhor de 3: vitória do humano fecha a partida em 2 sets', async ({ page }, testInfo) => {
   const browserProblems = collectBrowserProblems(page);
 
-  await openGameAndStartMatch(page, { format: 1 }); // 1 = melhor de 3 a 25
+  // Desde a 3D o formato 0 é o Oficial 2.0 (melhor de 3 a 11·11·7); o índice 1 virou a Rápida.
+  await openGameAndStartMatch(page, { format: 0 });
   await forceMatchEnd(page, 0);
 
   await expect(page.locator('.endtitle.win')).toBeVisible({ timeout: PANEL_TIMEOUT });
