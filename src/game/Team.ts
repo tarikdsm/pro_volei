@@ -189,6 +189,12 @@ export class Team {
     this.resetToBase(true);
   }
 
+  setUniform(uniform: Readonly<{ jersey: number; shorts: number }>): void {
+    for (const athlete of this.athletes) {
+      athlete.char.setUniform?.(uniform.jersey, uniform.shorts);
+    }
+  }
+
   /** posição-base do slot de rodízio i, no referencial mundial deste time */
   slotPos(i: number): { x: number; z: number } {
     const s = BASE_SLOTS[i];

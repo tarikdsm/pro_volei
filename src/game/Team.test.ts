@@ -146,6 +146,30 @@ describe('Team (modelo lógico desacoplado do visual)', () => {
     expect(team.athletes[0].char.moveSpeed).toBeCloseTo(1, 6);
     expect(team.athletes[1].char.moveSpeed).toBeCloseTo(2, 6);
   });
+
+  it('aplica uniforme às seis atletas sem alterar o estado lógico', () => {
+    const calls: [number, number][] = [];
+    const team = new Team(TeamSide.HOME, (look) => ({
+      ...stubFactory(look),
+      setUniform: (jersey, shorts) => calls.push([jersey, shorts]),
+    }));
+    const before = team.athletes.map((athlete) => ({
+      position: athlete.pos.toArray(),
+      jumpY: athlete.jumpY,
+      speedMul: athlete.speedMul,
+    }));
+
+    team.setUniform({ jersey: 0x00a8a8, shorts: 0x092b4c });
+
+    expect(calls).toEqual(Array.from({ length: 6 }, () => [0x00a8a8, 0x092b4c]));
+    expect(
+      team.athletes.map((athlete) => ({
+        position: athlete.pos.toArray(),
+        jumpY: athlete.jumpY,
+        speedMul: athlete.speedMul,
+      })),
+    ).toEqual(before);
+  });
 });
 
 // Dublê que registra a última ação pedida ao visual — permite observar o flag

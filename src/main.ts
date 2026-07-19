@@ -33,6 +33,8 @@ import { bindAudioUnlock } from './platform/AudioUnlock';
 import { createSaveRepository, type SaveStorage } from './platform/save/SaveRepository';
 import { CupSession, recordCareerResult, type CupMatchConfig } from './meta/cup/CupSession';
 import { CUP_OPPONENTS } from './meta/cup/CupOpponents';
+import { COSMETIC_CATALOG, cosmeticById, cosmeticFallback } from './meta/cosmetics/CosmeticCatalog';
+import { cosmeticSelection, selectCosmetic } from './meta/cosmetics/CosmeticProgress';
 
 const app = document.getElementById('app')!;
 const loadingShell = document.getElementById('loading-shell');
@@ -191,6 +193,21 @@ function refreshCupMenu(): void {
   });
 }
 refreshCupMenu();
+function refreshCosmeticsMenu(): void {
+  const unlocks = cupSession.snapshot().unlocks;
+  const selected = cosmeticSelection(unlocks);
+  menu.setCosmeticsState(
+    COSMETIC_CATALOG.map((entry) => ({
+      id: entry.id,
+      category: entry.category,
+      name: entry.name,
+      requirement: entry.requirement,
+      unlocked: unlocks.unlocked.includes(entry.id),
+      selected: selected[entry.category] === entry.id,
+    })),
+  );
+}
+refreshCosmeticsMenu();
 const touch = isTouch ? new TouchControls(app, input) : null;
 window.addEventListener('blur', () => touch?.resetPointers());
 hud.show(false);
@@ -304,6 +321,7 @@ const match = new Match(
         const opponent = activeCupMatch.opponent;
         const result = cupSession.recordResult(activeCupMatch.token, homeWon, stats);
         refreshCupMenu();
+        refreshCosmeticsMenu();
         lastVictory = null;
         lastCupResult = {
           homeWon,
@@ -342,6 +360,27 @@ const match = new Match(
   { random: randomHub, telemetry: debugTelemetry, humanSide: autoplay ? null : undefined },
 );
 scene.add(match.group);
+
+function applyCosmetics(): void {
+  const selected = cosmeticSelection(saveRepository.snapshot().unlocks);
+  const uniform = cosmeticById(selected.uniform) ?? cosmeticFallback('uniform');
+  const palette = cosmeticById(selected.palette) ?? cosmeticFallback('palette');
+  const courtTheme = cosmeticById(selected.court) ?? cosmeticFallback('court');
+  const effectTheme = cosmeticById(selected.effect) ?? cosmeticFallback('effect');
+  if (uniform.category === 'uniform') match.home.setUniform(uniform.presentation);
+  if (palette.category === 'palette') {
+    arena.setPalette(palette.presentation);
+    (scene.background as THREE.Color).setHex(palette.presentation.background);
+    scene.fog?.color.setHex(palette.presentation.background);
+  }
+  if (courtTheme.category === 'court') court.setTheme(courtTheme.presentation);
+  if (effectTheme.category === 'effect') effects.setTheme(effectTheme.presentation);
+  document.documentElement.dataset.uniform = selected.uniform;
+  document.documentElement.dataset.palette = selected.palette;
+  document.documentElement.dataset.court = selected.court;
+  document.documentElement.dataset.effect = selected.effect;
+}
+applyCosmetics();
 
 // ganchos de depuração globais: em dev sempre; no build de produção só com ?debug na URL
 // (mesmo opt-in do ?touch=1), para não vazar a superfície de depuração no bundle publicado.
@@ -417,6 +456,15 @@ menu.onCupStart = startCupFromMenu;
 menu.onCupRestart = () => {
   cupSession.restart();
   refreshCupMenu();
+  refreshCosmeticsMenu();
+};
+menu.onCosmeticSelect = (category, id) => {
+  saveRepository.update((current) => ({
+    ...current,
+    unlocks: selectCosmetic(current.unlocks, category, id),
+  }));
+  refreshCosmeticsMenu();
+  applyCosmetics();
 };
 menu.onResume = () => {
   // botão CONTINUAR: o Menu já chamou hide(); aqui só destravamos o estado.

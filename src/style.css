@@ -486,7 +486,7 @@ body.touch #meter {
 
 .menu-actions {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: 12px;
   margin-top: 26px;
 }
@@ -497,6 +497,11 @@ body.touch #meter {
   color: #eaffff;
   background: linear-gradient(135deg, #087f8c, #20c6b7);
   box-shadow: 0 10px 30px rgba(32, 198, 183, 0.28);
+}
+.menu-actions .cosmetics-btn {
+  color: #fff;
+  background: linear-gradient(135deg, #7b3fc6, #d957a8);
+  box-shadow: 0 10px 30px rgba(217, 87, 168, 0.25);
 }
 
 .cup-panel {
@@ -550,15 +555,75 @@ body.touch #meter {
   font-weight: 800;
 }
 
+.cosmetics-panel {
+  width: min(900px, 96vw);
+}
+.cosmetics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+.cosmetic-category {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+}
+.cosmetic-category h2 {
+  margin: 0;
+  color: #8fa3b8;
+  font-size: 12px;
+  letter-spacing: 2px;
+}
+.cosmetic-option {
+  display: grid;
+  gap: 4px;
+  min-height: 72px;
+  padding: 10px;
+  text-align: left;
+  color: #cfe2ff;
+  background: rgba(24, 41, 66, 0.82);
+  border: 1px solid rgba(120, 180, 255, 0.24);
+  border-radius: 12px;
+  cursor: pointer;
+}
+.cosmetic-option span {
+  color: #7f94ab;
+  font-size: 10px;
+}
+.cosmetic-option.sel {
+  border-color: #ffe14f;
+  box-shadow: inset 0 0 20px rgba(255, 225, 79, 0.12);
+}
+.cosmetic-option.sel span {
+  color: #ffe14f;
+}
+.cosmetic-option:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
 @media (max-width: 700px) {
   .cup-bracket {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .menu-actions {
+    grid-template-columns: 1fr;
+  }
+  .cosmetics-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media (orientation: landscape) and (max-height: 500px) {
+  .menu-actions {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .cosmetics-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
   .cup-panel,
-  .cup-result-panel {
+  .cup-result-panel,
+  .cosmetics-panel {
     padding: 12px 18px;
   }
   .cup-panel .endtitle,
@@ -585,6 +650,13 @@ body.touch #meter {
   }
   .cup-result-panel .stats span {
     font-size: 24px;
+  }
+  .cosmetics-panel .tagline {
+    margin: 4px 0 8px;
+  }
+  .cosmetic-option {
+    min-height: 60px;
+    padding: 7px;
   }
 }
 

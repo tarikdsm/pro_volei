@@ -15,6 +15,11 @@ export class Arena {
   private scoreCanvas!: HTMLCanvasElement;
   private scoreTex!: THREE.CanvasTexture;
   private keyLight!: THREE.DirectionalLight;
+  private stepsMaterial!: THREE.MeshStandardMaterial;
+  private facesMaterial!: THREE.MeshStandardMaterial;
+  private wallMaterial!: THREE.MeshStandardMaterial;
+  private ceilingMaterial!: THREE.MeshStandardMaterial;
+  private accentMaterial!: THREE.MeshStandardMaterial;
 
   constructor(private lowSpec = false) {
     this.buildStands();
@@ -23,14 +28,36 @@ export class Arena {
     this.buildAmbience();
   }
 
+  setPalette(
+    palette: Readonly<{
+      steps: number;
+      faces: number;
+      wall: number;
+      ceiling: number;
+      accent: number;
+    }>,
+  ): void {
+    this.stepsMaterial.color.setHex(palette.steps);
+    this.facesMaterial.color.setHex(palette.faces);
+    this.wallMaterial.color.setHex(palette.wall);
+    this.ceilingMaterial.color.setHex(palette.ceiling);
+    this.accentMaterial.color.setHex(palette.accent);
+  }
+
   // Arquibancadas: degraus de concreto; guarda posições p/ a torcida instanciada
   private buildStands(): void {
     const rows = 12;
     const stepH = 0.55,
       stepD = 0.9;
     const startDist = { long: COURT.halfWidth + 6.2, short: COURT.halfLength + 6.5 };
-    const stepMat = new THREE.MeshStandardMaterial({ color: COLORS.arenaSteps, roughness: 0.95 });
-    const faceMat = new THREE.MeshStandardMaterial({ color: COLORS.arenaFaces, roughness: 0.95 });
+    this.stepsMaterial = new THREE.MeshStandardMaterial({
+      color: COLORS.arenaSteps,
+      roughness: 0.95,
+    });
+    this.facesMaterial = new THREE.MeshStandardMaterial({
+      color: COLORS.arenaFaces,
+      roughness: 0.95,
+    });
 
     // 2 laterais longas (±z) e 2 fundos (±x)
     const sides = [
@@ -72,8 +99,8 @@ export class Arena {
       });
     }
     for (const [geos, material] of [
-      [stepGeos, stepMat],
-      [faceGeos, faceMat],
+      [stepGeos, this.stepsMaterial],
+      [faceGeos, this.facesMaterial],
     ] as const) {
       const merged = new THREE.Mesh(mergeGeometries(geos), material);
       merged.receiveShadow = true;
@@ -82,18 +109,22 @@ export class Arena {
     }
 
     // paredes do ginásio
-    const wallMat = new THREE.MeshStandardMaterial({
+    this.wallMaterial = new THREE.MeshStandardMaterial({
       color: COLORS.arenaWall,
       roughness: 1,
       side: THREE.BackSide,
     });
-    const wall = new THREE.Mesh(new THREE.CylinderGeometry(38, 38, 22, 24, 1, true), wallMat);
+    const wall = new THREE.Mesh(
+      new THREE.CylinderGeometry(38, 38, 22, 24, 1, true),
+      this.wallMaterial,
+    );
     wall.position.y = 11;
     this.group.add(wall);
-    const ceil = new THREE.Mesh(
-      new THREE.CircleGeometry(38, 24),
-      new THREE.MeshStandardMaterial({ color: COLORS.arenaCeiling, side: THREE.BackSide }),
-    );
+    this.ceilingMaterial = new THREE.MeshStandardMaterial({
+      color: COLORS.arenaCeiling,
+      side: THREE.BackSide,
+    });
+    const ceil = new THREE.Mesh(new THREE.CircleGeometry(38, 24), this.ceilingMaterial);
     ceil.rotation.x = Math.PI / 2;
     ceil.position.y = 21.9;
     this.group.add(ceil);
@@ -242,10 +273,13 @@ export class Arena {
 
   private buildAmbience(): void {
     // tapetes de proteção coloridos nos cantos da zona livre (detalhe visual)
-    const matA = new THREE.MeshStandardMaterial({ color: COLORS.bannerWall, roughness: 0.95 });
+    this.accentMaterial = new THREE.MeshStandardMaterial({
+      color: COLORS.bannerWall,
+      roughness: 0.95,
+    });
     for (const sx of [-1, 1])
       for (const sz of [-1, 1]) {
-        const pad = new THREE.Mesh(new THREE.PlaneGeometry(4, 4), matA);
+        const pad = new THREE.Mesh(new THREE.PlaneGeometry(4, 4), this.accentMaterial);
         pad.rotation.x = -Math.PI / 2;
         pad.position.set(sx * (COURT.halfLength + 3.4), 0.001, sz * (COURT.halfWidth + 3.2));
         this.group.add(pad);

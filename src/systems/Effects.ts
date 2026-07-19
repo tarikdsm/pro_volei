@@ -20,6 +20,7 @@ export class Effects {
   private timingGlyphPos: THREE.BufferAttribute;
   private timingCueAge = 0;
   private timingCueDuration = 0;
+  private perfectCueColor: number = TIMING_FEEDBACK.colors.perfect;
 
   constructor() {
     const geo = new THREE.BufferGeometry();
@@ -87,6 +88,12 @@ export class Effects {
     this.timingGlyph.visible = false;
     this.timingGlyph.renderOrder = 20;
     this.group.add(this.timingGlyph);
+  }
+
+  setTheme(theme: Readonly<{ landing: number; aim: number; cue: number }>): void {
+    (this.landingRing.material as THREE.MeshBasicMaterial).color.setHex(theme.landing);
+    (this.aimMarker.material as THREE.MeshBasicMaterial).color.setHex(theme.aim);
+    this.perfectCueColor = theme.cue;
   }
 
   /** Escala de partículas por tier de qualidade (Fase 4E): 0,5 no baixo, 1 nos demais. */
@@ -161,7 +168,9 @@ export class Effects {
     this.timingGlyph.position.set(event.position.x, event.position.y, event.position.z);
     this.timingGlyph.scale.setScalar(1);
     const material = this.timingGlyph.material as THREE.LineBasicMaterial;
-    material.color.setHex(TIMING_FEEDBACK.colors[event.tier]);
+    material.color.setHex(
+      event.tier === 'perfect' ? this.perfectCueColor : TIMING_FEEDBACK.colors[event.tier],
+    );
     material.opacity = 1;
     this.timingCueAge = 0;
     this.timingCueDuration = TIMING_FEEDBACK.visualDuration[event.tier];

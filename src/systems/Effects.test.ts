@@ -138,4 +138,18 @@ describe('Effects — glyph procedural de timing', () => {
     effects.update(TIMING_FEEDBACK.visualDuration.perfect + 0.01);
     expect(effects.timingGlyph.visible).toBe(false);
   });
+
+  it('aplica tema visual sem perder a semântica dos tiers good/off', () => {
+    const effects = new Effects();
+    effects.setTheme({ landing: 0xff72c6, aim: 0x70fff1, cue: 0xaa22ff });
+
+    expect((effects.landingRing.material as THREE.MeshBasicMaterial).color.getHex()).toBe(0xff72c6);
+    expect((effects.aimMarker.material as THREE.MeshBasicMaterial).color.getHex()).toBe(0x70fff1);
+    effects.timingCue(timingCue('perfect'));
+    expect((effects.timingGlyph.material as THREE.LineBasicMaterial).color.getHex()).toBe(0xaa22ff);
+    effects.timingCue(timingCue('good'));
+    expect((effects.timingGlyph.material as THREE.LineBasicMaterial).color.getHex()).toBe(
+      TIMING_FEEDBACK.colors.good,
+    );
+  });
 });

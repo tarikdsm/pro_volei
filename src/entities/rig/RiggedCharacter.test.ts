@@ -172,4 +172,21 @@ describe('RiggedCharacter', () => {
     });
     expect(after).toEqual(before);
   });
+
+  it('troca somente as cores do uniforme, preservando rig e transformações', () => {
+    const char = new RiggedCharacter(LOOK, { decalTexture: null });
+    const before = char.root.toJSON().object;
+
+    char.setUniform(0x00a8a8, 0x092b4c);
+
+    const colors = new Set<number>();
+    char.root.traverse((object) => {
+      if (!(object as THREE.SkinnedMesh).isSkinnedMesh) return;
+      const material = (object as THREE.SkinnedMesh).material as THREE.MeshStandardMaterial;
+      colors.add(material.color.getHex());
+    });
+    expect(colors).toContain(0x00a8a8);
+    expect(colors).toContain(0x092b4c);
+    expect(char.root.toJSON().object).toEqual(before);
+  });
 });

@@ -83,6 +83,8 @@ export class RiggedCharacter implements CharVisual {
   private readonly tmpQ = new THREE.Quaternion();
 
   private readonly heightScale: number;
+  private readonly jerseyMaterial: THREE.MeshStandardMaterial;
+  private readonly shortsMaterial: THREE.MeshStandardMaterial;
 
   constructor(look: CharLook, options: RiggedCharacterOptions = {}) {
     this.heightScale = look.heightScale ?? 1;
@@ -90,10 +92,12 @@ export class RiggedCharacter implements CharVisual {
     this.rig = buildAthleteSkeleton({ heightScale: this.heightScale, buildScale });
     this.phaseSeed = (look.number % 12) * 0.7;
 
+    this.jerseyMaterial = new THREE.MeshStandardMaterial({ color: look.jersey, roughness: 0.7 });
+    this.shortsMaterial = new THREE.MeshStandardMaterial({ color: look.shorts, roughness: 0.75 });
     const materials: Record<BodyRegion, THREE.MeshStandardMaterial> = {
       skin: new THREE.MeshStandardMaterial({ color: look.skin, roughness: 0.75 }),
-      jersey: new THREE.MeshStandardMaterial({ color: look.jersey, roughness: 0.7 }),
-      shorts: new THREE.MeshStandardMaterial({ color: look.shorts, roughness: 0.75 }),
+      jersey: this.jerseyMaterial,
+      shorts: this.shortsMaterial,
       shoes: new THREE.MeshStandardMaterial({ color: 0xf5f5f5, roughness: 0.85 }),
       hair: new THREE.MeshStandardMaterial({ color: look.hair, roughness: 0.9 }),
     };
@@ -136,6 +140,11 @@ export class RiggedCharacter implements CharVisual {
     for (const joint of ['upperArmL', 'upperArmR', 'thighL', 'thighR'] as const) {
       this.rig.joints[joint].rotation.order = 'YXZ';
     }
+  }
+
+  setUniform(jersey: number, shorts: number): void {
+    this.jerseyMaterial.color.setHex(jersey);
+    this.shortsMaterial.color.setHex(shorts);
   }
 
   setPlanarMotion(forward: number, lateral: number, braking: boolean): void {

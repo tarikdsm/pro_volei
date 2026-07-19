@@ -53,6 +53,8 @@ export interface CharVisual {
   setPlanarMotion?(forward: number, lateral: number, braking: boolean): void;
   /** Alvo de contato no referencial do root; a implementação expira após `inSeconds`. */
   setContactAim?(x: number, y: number, z: number, inSeconds: number): void;
+  /** Atualização puramente visual dos materiais do uniforme. */
+  setUniform?(jersey: number, shorts: number): void;
 }
 
 // Fábrica de personagem visual (default no browser = new PlayerCharacter).
@@ -74,6 +76,8 @@ export class PlayerCharacter implements CharVisual {
   private rHip!: THREE.Group;
   private lKnee!: THREE.Group;
   private rKnee!: THREE.Group;
+  private readonly jerseyMaterial: THREE.MeshStandardMaterial;
+  private readonly shortsMaterial: THREE.MeshStandardMaterial;
 
   action: CharAction = 'idle';
   actionTime = 0;
@@ -83,8 +87,10 @@ export class PlayerCharacter implements CharVisual {
 
   constructor(look: CharLook) {
     const skinMat = new THREE.MeshStandardMaterial({ color: look.skin, roughness: 0.75 });
-    const jerseyMat = new THREE.MeshStandardMaterial({ color: look.jersey, roughness: 0.7 });
-    const shortsMat = new THREE.MeshStandardMaterial({ color: look.shorts, roughness: 0.75 });
+    this.jerseyMaterial = new THREE.MeshStandardMaterial({ color: look.jersey, roughness: 0.7 });
+    this.shortsMaterial = new THREE.MeshStandardMaterial({ color: look.shorts, roughness: 0.75 });
+    const jerseyMat = this.jerseyMaterial;
+    const shortsMat = this.shortsMaterial;
     const hairMat = new THREE.MeshStandardMaterial({ color: look.hair, roughness: 0.9 });
     const shoeMat = new THREE.MeshStandardMaterial({ color: 0xf5f5f5, roughness: 0.6 });
 
@@ -212,6 +218,11 @@ export class PlayerCharacter implements CharVisual {
     this.root.traverse((o) => {
       if (o instanceof THREE.Mesh) o.castShadow = meshCastsShadow(o);
     });
+  }
+
+  setUniform(jersey: number, shorts: number): void {
+    this.jerseyMaterial.color.setHex(jersey);
+    this.shortsMaterial.color.setHex(shorts);
   }
 
   setAction(a: CharAction): void {

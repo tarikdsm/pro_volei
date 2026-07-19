@@ -1,5 +1,6 @@
 import { DIFFICULTIES, MATCH_FORMATS } from '../core/constants';
 import { MatchStats } from '../game/Match';
+import type { CosmeticCategory } from '../platform/save/SaveSchema';
 
 export interface CupMenuRound {
   readonly name: string;
@@ -24,6 +25,15 @@ export interface CupResultView {
   readonly rewardId?: string;
 }
 
+export interface CosmeticMenuEntry {
+  readonly id: string;
+  readonly category: CosmeticCategory;
+  readonly name: string;
+  readonly requirement: string;
+  readonly unlocked: boolean;
+  readonly selected: boolean;
+}
+
 // Telas: título (com seleção de dificuldade/formato), pausa, fim de partida e, no touch,
 // a pausa de portrait (§7.1) e a vitória compacta com contagem de revanche.
 export class Menu {
@@ -33,10 +43,12 @@ export class Menu {
   onStart: (() => void) | null = null;
   onCupStart: (() => void) | null = null;
   onCupRestart: (() => void) | null = null;
+  onCosmeticSelect: ((category: CosmeticCategory, id: string) => void) | null = null;
   onResume: (() => void) | null = null;
   onSelectionChange: ((difficulty: 0 | 1 | 2, format: 0 | 1 | 2) => void) | null = null;
   private countdownId: ReturnType<typeof setInterval> | null = null;
   private cupState: CupMenuState = { completed: false, rounds: [] };
+  private cosmetics: readonly CosmeticMenuEntry[] = [];
 
   constructor(
     parent: HTMLElement,
@@ -73,6 +85,7 @@ export class Menu {
         <div class="menu-actions">
           <button id="btn-start" class="big-btn">JOGAR</button>
           <button id="btn-cup" class="big-btn cup-btn">COPA</button>
+          <button id="btn-cosmetics" class="big-btn cosmetics-btn">VISUAL</button>
         </div>
         <div class="controls-help">
           ${
@@ -96,10 +109,74 @@ export class Menu {
       this.onStart?.();
     });
     this.root.querySelector('#btn-cup')!.addEventListener('click', () => this.showCup());
+    this.root
+      .querySelector('#btn-cosmetics')!
+      .addEventListener('click', () => this.showCosmetics());
   }
 
   setCupState(state: CupMenuState): void {
     this.cupState = state;
+  }
+
+  setCosmeticsState(entries: readonly CosmeticMenuEntry[]): void {
+    this.cosmetics = entries;
+  }
+
+  showCosmetics(back: 'title' | 'portrait' = 'title', mode: 'quick' | 'cup' = 'quick'): void {
+    this.clearCountdown();
+    this.root.style.display = 'flex';
+    const categories = ['uniform', 'palette', 'court', 'effect'] as const;
+    this.root.innerHTML = `
+      <div class="panel cosmetics-panel">
+        <h1 class="endtitle">VISUAL</h1>
+        <p class="tagline">recompensas da Copa · apresentação sem vantagem</p>
+        <div class="cosmetics-grid">
+          ${categories
+            .map(
+              (category) => `
+                <section class="cosmetic-category">
+                  <h2>${categoryLabel(category)}</h2>
+                  ${this.cosmetics
+                    .filter((entry) => entry.category === category)
+                    .map(
+                      (entry) => `
+                        <button
+                          class="cosmetic-option ${entry.selected ? 'sel' : ''}"
+                          data-category="${entry.category}"
+                          data-id="${entry.id}"
+                          aria-label="${escapeHtml(
+                            entry.unlocked
+                              ? `${entry.name}${entry.selected ? ', selecionado' : ''}`
+                              : `${entry.name}, bloqueado: ${entry.requirement}`,
+                          )}"
+                          ${entry.unlocked ? '' : 'disabled'}
+                        >
+                          <strong>${escapeHtml(entry.name)}</strong>
+                          <span>${escapeHtml(entry.unlocked ? (entry.selected ? 'SELECIONADO' : 'LIBERADO') : entry.requirement)}</span>
+                        </button>`,
+                    )
+                    .join('')}
+                </section>`,
+            )
+            .join('')}
+        </div>
+        <button id="btn-cosmetics-back" class="ghost-btn">VOLTAR</button>
+      </div>`;
+    this.root
+      .querySelectorAll<HTMLButtonElement>('.cosmetic-option:not(:disabled)')
+      .forEach((button) => {
+        button.addEventListener('click', () => {
+          this.onCosmeticSelect?.(
+            button.dataset.category as CosmeticCategory,
+            button.dataset.id ?? '',
+          );
+          this.showCosmetics(back, mode);
+        });
+      });
+    this.root.querySelector('#btn-cosmetics-back')!.addEventListener('click', () => {
+      if (back === 'portrait') this.showPortraitBreak(mode);
+      else this.showTitle();
+    });
   }
 
   showCup(): void {
@@ -179,6 +256,7 @@ export class Menu {
           </div>
         </div>
         <button id="btn-new" class="big-btn">NOVO JOGO</button>
+        <button id="btn-visual-portrait" class="ghost-btn">VISUAL</button>
         <button id="btn-quit-portrait" class="ghost-btn">SAIR</button>
       </div>`;
     this.bindOpts();
@@ -187,6 +265,9 @@ export class Menu {
       if (mode === 'cup') this.onCupStart?.();
       else this.onStart?.();
     });
+    this.root
+      .querySelector('#btn-visual-portrait')!
+      .addEventListener('click', () => this.showCosmetics('portrait', mode));
     this.root.querySelector('#btn-quit-portrait')!.addEventListener('click', () => {
       location.reload();
     });
@@ -312,6 +393,15 @@ export class Menu {
 
 function rewardLabel(rewardId: string): string {
   return rewardId.split('.').slice(1).join(' ').replaceAll('-', ' ');
+}
+
+function categoryLabel(category: CosmeticCategory): string {
+  return {
+    uniform: 'UNIFORME',
+    palette: 'ARENA',
+    court: 'QUADRA',
+    effect: 'EFEITO',
+  }[category];
 }
 
 function escapeHtml(value: string): string {
