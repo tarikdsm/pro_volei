@@ -5,7 +5,7 @@ ordem TDD e evidências do momento; caixas abertas em blueprints históricos nã
 ativo. O estado de produto continua em [`docs/ROADMAP.md`](../../ROADMAP.md).
 
 **Marco atual — 19/07/2026:** Fases 1–5 entregues localmente. O proprietário autorizou a
-conclusão das Fases 5–7 e do release 2.0.0; a Fase 6 é a próxima etapa ativa.
+conclusão das Fases 5–7 e do release 2.0.0; a Fase 6 está ativa no plano abaixo.
 
 | Plano | Estado | Resultado |
 |---|---|---|
@@ -30,6 +30,7 @@ conclusão das Fases 5–7 e do release 2.0.0; a Fase 6 é a próxima etapa ativ
 | [`2026-07-18-fase-4e-quality-tiers.md`](2026-07-18-fase-4e-quality-tiers.md) | concluído | QualityManager com histerese entre pontos; arquibancada mesclada (48→2 meshes) e rally ≤ 250 dc |
 | [`2026-07-19-fase-5a-orientation-gate.md`](2026-07-19-fase-5a-orientation-gate.md) | concluído | Portrait = área de menu, autostart em landscape, revanche com contagem cancelável por giro, áudio suspenso |
 | [`2026-07-19-fase-5-mobile-audio-pwa.md`](2026-07-19-fase-5-mobile-audio-pwa.md) | concluído | Layout multitouch, HUD compacto, mixer/haptics e PWA com partida completa offline |
+| [`2026-07-19-fase-6-copa-acessibilidade.md`](2026-07-19-fase-6-copa-acessibilidade.md) | ativo | Save versionado, Copa curta, cosméticos, opções e acessibilidade |
 
 ## Retomada de desenvolvimento
 
