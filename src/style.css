@@ -406,6 +406,58 @@ body.touch #meter {
   width: min(300px, 38vw);
 }
 
+/* --------------------------------------- RECUPERAÇÃO DE PLATAFORMA */
+#app-recovery {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: calc(20px + var(--safe-area-top)) calc(20px + var(--safe-area-right))
+    calc(20px + var(--safe-area-bottom)) calc(20px + var(--safe-area-left));
+  background: rgba(3, 8, 15, 0.94);
+  color: #fff;
+}
+#app-recovery[hidden] {
+  display: none;
+}
+.recovery-panel {
+  width: min(520px, 100%);
+  padding: clamp(24px, 7vw, 44px);
+  border: 1px solid rgba(120, 180, 255, 0.4);
+  border-radius: 22px;
+  background: linear-gradient(180deg, #101d30, #080f1b);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.7);
+  text-align: center;
+}
+.recovery-panel h1 {
+  color: #ffe14f;
+  font-size: clamp(24px, 6vw, 40px);
+  letter-spacing: 3px;
+}
+.recovery-panel p {
+  margin: 18px 0 24px;
+  color: #d8e8ff;
+  font-size: clamp(16px, 3vw, 20px);
+  line-height: 1.5;
+}
+.recovery-panel button {
+  min-height: 48px;
+  padding: 12px 20px;
+  border: 0;
+  border-radius: 12px;
+  background: #ffe14f;
+  color: #08101c;
+  font: inherit;
+  font-weight: 900;
+  letter-spacing: 1px;
+  cursor: pointer;
+}
+.recovery-panel button:focus-visible {
+  outline: 3px solid #5aa2ff;
+  outline-offset: 4px;
+}
+
 /* ------------------------------------------------ MENU */
 #menu {
   position: fixed;

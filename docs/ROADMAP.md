@@ -4,12 +4,13 @@ Do protótipo jogável ao produto profissional. Ordenado por dependência, não 
 Escopo fixado: **single-player vs CPU** (sem multiplayer/online); publicar em **Web, Desktop/Steam
 e Mobile** a partir do mesmo código web.
 
-Estado atual: **v1.1.0** jogável, com as **Fases 1–5 concluídas** e o trabalho do release 2.0.0
-em andamento.
+Estado atual: **v1.1.0** publicado, com as **Fases 1–6 concluídas** e as subfases técnicas 7A–7C
+fechadas localmente. Metadados, gates finais e publicação do release 2.0.0 permanecem no ciclo.
 **Design 2.0 aprovado**, documentado em
 [`2026-07-12-pro-volei-2-0-design.md`](superpowers/specs/2026-07-12-pro-volei-2-0-design.md).
 Em 19/07/2026 o proprietário autorizou explicitamente a conclusão das Fases 5–7 e do release
-2.0.0. A Fase 5 foi concluída localmente; Fases 6–7 e a publicação permanecem em execução.
+2.0.0. Fases 5–6 e o fechamento técnico da Fase 7 foram concluídos localmente; a publicação ainda
+depende dos gates finais, CI/Pages e tag.
 
 ### Fundação 2.0 — estado das subfases
 
@@ -154,12 +155,34 @@ Em 19/07/2026 o proprietário autorizou explicitamente a conclusão das Fases 5�
   limitado a GET same-origin. Uma instalação limpa foi recarregada offline e completou uma
   partida rápida CPU×CPU real. Evidências locais: 1.017 testes, 21 E2E dev, smoke do `dist`, E2E
   offline e playtest desktop/844×390 sem erros; bundle principal 212,52 kB gzip (≤ 250 kB).
+- **Fase 6A — concluída:** save versionado normaliza preferências, estatísticas, Copa e unlocks,
+  executa migrações puras e usa fallback em memória quando `localStorage` falha ou contém dados
+  inválidos. Bootstrap e reset preservam preferências conforme o design.
+- **Fase 6B — concluída:** Copa curta de quatro partidas retoma entre sessões, repete a adversária
+  em derrota e grava avanço antes da continuidade. Quatro identidades táticas alteram escolhas da
+  IA sem tocar na física; partida rápida permanece independente da progressão.
+- **Fase 6C — concluída:** quatro recompensas cosméticas locais são liberadas de forma idempotente,
+  persistem e alteram somente apresentação. Catálogo, seleção e fallback não modificam qualquer
+  estado lógico da partida.
+- **Fase 6D — concluída:** painel de opções cobre volumes, legendas, haptics, replay/slow-motion,
+  câmera, contraste, paleta, escala de HUD e timing humano amplo. Teclado, touch, foco visível,
+  reset e Copa completa offline passaram por E2E e revisão independente sem findings.
+- **Fase 7A — concluída:** a bateria final manteve 1.000 rallies/20 seeds e 30 partidas/10 seeds
+  dentro de todas as faixas; a realização física do saque ficou idêntica entre dificuldades e o
+  tuning foi congelado sem ajuste especulativo.
+- **Fase 7B — concluída:** Chromium, Firefox, WebKit, Pixel 5/Chromium e iPhone 12/WebKit emulados
+  passaram 5/5. Mobile mede 167–172 draw calls com sombras blob instanciadas; desktop mede 227–232
+  e mantém sombras dinâmicas. Pós-processamento permaneceu desligado por não demonstrar ganho.
+- **Fase 7C — concluída localmente:** boundary acessível pausa em erro/perda WebGL, restaura uma vez
+  e oferece reinício seguro na reincidência sem alterar o save. Auditoria retornou zero
+  vulnerabilidades, zero assets remotos e 43/43 guards; README, skill e configurações locais foram
+  alinhados. A validação em Android/iPhone físicos continua registrada como gate humano aberto.
 
-### Marco atual — Fase 5 completa; release 2.0.0 em andamento
+### Marco atual — Fases 5–7 implementadas; publicação 2.0.0 em andamento
 
-- **Entregue:** Fases 1A–1D, 2A–2E, 3A–3D, 4A–4E e 5A–5E.
-- **Em execução:** Fase 6 (persistência, Copa, cosméticos, opções/acessibilidade), seguida da
-  Fase 7 (balanceamento, matriz física, auditoria e publicação 2.0.0).
+- **Entregue localmente:** Fases 1A–1D, 2A–2E, 3A–3D, 4A–4E, 5A–5E, 6A–6D e 7A–7C.
+- **Em execução:** metadados/SemVer, gates finais, proteção remota, CI/Pages, tag `v2.0.0` e smoke
+  público. O gate de performance em aparelhos físicos permanece explicitamente aberto.
 - O índice canônico dos planos e suas evidências está em
   [`superpowers/plans/README.md`](superpowers/plans/README.md).
 

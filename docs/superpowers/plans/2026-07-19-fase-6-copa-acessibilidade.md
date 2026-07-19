@@ -4,6 +4,9 @@
 > (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use
 > checkbox (`- [ ]`) syntax for tracking.
 
+**Status:** concluída em 19/07/2026; os checkboxes abaixo preservam o blueprint original. Evidências
+e estado canônico estão no índice dos planos e no ROADMAP.
+
 **Goal:** Entregar uma Copa de quatro partidas retomável, save local versionado, recompensas
 exclusivamente cosméticas e opções/acessibilidade completas, preservando partida rápida e a
 física única do jogo.

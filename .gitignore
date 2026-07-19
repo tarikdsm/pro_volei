@@ -7,3 +7,7 @@ dist/
 .playwright-mcp/
 playwright-report/
 test-results/
+
+# Configurações locais de agentes (não portáveis; podem conter paths absolutos)
+.agents/
+.codex/

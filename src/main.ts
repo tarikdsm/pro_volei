@@ -30,6 +30,7 @@ import type { SimulationTelemetryPort } from './game/simulation/SimulationTeleme
 import { loadAudioSettings, type AudioSettingsStorage } from './core/audio/AudioSettings';
 import { registerPwa, type PwaCoordinator } from './platform/PwaCoordinator';
 import { bindAudioUnlock } from './platform/AudioUnlock';
+import { AppRecovery } from './platform/AppRecovery';
 import { createSaveRepository, type SaveStorage } from './platform/save/SaveRepository';
 import { CupSession, recordCareerResult, type CupMatchConfig } from './meta/cup/CupSession';
 import { CUP_OPPONENTS } from './meta/cup/CupOpponents';
@@ -41,6 +42,8 @@ import {
 } from './meta/preferences/AccessibilityPreferences';
 
 const app = document.getElementById('app')!;
+const recovery = new AppRecovery(app);
+recovery.bindGlobal(window);
 const loadingShell = document.getElementById('loading-shell');
 let loadingShellRemoved = false;
 function finishLoading(): void {
@@ -105,7 +108,15 @@ const debugTelemetry: SimulationTelemetryPort | undefined = debugEnabled
   : undefined;
 
 // ---------- renderer ----------
-const renderer = new THREE.WebGLRenderer({ antialias: true });
+let renderer: THREE.WebGLRenderer;
+try {
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+} catch (error) {
+  const detail = error instanceof Error ? ` ${error.message}` : '';
+  recovery.showFatal(`Não foi possível iniciar a renderização WebGL.${detail}`);
+  finishLoading();
+  throw error;
+}
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, isTouch ? 1.5 : 2));
 renderer.shadowMap.enabled = true;
@@ -375,6 +386,19 @@ applyTeamShadowQuality = (enabled) => {
 };
 applyTeamShadowQuality(!isTouch && quality.tier > 0);
 
+recovery.bindRenderer(renderer.domElement, {
+  onBlock: () => {
+    cancelGameplayInput('recovery');
+    audio.suspend();
+  },
+  onRestore: () => {
+    match.snapPresentation();
+    lastPresentationNow = performance.now();
+    if (appState === 'playing' && !portraitBlocked) audio.resume();
+  },
+  resetRenderer: () => renderer.resetState(),
+});
+
 function applyCosmetics(): void {
   const save = saveRepository.snapshot();
   const selected = cosmeticSelection(save.unlocks);
@@ -565,6 +589,7 @@ if (isTouch && !portraitBlocked) {
 }
 
 function togglePause(): void {
+  if (recovery.blocked) return;
   if (appState !== 'playing' && appState !== 'paused') return;
 
   const previous = appState;
@@ -583,7 +608,7 @@ function togglePause(): void {
   markCameraLayoutDirty();
 }
 
-function cancelGameplayInput(reason: 'pause' | 'portrait'): void {
+function cancelGameplayInput(reason: 'pause' | 'portrait' | 'recovery'): void {
   if (touch) touch.cancel(reason);
   else input.cancel(reason);
   match.cancelPendingAction(reason);
@@ -631,7 +656,8 @@ window.addEventListener('keydown', (e) => {
 // o browser costuma suspender o AudioContext quando a aba vai para background (troca de app
 // no celular, bloqueio de tela); ao voltar durante o jogo, retomamos para não ficar mudo.
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && appState === 'playing') audio.resume();
+  if (document.visibilityState === 'visible' && appState === 'playing' && !recovery.blocked)
+    audio.resume();
 });
 
 // ---------- resize ----------
@@ -661,7 +687,7 @@ function frame(now: number): void {
   lastPresentationNow = Math.max(lastPresentationNow, now);
 
   // só o estado 'playing' avança a partida; título/pausa/fim congelam o tempo de jogo
-  const active = appState === 'playing' && !portraitBlocked;
+  const active = appState === 'playing' && !portraitBlocked && !recovery.blocked;
   const cameraBasis = director.inputBasis();
   const simulationFrame = fixedStepRunner.advance(now, {
     paused: !active,
@@ -725,7 +751,7 @@ function frame(now: number): void {
     };
   }
 
-  renderer.render(scene, director.camera);
+  if (!recovery.blocked) renderer.render(scene, director.camera);
   finishLoading();
 }
 
