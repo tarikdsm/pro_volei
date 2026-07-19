@@ -15,12 +15,24 @@ const viewports = [
   { width: 568, height: 320 },
 ] as const;
 
+test('HUD mobile mantém placar compacto e remove instruções permanentes', async ({ page }) => {
+  await page.setViewportSize({ width: 568, height: 320 });
+  await page.goto('/?debug=1&touch=1');
+
+  await expect(page.locator('#hud')).toBeVisible();
+  const scoreboard = await page.locator('#scoreboard').boundingBox();
+  expect(scoreboard).not.toBeNull();
+  expect(scoreboard!.height).toBeLessThanOrEqual(54);
+  await expect(page.locator('#hint')).not.toHaveText('');
+  await expect(page.locator('#hint')).toHaveText('', { timeout: 5_000 });
+});
+
 test('safe frame mantém sujeitos obrigatórios legíveis na matriz desktop/mobile', async ({
   page,
 }, testInfo) => {
   const browserProblems = collectBrowserProblems(page);
   await page.goto('/?debug=1&touch=1');
-  await page.getByRole('button', { name: 'JOGAR' }).click();
+  await expect(page.locator('#hud')).toBeVisible();
   await forceAutoSelectionScenario(page);
 
   for (const viewport of viewports) {

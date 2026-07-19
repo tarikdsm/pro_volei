@@ -1,4 +1,5 @@
 import { TeamSide } from '../core/constants';
+import { normalizeHudScale, reduceHint, type HintState, type HudScale } from './HudPreferences';
 
 // Feedback visual da escolha transitória de levantamento. A direção agora vem do InputFrame;
 // estes elementos não são botões e nunca sintetizam teclado.
@@ -15,6 +16,7 @@ export class HUD {
   private meterFill!: HTMLElement;
   private zonesEl!: HTMLElement;
   private bannerTimer = 0;
+  private hintState: HintState = { text: '', remaining: 0 };
 
   constructor(
     parent: HTMLElement,
@@ -25,9 +27,8 @@ export class HUD {
     this.root.innerHTML = `
       <div id="scoreboard">
         <div class="team home"><span class="name">VOCÊ</span><span class="serve-dot" id="serve-home">●</span></div>
-        <div class="score" id="score-main">0 : 0</div>
+        <div class="score-block"><div class="score" id="score-main">0 : 0</div><div class="sets" id="score-sets">SET 1 · 0 — 0</div></div>
         <div class="team away"><span class="serve-dot" id="serve-away">●</span><span class="name">CPU</span></div>
-        <div class="sets" id="score-sets">Set 1 · 0 — 0</div>
       </div>
       <div id="banner"><div id="banner-text"></div><div id="banner-sub"></div></div>
       <div id="hint"></div>
@@ -50,9 +51,13 @@ export class HUD {
     this.root.style.display = visible ? 'block' : 'none';
   }
 
+  setScale(scale: HudScale): void {
+    this.root.style.setProperty('--hud-scale', String(normalizeHudScale(scale)));
+  }
+
   setScore(h: number, a: number, hs: number, as: number, setNum: number, serving: TeamSide): void {
     this.scoreEl.textContent = `${h} : ${a}`;
-    this.root.querySelector('#score-sets')!.textContent = `Set ${setNum} · ${hs} — ${as}`;
+    this.root.querySelector('#score-sets')!.textContent = `SET ${setNum} · ${hs} — ${as}`;
     (this.root.querySelector('#serve-home') as HTMLElement).style.opacity =
       serving === TeamSide.HOME ? '1' : '0.12';
     (this.root.querySelector('#serve-away') as HTMLElement).style.opacity =
@@ -88,8 +93,8 @@ export class HUD {
         .replace('ESPAÇO', '🏐')
         .replace('A/D desliza na rede', 'direcional desliza na rede');
     }
-    this.hintEl.textContent = text;
-    this.hintEl.style.opacity = text ? '1' : '0';
+    this.hintState = reduceHint(this.hintState, { type: 'show', text, seconds: 2.5 });
+    this.renderHint();
   }
 
   serveMeter(visible: boolean, value = 0): void {
@@ -119,5 +124,17 @@ export class HUD {
         this.bannerEl.parentElement!.classList.remove('show');
       }
     }
+    const nextHint = reduceHint(this.hintState, { type: 'tick', dt });
+    if (nextHint.text !== this.hintState.text) {
+      this.hintState = nextHint;
+      this.renderHint();
+    } else {
+      this.hintState = nextHint;
+    }
+  }
+
+  private renderHint(): void {
+    this.hintEl.textContent = this.hintState.text;
+    this.hintEl.style.opacity = this.hintState.text ? '1' : '0';
   }
 }
