@@ -30,4 +30,15 @@ describe('Cup', () => {
     ).toEqual({ currentRound: 4, completed: true, attempts: [0, 2, 0, 0] });
     expect(restartCup()).toEqual({ currentRound: 0, completed: false, attempts: [0, 0, 0, 0] });
   });
+
+  it('deriva conclusão exclusivamente da quarta vitória', () => {
+    expect(normalizeCupProgress({ currentRound: 1, completed: true })).toMatchObject({
+      currentRound: 1,
+      completed: false,
+    });
+    expect(normalizeCupProgress({ currentRound: 4, completed: false })).toMatchObject({
+      currentRound: 4,
+      completed: true,
+    });
+  });
 });

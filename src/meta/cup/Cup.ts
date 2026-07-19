@@ -13,7 +13,7 @@ export function normalizeCupProgress(value: unknown): Readonly<CupProgress> {
   const attemptsSource = Array.isArray(source.attempts) ? source.attempts : [];
   return Object.freeze({
     currentRound: round,
-    completed: round === 4 || source.completed === true,
+    completed: round === 4,
     attempts: Object.freeze(
       Array.from({ length: 4 }, (_, index) => nonNegativeInteger(attemptsSource[index])),
     ),

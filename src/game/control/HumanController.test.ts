@@ -314,6 +314,28 @@ describe('HumanController ActionControl 2D', () => {
     expect(hc.takeContactIntent(plan.planId)).toBe(null);
   });
 
+  it('timing amplo melhora apenas o feedback e preserva a qualidade física', () => {
+    const resolve = (toleranceScale: number) => {
+      const hc = new HumanController(false);
+      hc.setTimingToleranceScale(toleranceScale);
+      const { ctx } = makeCtx();
+      const { athlete } = makeAthlete();
+      const plan = assignPlan(hc, ctx, athlete, 'dig', 22, 0.2);
+      hc.update(1 / 60, makeFrame({ tick: 0, actionDown: true, pressed: true }), ctx);
+      hc.update(1 / 60, makeFrame({ tick: 2, released: true }), ctx);
+      expect(hc.takeContactIntent(plan.planId)).not.toBeNull();
+      const physicalQuality = hc.reachQuality(false, false, ctx);
+      const feedback = hc.takeTimingFeedback(plan.planId, physicalQuality, plan.point);
+      return { physicalQuality, feedback };
+    };
+
+    const normal = resolve(1);
+    const wide = resolve(1.35);
+
+    expect(wide.physicalQuality).toBeCloseTo(normal.physicalQuality, 10);
+    expect(wide.feedback?.quality).toBeGreaterThan(normal.feedback?.quality ?? 1);
+  });
+
   it('inicia salto no press legal e entrega bloqueio somente pelo canal block', () => {
     const hc = new HumanController();
     const { ctx } = makeCtx();

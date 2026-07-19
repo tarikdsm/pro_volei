@@ -66,13 +66,30 @@ export class CameraDirector {
     this.camera.position.copy(this.pos);
   }
 
+  private shakeEnabled = true;
+
+  setMotionPreferences(profile: MotionProfile, shakeEnabled: boolean): void {
+    this.motionProfile = profile;
+    this.shakeEnabled = profile === 'full' && shakeEnabled;
+    if (this.shakeEnabled) return;
+    this.shake = 0;
+    this.shakeOff.set(0, 0, 0);
+    this.fovKick = 0;
+    this.fovKickStart = 0;
+    this.fovKickPeak = 0;
+  }
+
+  private decorativeMotionEnabled(): boolean {
+    return this.motionProfile === 'full' && this.shakeEnabled;
+  }
+
   setMode(mode: CamMode, opts?: { cut?: boolean; side?: TeamSide }): void {
     if (this.mode === mode && mode !== 'serveHome' && mode !== 'serveAway') return;
     this.mode = mode;
     this.orbitT = 0;
     if (opts?.side !== undefined) this.pointSide = opts.side;
     this.computeTargets(0);
-    if (opts?.cut && this.motionProfile === 'full') {
+    if (opts?.cut && this.decorativeMotionEnabled()) {
       this.pos.copy(this.targetPos);
       this.look.copy(this.targetLook);
     }
@@ -169,13 +186,13 @@ export class CameraDirector {
   }
 
   addShake(amount: number): void {
-    if (this.motionProfile === 'reduced') return;
+    if (!this.decorativeMotionEnabled()) return;
     this.shake = Math.min(1, this.shake + amount);
     this.shakeAge = 0;
   }
 
   kickFov(amount: number = CAMERA_FEEL.fovKickMax): void {
-    if (this.motionProfile === 'reduced') return;
+    if (!this.decorativeMotionEnabled()) return;
     this.fovKickStart = this.fovKick;
     this.fovKickPeak = Math.min(
       CAMERA_FEEL.fovKickMax,
@@ -231,7 +248,7 @@ export class CameraDirector {
     this.activeMode = this.effectiveMode();
     switch (this.activeMode) {
       case 'menu': {
-        if (this.motionProfile === 'full') this.orbitT += dt * 0.14;
+        if (this.decorativeMotionEnabled()) this.orbitT += dt * 0.14;
         const r = 22;
         this.targetPos.set(
           Math.cos(this.orbitT) * r,
@@ -282,7 +299,7 @@ export class CameraDirector {
       }
       case 'point': {
         // órbita lenta de celebração ao redor do lado que pontuou
-        if (this.motionProfile === 'full') this.orbitT += dt * 0.55;
+        if (this.decorativeMotionEnabled()) this.orbitT += dt * 0.55;
         const cx = sideSign(this.pointSide) * 4.5;
         const a = this.orbitT + Math.PI * 0.5;
         this.targetPos.set(cx + Math.cos(a) * 8.5, 3.4, Math.sin(a) * 8.5);
@@ -291,7 +308,7 @@ export class CameraDirector {
         break;
       }
       case 'setEnd': {
-        if (this.motionProfile === 'full') this.orbitT += dt * 0.3;
+        if (this.decorativeMotionEnabled()) this.orbitT += dt * 0.3;
         this.targetPos.set(Math.cos(this.orbitT) * 16, 10, Math.sin(this.orbitT) * 16);
         this.targetLook.set(0, 2, 0);
         this.lambda = 1.5;
@@ -371,7 +388,7 @@ export class CameraDirector {
   }
 
   private updateFovEnvelope(dt: number): void {
-    if (this.motionProfile === 'reduced') {
+    if (!this.decorativeMotionEnabled()) {
       this.fovKick = 0;
       return;
     }

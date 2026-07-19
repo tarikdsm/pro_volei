@@ -78,6 +78,26 @@ describe('evaluateTiming', () => {
     expect(late.quality).toBeLessThanOrEqual(1);
   });
 
+  it('escala ampla melhora apenas tolerância, preservando ticks, fase e intenção', () => {
+    const action = intent('set', 0, 1);
+    const normal = evaluateTiming(action, 0);
+    const wide = evaluateTiming(action, 0, 1.35);
+
+    expect(wide.quality).toBeGreaterThan(normal.quality);
+    expect(wide).toMatchObject({
+      idealLeadTicks: normal.idealLeadTicks,
+      measuredLeadTicks: normal.measuredLeadTicks,
+      errorTicks: normal.errorTicks,
+      phase: normal.phase,
+    });
+    expect(action).toEqual(intent('set', 0, 1));
+  });
+
+  it('rejeita escala de tolerância inválida', () => {
+    expect(() => evaluateTiming(intent('set', 0, 1), 0, 0)).toThrow(/tolerância|escala/i);
+    expect(() => evaluateTiming(intent('set', 0, 1), 0, Number.NaN)).toThrow(/tolerância|escala/i);
+  });
+
   it('rejeita saque em runtime porque carga não possui sweet spot temporal', () => {
     const serve = { ...intent('receive', 0, 0), context: 'serve' as ActionContext };
     expect(() => evaluateTiming(serve)).toThrowError(/saque/i);

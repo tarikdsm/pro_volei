@@ -37,8 +37,12 @@ export function timingTier(quality: number): TimingTier {
 export function evaluateTiming(
   intent: ActionIntent,
   contactInTicks = 0,
+  toleranceScale = 1,
 ): Readonly<TimingEvaluation> {
   if (intent.context === 'serve') throw new RangeError('Saque não possui sweet spot de timing.');
+  if (!Number.isFinite(toleranceScale) || toleranceScale <= 0 || toleranceScale > 2) {
+    throw new RangeError('Escala de tolerância deve ser finita em (0,2].');
+  }
 
   const context = intent.context;
   const idealLeadTicks = idealLead(context);
@@ -46,7 +50,9 @@ export function evaluateTiming(
   const heldTicks = Math.max(0, intent.resolvedTick - intent.pressedTick);
   const measuredLeadTicks = context === 'attack' || context === 'block' ? lead + heldTicks : lead;
   const errorTicks = measuredLeadTicks - idealLeadTicks;
-  const quality = clamp01(1 - Math.abs(errorTicks) / Math.max(12, idealLeadTicks));
+  const quality = clamp01(
+    1 - Math.abs(errorTicks) / (Math.max(12, idealLeadTicks) * toleranceScale),
+  );
   const phase: TimingPhase =
     Math.abs(errorTicks) <= TIMING_FEEDBACK.onTimeToleranceTicks
       ? 'on-time'

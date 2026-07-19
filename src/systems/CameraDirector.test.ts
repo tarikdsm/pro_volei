@@ -124,6 +124,22 @@ describe('CameraDirector — offset pré-alocado do screen shake (B10)', () => {
     expect(d.camera.fov).toBe(55);
     expect(d.camera.position.distanceTo(settled)).toBeLessThan(0.001);
   });
+
+  it('aplica preferências de movimento em runtime e shake desligado vence o perfil full', () => {
+    const d = new CameraDirector(16 / 9);
+    d.setMode('serveAway', { cut: false });
+    for (let i = 0; i < 300; i++) d.update(1 / 60);
+    const settled = d.camera.position.clone();
+
+    d.setMotionPreferences('full', false);
+    d.addShake(1);
+    d.kickFov(6);
+    d.update(1 / 60);
+
+    expect(d.camera.fov).toBe(55);
+    expect(d.camera.position.distanceTo(settled)).toBeLessThan(0.001);
+    expect(d.presentationSnapshot().motionProfile).toBe('full');
+  });
 });
 
 describe('CameraDirector — base de input no plano da quadra', () => {

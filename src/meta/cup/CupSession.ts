@@ -91,6 +91,12 @@ export class CupSession {
     this.results.clear();
     return this.repository.update((current) => ({ ...current, cup: restartCup() }));
   }
+
+  resetProgress(): Readonly<ProVoleiSaveV1> {
+    this.active = null;
+    this.results.clear();
+    return this.repository.resetProgress();
+  }
 }
 
 export function recordCareerResult(

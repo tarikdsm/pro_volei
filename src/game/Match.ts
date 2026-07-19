@@ -222,6 +222,10 @@ export class Match {
     this.human.cancelPendingAction(reason, this.ctx);
   }
 
+  setHumanTimingToleranceScale(scale: number): void {
+    this.human.setTimingToleranceScale(scale);
+  }
+
   selectionSnapshot() {
     return this.human.selectionSnapshot();
   }

@@ -58,6 +58,8 @@ export class HumanController {
   private lastRequest: ActionControlRequest | null = null;
   private consumedContactIntent: ActionIntent | null = null;
   private resolvedTiming: TimingEvaluation | null = null;
+  private feedbackTiming: TimingEvaluation | null = null;
+  private timingToleranceScale = 1;
   private lastFeedbackKey: string | null = null;
   private jumpedToken: number | null = null;
   private pendingBlockCommit: Readonly<HumanBlockCommitted> | null = null;
@@ -90,6 +92,13 @@ export class HumanController {
     }
     this.marker.rotation.x = -Math.PI / 2;
     this.marker.visible = false;
+  }
+
+  setTimingToleranceScale(scale: number): void {
+    if (!Number.isFinite(scale) || scale <= 0 || scale > 2) {
+      throw new RangeError('Escala de tolerância humana deve estar em (0,2].');
+    }
+    this.timingToleranceScale = scale;
   }
 
   get mode(): CtlMode {
@@ -341,24 +350,34 @@ export class HumanController {
     return commit;
   }
 
-  /** Evento one-shot no contato; usa exatamente a qualidade final entregue à física. */
+  /** Evento one-shot no contato; a assistência amplia somente a leitura visual do timing. */
   takeTimingFeedback(
     planId: number,
     finalQuality: number,
     position: Readonly<{ x: number; y: number; z: number }>,
   ): Readonly<TimingFeedbackEvent> | null {
     const intent = this.consumedContactIntent;
-    if (!intent || intent.token !== planId || intent.context === 'serve' || !this.resolvedTiming) {
+    if (
+      !intent ||
+      intent.token !== planId ||
+      intent.context === 'serve' ||
+      !this.resolvedTiming ||
+      !this.feedbackTiming
+    ) {
       return null;
     }
     const simulationTick = this.lastFrame?.simulationTick ?? intent.resolvedTick;
     const key = `${planId}:${simulationTick}`;
     if (this.lastFeedbackKey === key) return null;
     this.lastFeedbackKey = key;
+    const presentedQuality =
+      this.timingToleranceScale > 1
+        ? finalQuality + (this.feedbackTiming.quality - this.resolvedTiming.quality)
+        : finalQuality;
     return createTimingFeedbackEvent(
       intent,
-      this.resolvedTiming,
-      finalQuality,
+      this.feedbackTiming,
+      presentedQuality,
       simulationTick,
       position,
     );
@@ -462,7 +481,12 @@ export class HumanController {
   }
 
   private registerResolvedIntent(intent: ActionIntent, contactInTicks: number): void {
-    if (intent.context !== 'serve') this.resolvedTiming = evaluateTiming(intent, contactInTicks);
+    if (intent.context !== 'serve') {
+      // A avaliação canônica continua alimentando a física. A escala de acessibilidade
+      // existe apenas no canal de apresentação para não criar vantagem mecânica.
+      this.resolvedTiming = evaluateTiming(intent, contactInTicks);
+      this.feedbackTiming = evaluateTiming(intent, contactInTicks, this.timingToleranceScale);
+    }
   }
 
   private contactQualityIntent(): ActionIntent | null {
@@ -482,6 +506,7 @@ export class HumanController {
   private clearResolvedIntent(): void {
     this.consumedContactIntent = null;
     this.resolvedTiming = null;
+    this.feedbackTiming = null;
   }
 
   private startJump(token: number, context: 'attack' | 'block'): void {

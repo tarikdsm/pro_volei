@@ -82,6 +82,14 @@ test('Copa persiste avanço, retry e estado terminal após quatro vitórias', as
 
 test('partida rápida não altera a chave da Copa', async ({ page }) => {
   await page.goto('/');
+  await page.getByRole('button', { name: 'VISUAL', exact: true }).click();
+  const lockedCosmetic = page.locator('.cosmetic-option[aria-disabled="true"]').first();
+  await lockedCosmetic.focus();
+  await expect(lockedCosmetic).toBeFocused();
+  await expect(lockedCosmetic).toHaveAttribute('aria-label', /bloqueado/);
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.cosmetic-option.sel')).toHaveCount(4);
+  await page.getByRole('button', { name: 'VOLTAR' }).click();
   await page.getByRole('button', { name: 'JOGAR', exact: true }).click();
   await forceMatchEnd(page, 0);
   const cup = await page.evaluate((key) => {
@@ -89,4 +97,45 @@ test('partida rápida não altera a chave da Copa', async ({ page }) => {
     return saved.cup;
   }, SAVE_KEY);
   expect(cup).toEqual({ currentRound: 0, completed: false, attempts: [0, 0, 0, 0] });
+});
+
+test('Copa touch usa resumo compacto e girar cancela a continuidade automática', async ({
+  page,
+}, testInfo) => {
+  const browserProblems = collectBrowserProblems(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/?touch=1&debug=1&rematch=9');
+  await page.getByRole('button', { name: 'COPA', exact: true }).click();
+  await page.getByRole('button', { name: 'CONTINUAR COPA' }).click();
+  await expect(page.locator('#portrait-break')).toBeVisible();
+  await page.setViewportSize({ width: 844, height: 390 });
+  await expect(page.locator('#menu')).toBeHidden();
+
+  await forceMatchEnd(page, 1);
+  await expect(page.locator('#compact-cup-result')).toContainText('DERROTA NA COPA');
+  await page.getByRole('button', { name: 'REPETIR CONFRONTO' }).click();
+
+  await forceMatchEnd(page, 0);
+  await expect(page.locator('#compact-cup-result')).toContainText('VITÓRIA NA COPA');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.locator('#compact-cup-result')).toBeHidden();
+  await expect(page.locator('.cup-round.current')).toContainText('Raio Veloz');
+  await page.waitForTimeout(1_200);
+  await expect(page.getByRole('button', { name: 'CONTINUAR COPA' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'CONTINUAR COPA' }).click();
+  await page.setViewportSize({ width: 844, height: 390 });
+  for (let round = 1; round < 4; round++) {
+    await forceMatchEnd(page, 0);
+    await expect(page.locator('#compact-cup-result')).toBeVisible();
+    if (round < 3) {
+      await page.getByRole('button', { name: 'PRÓXIMA PARTIDA' }).click();
+    }
+  }
+
+  await expect(page.locator('#compact-cup-result')).toContainText('CAMPEÃ DA COPA');
+  await expect(page.locator('#cup-count')).toHaveCount(0);
+  await page.getByRole('button', { name: 'VER CHAVE' }).click();
+  await expect(page.locator('.cup-round.won')).toHaveCount(4);
+  await expectNoBrowserProblems(browserProblems, testInfo);
 });

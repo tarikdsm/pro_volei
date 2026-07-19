@@ -124,7 +124,7 @@ export function normalizeSaveV1(value: unknown): Readonly<ProVoleiSaveV1> {
     },
     cup: {
       currentRound,
-      completed: currentRound === 4 || booleanOr(cup.completed, false),
+      completed: currentRound === 4,
       attempts: normalizeAttempts(cup.attempts),
     },
     stats: {

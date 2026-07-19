@@ -97,6 +97,17 @@ describe('SaveSchema', () => {
     expect(normalizeSaveV1('save')).toEqual(createDefaultSave());
   });
 
+  it('corrige conclusão contraditória da Copa pela rodada atual', () => {
+    expect(normalizeSaveV1({ cup: { currentRound: 1, completed: true } }).cup).toMatchObject({
+      currentRound: 1,
+      completed: false,
+    });
+    expect(normalizeSaveV1({ cup: { currentRound: 4, completed: false } }).cup).toMatchObject({
+      currentRound: 4,
+      completed: true,
+    });
+  });
+
   it('retorna snapshot profundamente congelado', () => {
     const save = normalizeSaveV1({}) as ProVoleiSaveV1;
     expect(Object.isFrozen(save)).toBe(true);

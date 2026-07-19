@@ -1,6 +1,13 @@
 import { DIFFICULTIES, MATCH_FORMATS } from '../core/constants';
 import { MatchStats } from '../game/Match';
 import type { CosmeticCategory } from '../platform/save/SaveSchema';
+import type { Preferences } from '../platform/save/SaveSchema';
+import type { AudioSettings } from '../core/audio/AudioSettings';
+import { bindMenuFocusNavigation } from './MenuFocusNavigator';
+
+export type PreferencePatch = Partial<Omit<Preferences, 'audio'>> & {
+  readonly audio?: Partial<AudioSettings>;
+};
 
 export interface CupMenuRound {
   readonly name: string;
@@ -44,11 +51,15 @@ export class Menu {
   onCupStart: (() => void) | null = null;
   onCupRestart: (() => void) | null = null;
   onCosmeticSelect: ((category: CosmeticCategory, id: string) => void) | null = null;
+  onPreferencesChange: ((patch: PreferencePatch) => void) | null = null;
+  onResetProgress: (() => void) | null = null;
   onResume: (() => void) | null = null;
   onSelectionChange: ((difficulty: 0 | 1 | 2, format: 0 | 1 | 2) => void) | null = null;
   private countdownId: ReturnType<typeof setInterval> | null = null;
   private cupState: CupMenuState = { completed: false, rounds: [] };
   private cosmetics: readonly CosmeticMenuEntry[] = [];
+  private preferences: Readonly<Preferences> | null = null;
+  private escapeAction: () => void = () => {};
 
   constructor(
     parent: HTMLElement,
@@ -60,11 +71,13 @@ export class Menu {
     this.root = document.createElement('div');
     this.root.id = 'menu';
     parent.appendChild(this.root);
+    bindMenuFocusNavigation(this.root, () => this.escapeAction());
     this.showTitle();
   }
 
   showTitle(): void {
     this.clearCountdown();
+    this.escapeAction = () => {};
     this.root.style.display = 'flex';
     this.root.innerHTML = `
       <div class="panel title-panel">
@@ -86,6 +99,7 @@ export class Menu {
           <button id="btn-start" class="big-btn">JOGAR</button>
           <button id="btn-cup" class="big-btn cup-btn">COPA</button>
           <button id="btn-cosmetics" class="big-btn cosmetics-btn">VISUAL</button>
+          <button id="btn-options" class="big-btn options-btn">OPÇÕES</button>
         </div>
         <div class="controls-help">
           ${
@@ -112,6 +126,7 @@ export class Menu {
     this.root
       .querySelector('#btn-cosmetics')!
       .addEventListener('click', () => this.showCosmetics());
+    this.root.querySelector('#btn-options')!.addEventListener('click', () => this.showOptions());
   }
 
   setCupState(state: CupMenuState): void {
@@ -122,8 +137,25 @@ export class Menu {
     this.cosmetics = entries;
   }
 
-  showCosmetics(back: 'title' | 'portrait' = 'title', mode: 'quick' | 'cup' = 'quick'): void {
+  setPreferencesState(preferences: Readonly<Preferences>): void {
+    this.preferences = preferences;
+  }
+
+  showCosmetics(
+    back: 'title' | 'portrait' = 'title',
+    mode: 'quick' | 'cup' = 'quick',
+    focusId?: string,
+  ): void {
     this.clearCountdown();
+    this.escapeAction = () => {
+      if (back === 'portrait') {
+        this.showPortraitBreak(mode);
+        this.restoreFocus('#btn-visual-portrait');
+      } else {
+        this.showTitle();
+        this.restoreFocus('#btn-cosmetics');
+      }
+    };
     this.root.style.display = 'flex';
     const categories = ['uniform', 'palette', 'court', 'effect'] as const;
     this.root.innerHTML = `
@@ -144,12 +176,13 @@ export class Menu {
                           class="cosmetic-option ${entry.selected ? 'sel' : ''}"
                           data-category="${entry.category}"
                           data-id="${entry.id}"
+                          data-unlocked="${entry.unlocked}"
                           aria-label="${escapeHtml(
                             entry.unlocked
                               ? `${entry.name}${entry.selected ? ', selecionado' : ''}`
                               : `${entry.name}, bloqueado: ${entry.requirement}`,
                           )}"
-                          ${entry.unlocked ? '' : 'disabled'}
+                          aria-disabled="${!entry.unlocked}"
                         >
                           <strong>${escapeHtml(entry.name)}</strong>
                           <span>${escapeHtml(entry.unlocked ? (entry.selected ? 'SELECIONADO' : 'LIBERADO') : entry.requirement)}</span>
@@ -162,25 +195,25 @@ export class Menu {
         </div>
         <button id="btn-cosmetics-back" class="ghost-btn">VOLTAR</button>
       </div>`;
-    this.root
-      .querySelectorAll<HTMLButtonElement>('.cosmetic-option:not(:disabled)')
-      .forEach((button) => {
-        button.addEventListener('click', () => {
-          this.onCosmeticSelect?.(
-            button.dataset.category as CosmeticCategory,
-            button.dataset.id ?? '',
-          );
-          this.showCosmetics(back, mode);
-        });
+    this.root.querySelectorAll<HTMLButtonElement>('.cosmetic-option').forEach((button) => {
+      button.addEventListener('click', () => {
+        if (button.dataset.unlocked !== 'true') return;
+        this.onCosmeticSelect?.(
+          button.dataset.category as CosmeticCategory,
+          button.dataset.id ?? '',
+        );
+        this.showCosmetics(back, mode, button.dataset.id);
       });
-    this.root.querySelector('#btn-cosmetics-back')!.addEventListener('click', () => {
-      if (back === 'portrait') this.showPortraitBreak(mode);
-      else this.showTitle();
     });
+    this.root.querySelector('#btn-cosmetics-back')!.addEventListener('click', () => {
+      this.escapeAction();
+    });
+    if (focusId) this.restoreFocus(`cosmetic:${focusId}`);
   }
 
   showCup(): void {
     this.clearCountdown();
+    this.escapeAction = () => this.showTitle();
     this.root.style.display = 'flex';
     const champion = this.cupState.completed;
     this.root.innerHTML = `
@@ -235,9 +268,122 @@ export class Menu {
     });
   }
 
+  showOptions(
+    back: 'title' | 'portrait' | 'pause' = 'title',
+    mode: 'quick' | 'cup' = 'quick',
+    confirmReset = false,
+    focusTarget?: string,
+  ): void {
+    this.clearCountdown();
+    const preferences = this.preferences;
+    if (!preferences) return;
+    const goBack = (): void => {
+      if (back === 'portrait') {
+        this.showPortraitBreak(mode);
+        this.restoreFocus('#btn-options-portrait');
+      } else if (back === 'pause') {
+        this.showPause();
+        this.restoreFocus('#btn-options-pause');
+      } else {
+        this.showTitle();
+        this.restoreFocus('#btn-options');
+      }
+    };
+    this.escapeAction = goBack;
+    this.root.style.display = 'flex';
+    this.root.innerHTML = `
+      <div class="panel options-panel">
+        <h1 class="endtitle">OPÇÕES</h1>
+        <p class="tagline">preferências aplicadas e salvas imediatamente</p>
+        <div class="options-grid">
+          ${preferenceChoices('COR', 'colorPreset', preferences.colorPreset, [
+            ['default', 'Padrão'],
+            ['protan-deutan', 'Protan/Deutan'],
+            ['tritan', 'Tritan'],
+          ])}
+          ${preferenceChoices('CONTRASTE', 'highContrast', String(preferences.highContrast), [
+            ['false', 'Padrão'],
+            ['true', 'Alto'],
+          ])}
+          ${preferenceChoices('HUD', 'hudScale', String(preferences.hudScale), [
+            ['0.85', '85%'],
+            ['1', '100%'],
+            ['1.15', '115%'],
+          ])}
+          ${preferenceChoices('TIMING HUMANO', 'timingAssist', preferences.timingAssist, [
+            ['normal', 'Normal'],
+            ['wide', 'Amplo'],
+          ])}
+          <section class="option-section toggles-section">
+            <h2>ACESSIBILIDADE</h2>
+            ${togglePreference('Movimento reduzido', 'reducedMotion', preferences.reducedMotion)}
+            ${togglePreference('Shake e câmera dinâmica', 'shakeEnabled', preferences.shakeEnabled)}
+            ${togglePreference('Slow-motion / replay', 'replayEnabled', preferences.replayEnabled)}
+            ${togglePreference('Legendas de áudio', 'captionsEnabled', preferences.captionsEnabled)}
+            ${togglePreference('Vibração', 'hapticsEnabled', preferences.hapticsEnabled)}
+          </section>
+          <section class="option-section audio-section">
+            <h2>ÁUDIO</h2>
+            ${audioSlider('Master', 'master', preferences.audio.master)}
+            ${audioSlider('Efeitos', 'effects', preferences.audio.effects)}
+            ${audioSlider('Torcida', 'crowd', preferences.audio.crowd)}
+            ${audioSlider('Música', 'music', preferences.audio.music)}
+          </section>
+        </div>
+        <div class="reset-progress">
+          ${
+            confirmReset
+              ? `<p role="alert">Apagar Copa, estatísticas e recompensas? Suas opções serão preservadas.</p>
+                 <div class="inline-confirm"><button id="btn-reset-confirm" class="danger-btn">CONFIRMAR RESET</button><button id="btn-reset-cancel" class="ghost-btn">CANCELAR</button></div>`
+              : '<button id="btn-reset" class="danger-btn">RESETAR PROGRESSO</button>'
+          }
+        </div>
+        <button id="btn-options-back" class="ghost-btn">VOLTAR</button>
+      </div>`;
+
+    this.root.querySelectorAll<HTMLButtonElement>('[data-pref]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const key = button.dataset.pref as keyof Omit<Preferences, 'audio'>;
+        const raw = button.dataset.value ?? '';
+        const value: string | number | boolean =
+          raw === 'true'
+            ? true
+            : raw === 'false'
+              ? false
+              : Number.isNaN(Number(raw))
+                ? raw
+                : Number(raw);
+        this.onPreferencesChange?.({ [key]: value } as PreferencePatch);
+        this.showOptions(back, mode, false, `preference:${key}`);
+      });
+    });
+    this.root.querySelectorAll<HTMLInputElement>('[data-audio]').forEach((input) => {
+      input.addEventListener('input', () => {
+        const channel = input.dataset.audio as keyof AudioSettings;
+        const value = Math.max(0, Math.min(1, Number(input.value) / 100));
+        input.parentElement
+          ?.querySelector('output')
+          ?.replaceChildren(`${Math.round(value * 100)}%`);
+        this.onPreferencesChange?.({ audio: { [channel]: value } });
+      });
+    });
+    this.root
+      .querySelector('#btn-reset')
+      ?.addEventListener('click', () => this.showOptions(back, mode, true, '#btn-reset-confirm'));
+    this.root.querySelector('#btn-reset-confirm')?.addEventListener('click', () => {
+      this.onResetProgress?.();
+    });
+    this.root
+      .querySelector('#btn-reset-cancel')
+      ?.addEventListener('click', () => this.showOptions(back, mode, false, '#btn-reset'));
+    this.root.querySelector('#btn-options-back')!.addEventListener('click', goBack);
+    if (focusTarget) this.restoreFocus(focusTarget);
+  }
+
   /** Pausa de portrait (§7.1): instrução de girar + meta (novo jogo/sair) — só no touch. */
   showPortraitBreak(mode: 'quick' | 'cup' = 'quick'): void {
     this.clearCountdown();
+    this.escapeAction = () => {};
     this.root.style.display = 'flex';
     this.root.innerHTML = `
       <div class="panel" id="portrait-break">
@@ -257,6 +403,7 @@ export class Menu {
         </div>
         <button id="btn-new" class="big-btn">NOVO JOGO</button>
         <button id="btn-visual-portrait" class="ghost-btn">VISUAL</button>
+        <button id="btn-options-portrait" class="ghost-btn">OPÇÕES</button>
         <button id="btn-quit-portrait" class="ghost-btn">SAIR</button>
       </div>`;
     this.bindOpts();
@@ -268,6 +415,9 @@ export class Menu {
     this.root
       .querySelector('#btn-visual-portrait')!
       .addEventListener('click', () => this.showCosmetics('portrait', mode));
+    this.root
+      .querySelector('#btn-options-portrait')!
+      .addEventListener('click', () => this.showOptions('portrait', mode));
     this.root.querySelector('#btn-quit-portrait')!.addEventListener('click', () => {
       location.reload();
     });
@@ -301,6 +451,48 @@ export class Menu {
     }, 1000);
   }
 
+  /** Resultado compacto da Copa em landscape; a chave completa fica no portrait. */
+  showCupResultCompact(view: CupResultView, seconds: number, onContinue: () => void): void {
+    this.clearCountdown();
+    this.root.style.display = 'flex';
+    const champion = view.status === 'champion';
+    const action = champion
+      ? 'VER CHAVE'
+      : view.status === 'retry'
+        ? 'REPETIR CONFRONTO'
+        : 'PRÓXIMA PARTIDA';
+    let remaining = Math.max(1, Math.round(seconds));
+    this.root.innerHTML = `
+      <div class="panel compact-victory compact-cup-result" id="compact-cup-result">
+        <h2 class="endtitle ${view.homeWon ? 'win' : 'lose'}">${champion ? '🏆 CAMPEÃ DA COPA!' : view.homeWon ? 'VITÓRIA NA COPA' : 'DERROTA NA COPA'} · Sets ${escapeHtml(view.scoreline)}</h2>
+        <p class="tagline">${escapeHtml(view.opponentName)}${champion ? ' · gire ou toque para ver a chave' : ` · ${action} em <span id="cup-count">${remaining}</span> s · gire para a chave`}</p>
+        ${view.rewardId ? `<p class="cup-reward">Recompensa: ${escapeHtml(rewardLabel(view.rewardId))}</p>` : ''}
+        <button id="btn-cup-compact" class="big-btn">${action}</button>
+      </div>`;
+
+    const continueFlow = (): void => {
+      this.clearCountdown();
+      if (champion) {
+        this.showCup();
+        return;
+      }
+      this.hide();
+      onContinue();
+    };
+    this.root.querySelector('#btn-cup-compact')!.addEventListener('click', continueFlow);
+    if (champion) return;
+
+    const label = this.root.querySelector('#cup-count')!;
+    this.countdownId = setInterval(() => {
+      remaining -= 1;
+      if (remaining > 0) {
+        label.textContent = String(remaining);
+        return;
+      }
+      continueFlow();
+    }, 1000);
+  }
+
   private clearCountdown(): void {
     if (this.countdownId !== null) {
       clearInterval(this.countdownId);
@@ -310,17 +502,25 @@ export class Menu {
 
   showPause(): void {
     this.clearCountdown();
+    this.escapeAction = () => {
+      this.hide();
+      this.onResume?.();
+    };
     this.root.style.display = 'flex';
     this.root.innerHTML = `
       <div class="panel">
         <h2>PAUSA</h2>
         <button id="btn-resume" class="big-btn">CONTINUAR</button>
+        <button id="btn-options-pause" class="ghost-btn">OPÇÕES</button>
         <button id="btn-quit" class="ghost-btn">SAIR PARA O MENU</button>
       </div>`;
     this.root.querySelector('#btn-resume')!.addEventListener('click', () => {
       this.hide();
       this.onResume?.();
     });
+    this.root
+      .querySelector('#btn-options-pause')!
+      .addEventListener('click', () => this.showOptions('pause'));
     this.root.querySelector('#btn-quit')!.addEventListener('click', () => location.reload());
   }
 
@@ -383,12 +583,68 @@ export class Menu {
 
   hide(): void {
     this.clearCountdown();
+    if (
+      document.activeElement instanceof HTMLElement &&
+      this.root.contains(document.activeElement)
+    ) {
+      document.activeElement.blur();
+    }
     this.root.style.display = 'none';
+  }
+
+  private restoreFocus(target: string): void {
+    queueMicrotask(() => {
+      let element: HTMLElement | undefined | null;
+      if (target.startsWith('preference:')) {
+        const key = target.slice('preference:'.length);
+        const controls = Array.from(
+          this.root.querySelectorAll<HTMLElement>(`[data-pref="${key}"]`),
+        );
+        element = controls.find((control) => control.getAttribute('aria-pressed') === 'true');
+        element ??= controls[0];
+      } else if (target.startsWith('cosmetic:')) {
+        const id = target.slice('cosmetic:'.length);
+        element = Array.from(this.root.querySelectorAll<HTMLElement>('[data-id]')).find(
+          (control) => control.dataset.id === id,
+        );
+      } else {
+        element = this.root.querySelector<HTMLElement>(target);
+      }
+      element?.focus();
+    });
   }
 
   get visible(): boolean {
     return this.root.style.display !== 'none';
   }
+}
+
+function preferenceChoices(
+  label: string,
+  key: string,
+  selected: string,
+  values: readonly (readonly [string, string])[],
+): string {
+  return `<section class="option-section">
+    <h2>${escapeHtml(label)}</h2>
+    <div class="option-buttons">
+      ${values
+        .map(
+          ([value, name]) =>
+            `<button data-pref="${key}" data-value="${value}" class="${value === selected ? 'sel' : ''}" aria-pressed="${value === selected}">${escapeHtml(name)}</button>`,
+        )
+        .join('')}
+    </div>
+  </section>`;
+}
+
+function togglePreference(label: string, key: string, enabled: boolean): string {
+  return `<button class="toggle-option ${enabled ? 'sel' : ''}" data-pref="${key}" data-value="${!enabled}" aria-pressed="${enabled}"><span>${escapeHtml(label)}</span><strong>${enabled ? 'LIGADO' : 'DESLIGADO'}</strong></button>`;
+}
+
+function audioSlider(label: string, channel: keyof AudioSettings, value: number): string {
+  const percentage = Math.round(value * 100);
+  return `<label class="audio-slider"><span>${escapeHtml(label)}</span><input type="range" min="0" max="100" step="1" value="${percentage}" data-audio="${channel}" aria-label="Volume ${escapeHtml(label)}"><output>${percentage}%</output></label>`;
 }
 
 function rewardLabel(rewardId: string): string {

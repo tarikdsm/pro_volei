@@ -35,6 +35,10 @@ import { CupSession, recordCareerResult, type CupMatchConfig } from './meta/cup/
 import { CUP_OPPONENTS } from './meta/cup/CupOpponents';
 import { COSMETIC_CATALOG, cosmeticById, cosmeticFallback } from './meta/cosmetics/CosmeticCatalog';
 import { cosmeticSelection, selectCosmetic } from './meta/cosmetics/CosmeticProgress';
+import {
+  resolveAccessibilityPreferences,
+  type EffectiveAccessibilityPreferences,
+} from './meta/preferences/AccessibilityPreferences';
 
 const app = document.getElementById('app')!;
 const loadingShell = document.getElementById('loading-shell');
@@ -146,10 +150,8 @@ applyQualityTier(quality.tier);
 let lastMatchStateForQuality = '';
 let lastActiveForQuality = false;
 
-const director = new CameraDirector(
-  window.innerWidth / window.innerHeight,
-  detectMotionProfile(window.matchMedia.bind(window)),
-);
+const systemMotionProfile = detectMotionProfile(window.matchMedia.bind(window));
+const director = new CameraDirector(window.innerWidth / window.innerHeight, systemMotionProfile);
 const input = new Input();
 let saveStorage: (AudioSettingsStorage & SaveStorage) | null = null;
 try {
@@ -162,6 +164,8 @@ const saveRepository = createSaveRepository(saveStorage, {
 });
 const cupSession = new CupSession(saveRepository);
 const initialSave = saveRepository.snapshot();
+let effectiveAccessibility: Readonly<EffectiveAccessibilityPreferences> =
+  resolveAccessibilityPreferences(initialSave.preferences, systemMotionProfile);
 const audio = new AudioEngine(initialSave.preferences.audio, () =>
   THREE.MathUtils.clamp(director.ballPos.z / 9, -0.65, 0.65),
 );
@@ -208,6 +212,7 @@ function refreshCosmeticsMenu(): void {
   );
 }
 refreshCosmeticsMenu();
+menu.setPreferencesState(initialSave.preferences);
 const touch = isTouch ? new TouchControls(app, input) : null;
 window.addEventListener('blur', () => touch?.resetPointers());
 hud.show(false);
@@ -267,6 +272,7 @@ let portraitBlocked = isTouch && portraitQuery.matches;
 const slowMotionClock = new SlowMotionClock();
 const fixedStepRunner = new FixedStepRunner(slowMotionClock);
 function slowMo(scale: number, dur: number): void {
+  if (!effectiveAccessibility.replayEnabled) return;
   slowMotionClock.trigger(scale, dur);
 }
 
@@ -332,7 +338,11 @@ const match = new Match(
           rewardId: result.rewardId,
         };
         activeCupMatch = null;
-        menu.showCupResult(lastCupResult);
+        if (isTouch && !portraitBlocked) {
+          menu.showCupResultCompact(lastCupResult, rematchSeconds, startCupFromMenu);
+        } else {
+          menu.showCupResult(lastCupResult);
+        }
       } else {
         saveRepository.update((current) => ({
           ...current,
@@ -362,7 +372,8 @@ const match = new Match(
 scene.add(match.group);
 
 function applyCosmetics(): void {
-  const selected = cosmeticSelection(saveRepository.snapshot().unlocks);
+  const save = saveRepository.snapshot();
+  const selected = cosmeticSelection(save.unlocks);
   const uniform = cosmeticById(selected.uniform) ?? cosmeticFallback('uniform');
   const palette = cosmeticById(selected.palette) ?? cosmeticFallback('palette');
   const courtTheme = cosmeticById(selected.court) ?? cosmeticFallback('court');
@@ -373,14 +384,60 @@ function applyCosmetics(): void {
     (scene.background as THREE.Color).setHex(palette.presentation.background);
     scene.fog?.color.setHex(palette.presentation.background);
   }
-  if (courtTheme.category === 'court') court.setTheme(courtTheme.presentation);
-  if (effectTheme.category === 'effect') effects.setTheme(effectTheme.presentation);
+  if (courtTheme.category === 'court') {
+    const theme = { ...courtTheme.presentation };
+    if (save.preferences.colorPreset === 'protan-deutan') {
+      Object.assign(theme, { free: 0x155d75, floor: 0xb875d4, zone: 0x8f55b5 });
+    } else if (save.preferences.colorPreset === 'tritan') {
+      Object.assign(theme, { free: 0x176b61, floor: 0xd9578c, zone: 0xb83e72 });
+    }
+    if (save.preferences.highContrast) theme.lines = 0xffffff;
+    court.setTheme(theme);
+  }
+  if (effectTheme.category === 'effect') {
+    const theme = { ...effectTheme.presentation };
+    if (save.preferences.colorPreset === 'protan-deutan') {
+      Object.assign(theme, { landing: 0xffd44d, aim: 0x37d6ff, cue: 0xffffff });
+    } else if (save.preferences.colorPreset === 'tritan') {
+      Object.assign(theme, { landing: 0x7dff8a, aim: 0xff72c6, cue: 0xffffff });
+    }
+    effects.setTheme(theme);
+  }
   document.documentElement.dataset.uniform = selected.uniform;
   document.documentElement.dataset.palette = selected.palette;
   document.documentElement.dataset.court = selected.court;
   document.documentElement.dataset.effect = selected.effect;
 }
-applyCosmetics();
+
+function applyPreferences(): void {
+  const preferences = saveRepository.snapshot().preferences;
+  effectiveAccessibility = resolveAccessibilityPreferences(preferences, systemMotionProfile);
+  menu.setPreferencesState(preferences);
+  hud.setScale(preferences.hudScale);
+  director.setMotionPreferences(
+    effectiveAccessibility.motionProfile,
+    effectiveAccessibility.shakeEnabled,
+  );
+  audio.applySettings(preferences.audio);
+  audio.setCaptionSink(
+    effectiveAccessibility.captionsEnabled
+      ? ({ text, durationMs }) => hud.caption(text, durationMs)
+      : null,
+  );
+  if (!effectiveAccessibility.captionsEnabled) hud.caption('', 0);
+  haptics.setEnabled(effectiveAccessibility.hapticsEnabled);
+  match.setHumanTimingToleranceScale(effectiveAccessibility.timingToleranceScale);
+  document.documentElement.dataset.colorPreset = preferences.colorPreset;
+  document.documentElement.dataset.contrast = preferences.highContrast ? 'high' : 'default';
+  document.documentElement.dataset.motion = effectiveAccessibility.motionProfile;
+  document.documentElement.dataset.shake = String(effectiveAccessibility.shakeEnabled);
+  document.documentElement.dataset.replay = String(effectiveAccessibility.replayEnabled);
+  document.documentElement.dataset.captions = String(effectiveAccessibility.captionsEnabled);
+  document.documentElement.dataset.haptics = String(effectiveAccessibility.hapticsEnabled);
+  document.documentElement.dataset.timingAssist = preferences.timingAssist;
+  applyCosmetics();
+}
+applyPreferences();
 
 // ganchos de depuração globais: em dev sempre; no build de produção só com ?debug na URL
 // (mesmo opt-in do ?touch=1), para não vazar a superfície de depuração no bundle publicado.
@@ -466,6 +523,23 @@ menu.onCosmeticSelect = (category, id) => {
   refreshCosmeticsMenu();
   applyCosmetics();
 };
+menu.onPreferencesChange = (patch) => {
+  saveRepository.update((current) => ({
+    ...current,
+    preferences: {
+      ...current.preferences,
+      ...patch,
+      audio: patch.audio
+        ? { ...current.preferences.audio, ...patch.audio }
+        : current.preferences.audio,
+    },
+  }));
+  applyPreferences();
+};
+menu.onResetProgress = () => {
+  cupSession.resetProgress();
+  location.reload();
+};
 menu.onResume = () => {
   // botão CONTINUAR: o Menu já chamou hide(); aqui só destravamos o estado.
   match.snapPresentation();
@@ -535,7 +609,7 @@ function syncTouchOrientation(): void {
     }
   } else if (appState === 'ended' && nextBlocked) {
     // Girar durante um resumo interrompe a continuidade e abre o painel completo correspondente.
-    if (lastCupResult) menu.showCupResult(lastCupResult);
+    if (lastCupResult) menu.showCup();
     else if (lastVictory)
       menu.showVictory(lastVictory.homeWon, lastVictory.stats, lastVictory.scoreline);
   }
