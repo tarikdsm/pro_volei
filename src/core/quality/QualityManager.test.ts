@@ -10,8 +10,17 @@ function feedAndEvaluate(manager: QualityManager, dt: number, frames = 200): num
 describe('QualityManager', () => {
   it('mantém o tier com frame time saudável intermediário', () => {
     const manager = new QualityManager(1);
-    expect(feedAndEvaluate(manager, 1 / 50)).toBe(null); // 20 ms: nem sobe nem desce
+    expect(feedAndEvaluate(manager, 1 / 60)).toBe(null); // ~16,7 ms: nem sobe nem desce
     expect(manager.tier).toBe(1);
+  });
+
+  it('desce de tier com p95 sustentado pior que ~55 fps (alvo 60 fps sempre)', () => {
+    const q = new QualityManager(2);
+    for (let round = 0; round < 2; round += 1) {
+      for (let i = 0; i < 180; i += 1) q.sampleFrame(0.02); // 50 fps constante
+      q.evaluateAtBreak();
+    }
+    expect(q.tier).toBe(1);
   });
 
   it('desce um tier após duas avaliações ruins seguidas (não na primeira)', () => {

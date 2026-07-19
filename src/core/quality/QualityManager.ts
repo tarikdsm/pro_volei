@@ -4,7 +4,7 @@
 
 const WINDOW_SIZE = 180; // ~3 s de amostras a 60 fps
 const MIN_SAMPLES = 90; // avaliação neutra sem meia janela preenchida
-const P95_DOWN_SECONDS = 0.0333; // pior que 30 fps sustentado ⇒ candidata a descer
+const P95_DOWN_SECONDS = 0.0182; // pior que ~55 fps sustentado ⇒ candidata a descer (alvo: 60 fps sempre)
 const P95_UP_SECONDS = 0.012; // melhor que ~83 fps sustentado ⇒ candidata a subir
 const DOWN_STREAK = 2; // avaliações ruins seguidas para descer
 const UP_STREAK = 4; // avaliações boas seguidas para subir
