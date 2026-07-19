@@ -101,7 +101,7 @@ Contador pequeno e elegante no canto superior esquerdo, atualizado 2×/s, com co
 - Produces: `class FpsMeter { constructor(windowSeconds?: number); sample(dtSeconds: number): number | null; get value(): number | null; reset(): void }` e `HUD.setFps(fps: number | null): void`.
 - Consumes: `visualDt` já calculado no loop de `src/main.ts` (linha ~686).
 
-- [ ] **Step 1: Escrever o teste que falha**
+- [x] **Step 1: Escrever o teste que falha**
 
 Create `src/core/quality/FpsMeter.test.ts`:
 
@@ -144,12 +144,12 @@ describe('FpsMeter', () => {
 });
 ```
 
-- [ ] **Step 2: Rodar para ver falhar**
+- [x] **Step 2: Rodar para ver falhar**
 
 Run: `npx vitest run src/core/quality/FpsMeter.test.ts`
 Expected: FAIL — "Cannot find module './FpsMeter'".
 
-- [ ] **Step 3: Implementar o FpsMeter**
+- [x] **Step 3: Implementar o FpsMeter**
 
 Create `src/core/quality/FpsMeter.ts`:
 
@@ -188,12 +188,12 @@ export class FpsMeter {
 }
 ```
 
-- [ ] **Step 4: Rodar para ver passar**
+- [x] **Step 4: Rodar para ver passar**
 
 Run: `npx vitest run src/core/quality/FpsMeter.test.ts`
 Expected: PASS (4 testes).
 
-- [ ] **Step 5: Adicionar o chip ao HUD**
+- [x] **Step 5: Adicionar o chip ao HUD**
 
 Em `src/ui/HUD.ts`, no template `this.root.innerHTML` (linha ~29), adicione como PRIMEIRA linha interna (antes de `<div id="scoreboard">`):
 
@@ -229,7 +229,7 @@ Novo método (depois de `setScale`):
   }
 ```
 
-- [ ] **Step 6: Estilo do chip**
+- [x] **Step 6: Estilo do chip**
 
 Em `src/style.css`, adicione ao fim (ajuste os nomes das variáveis de safe-area se o arquivo usar outros — procure `--safe-area-top` no CSS existente e siga o padrão do projeto):
 
@@ -260,7 +260,7 @@ Em `src/style.css`, adicione ao fim (ajuste os nomes das variáveis de safe-area
 }
 ```
 
-- [ ] **Step 7: Alimentar no loop**
+- [x] **Step 7: Alimentar no loop**
 
 Em `src/main.ts`:
 
@@ -284,7 +284,7 @@ Dentro de `function frame(now)`, logo após o cálculo de `visualDt` (linha ~686
 
 NÃO adicionar `#fps` a `cameraOverlaySelectors` — o chip é minúsculo e no canto; incluí-lo encolheria o safe frame da câmera sem necessidade.
 
-- [ ] **Step 8: Gates + commit**
+- [x] **Step 8: Gates + commit**
 
 Run: `npm run check` — Expected: tudo verde.
 
