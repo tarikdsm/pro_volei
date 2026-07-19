@@ -1741,13 +1741,13 @@ git commit -m "feat(arena): taraflex procedural, environment RoomEnvironment e s
 - Modify: `CHANGELOG.md` (entrada não-lançada)
 - Modify: `docs/superpowers/plans/README.md` (linha de índice deste plano)
 
-- [ ] **Step 1: Gates completos**
+- [x] **Step 1: Gates completos**
 
 Run: `npm run check` — Expected: tudo verde (workflow + typecheck + lint + format + cobertura, incluindo as baterias §4.3/§3.2).
 Run: `npm run build && npm run test:e2e:smoke:prod` — Expected: smoke verde.
 Run: `npm run test:e2e:offline` — Expected: verde (o SW cacheia o mesmo bundle; nada remoto entrou).
 
-- [ ] **Step 2: Medição de performance real**
+- [x] **Step 2: Medição de performance real**
 
 Playtest com a skill `playtest` (porta 5199), desktop e viewport 844×390:
 1. Partida rápida real de ≥ 2 pontos.
@@ -1758,7 +1758,7 @@ Playtest com a skill `playtest` (porta 5199), desktop e viewport 844×390:
 
 Se algum orçamento estourar, PARE e corrija antes de documentar (o suspeito nº 1 é a geometria da torcida — reduza segmentos dos braços para 4).
 
-- [ ] **Step 3: Documentar**
+- [x] **Step 3: Documentar**
 
 - `docs/ROADMAP.md`: na seção "Fundação 2.0 — estado das subfases", adicione ao final:
 
@@ -1774,7 +1774,7 @@ Se algum orçamento estourar, PARE e corrija antes de documentar (o suspeito nº
 - `CHANGELOG.md`: siga o formato do arquivo e adicione as mudanças acima numa seção não-lançada (ex.: `## [Não lançado]`), sem criar tag.
 - `docs/superpowers/plans/README.md`: adicione a linha deste plano seguindo o padrão das existentes.
 
-- [ ] **Step 4: Commit final e push**
+- [x] **Step 4: Commit final e push**
 
 ```bash
 git add docs/ROADMAP.md CHANGELOG.md docs/superpowers/plans/README.md docs/superpowers/plans/2026-07-19-fase-8-polimento-visual.md

@@ -6,6 +6,32 @@ Todas as mudanças notáveis do Pró Volei. Formato baseado em
 
 ## [Não lançado]
 
+### Adicionado
+
+- Chip de FPS discreto no canto superior esquerdo do HUD (medidor puro `FpsMeter`, janela de 0,5 s).
+- Rastreio da bola pela cabeça das atletas, com clamp anatômico e retorno suave ao neutro.
+- Saque por baixo visual quando a carga do medidor humano é baixa e aterrissagem de absorção após
+  cortada/bloqueio — apenas apresentação: trajetória e resultado do saque continuam decididos por
+  `finishServe`.
+- Cabelo 2.0: osso `hairTail` no esqueleto, penteados compostos (rabo, trança, longo, coque) e
+  pêndulo amortecido determinístico por dt.
+- Textura taraflex procedural no piso e environment map procedural (`RoomEnvironment`) por tier.
+
+### Modificado
+
+- Renderer usa `powerPreference: 'high-performance'`.
+- QualityManager baixa o tier quando o p95 fica pior que ~55 fps (alvo 60 fps sempre).
+- Torcida animada inteiramente em vertex shader (custo de CPU por frame O(1)), com corpo em cor de
+  camisa e cabeça em tom de pele próprio; segmentos de geometria enxutos para caber no orçamento
+  §10.2 de triângulos no tier móvel padrão (~229 mil).
+- Poses de jogada (manchete, toque, cortada, bloqueio, saque) com anticipação, overshoot e
+  follow-through.
+
+### Corrigido
+
+- Sombra usa `PCFShadowMap`: `PCFSoftShadowMap` foi descontinuado no three r185 (caía em PCF e
+  emitia warning no console).
+
 ## [2.0.0] — 2026-07-19
 
 ### Adicionado

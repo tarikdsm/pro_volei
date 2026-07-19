@@ -180,6 +180,15 @@ permanece explicitamente registrada como gate humano externo.
 - **Fase 7D — concluída:** package, changelog, UI e service worker identificam 2.0.0; o rodapé de
   OPÇÕES inclui o SHA validado. O gate final aprovou 1.070 testes, 37 E2E, smoke do `dist`, partida
   offline e matriz de cinco perfis.
+- **Fase 8 — concluída:** polimento visual e performance. Renderer em `high-performance`, chip de
+  FPS no HUD e tier desce abaixo de ~55 fps (alvo 60). Torcida animada em vertex shader com duas
+  tonalidades (cabeça em tom de pele próprio); poses com anticipação/overshoot; saque por baixo
+  visual em carga baixa; aterrissagem de absorção; rastreio da bola pela cabeça; cabelo 2.0 com
+  osso `hairTail` e pêndulo amortecido; taraflex procedural e environment `RoomEnvironment` por
+  tier (PCFSoftShadowMap foi descontinuado no three r185 → PCFShadowMap). Orçamentos §10.2 verdes
+  (geometria da torcida enxugada: tier móvel padrão ~229 mil triângulos; draw calls ≤ 250; bundle
+  225 kB gzip). Física intocada — baterias §4.3/§3.2 verdes. Medição em device físico segue como
+  gate humano externo.
 
 ### Marco atual — Release 2.0.0
 
