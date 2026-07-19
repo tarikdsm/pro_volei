@@ -395,7 +395,6 @@ export const QUALITY_TIERS = [
     dpr: 1.25,
     shadowRes: 1024,
     crowdDensity: 0.55,
-    crowdTickHz: 12,
     particleScale: 0.5,
   },
   {
@@ -403,20 +402,14 @@ export const QUALITY_TIERS = [
     dpr: 1.5,
     shadowRes: 2048,
     crowdDensity: 0.8,
-    crowdTickHz: 16,
     particleScale: 1,
   },
-  { name: 'alto', dpr: 2, shadowRes: 2048, crowdDensity: 1, crowdTickHz: 20, particleScale: 1 },
+  { name: 'alto', dpr: 2, shadowRes: 2048, crowdDensity: 1, particleScale: 1 },
 ] as const;
 
-// Torcida instanciada (~1300 pessoas). O loop de animação recompõe a matriz de cada
-// pessoa e reenvia o buffer à GPU — custo fixo por frame. O throttle por tick fixo
-// desacopla esse custo do FPS: a animação é reconstruída `tickHz` vezes por segundo,
-// não a cada frame. Valores "Low" = celular (menos gente e reconstrução menos frequente).
+// Torcida instanciada (~1300 pessoas). A animação (pulo/ola) roda no vertex shader com
+// atributos por instância (Fase 8) — custo de CPU por frame O(1), sem reupload de buffer.
 export const CROWD = {
   density: 1, // fração de assentos ocupados no desktop
   densityLow: 0.55, // fração de assentos ocupados no celular
-  tickHz: 20, // reconstruções da animação por segundo (desktop)
-  tickHzLow: 12, // reconstruções da animação por segundo (celular)
-  idleFreezeBelow: 0, // se > 0, congela a animação quando a empolgação fica abaixo deste limiar (0 = desligado)
 };

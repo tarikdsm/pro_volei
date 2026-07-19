@@ -139,7 +139,7 @@ const arena = new Arena(isTouch);
 const crowd = new Crowd(arena);
 const referee = new Referee();
 const effects = new Effects();
-scene.add(court.group, arena.group, crowd.mesh, referee.group, effects.group);
+scene.add(court.group, arena.group, crowd.group, referee.group, effects.group);
 
 // ---------- tiers de qualidade (§10.1) ----------
 // Tier inicial por capacidade (touch = médio); ?tier=0|1|2 força em DEV/?debug para testes.
@@ -156,7 +156,7 @@ function applyQualityTier(tier: number): void {
   const q = QUALITY_TIERS[tier];
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, q.dpr));
   arena.setShadowResolution(q.shadowRes);
-  crowd.setQuality(q.crowdDensity, q.crowdTickHz);
+  crowd.setQuality(q.crowdDensity);
   effects.particleScale = q.particleScale;
   applyTeamShadowQuality(!isTouch && tier > 0);
 }

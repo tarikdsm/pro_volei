@@ -1,131 +1,225 @@
 import * as THREE from 'three';
 import { Arena } from './Arena';
-import { CROWD } from '../core/constants';
 
-/**
- * Throttle por tick fixo: acumula `dt` e só dispara (`fire`) quando o acumulado atinge
- * `interval` (segundos), desacoplando o custo do loop pesado do FPS. Usa módulo para não
- * "estourar" após um stall grande — vários intervalos num único frame contam como um só
- * disparo. `interval <= 0` desliga o throttle (dispara sempre).
- */
-export function advanceCrowdTick(
-  accum: number,
-  dt: number,
-  interval: number,
-): { fire: boolean; accum: number } {
-  if (interval <= 0) return { fire: true, accum: 0 };
-  const next = accum + dt;
-  if (next >= interval) return { fire: true, accum: next % interval };
-  return { fire: false, accum: next };
+// Torcida 2.0 (Fase 8): matrizes de instância ESTÁTICAS + animação inteira no vertex shader
+// (pulo, esticada e ola) via atributos por instância e uniforms O(1). A CPU não recompõe
+// matrizes nem reenvia buffers por frame — a torcida anima a todo frame em todos os tiers.
+// Duas malhas instanciadas: corpo (cor de camisa) e cabeça (cor de pele).
+
+/** Estado de "humor" da torcida — puro e testável. */
+export interface CrowdMood {
+  excitement: number;
+  waveTimer: number;
+  waveActive: boolean;
+  wavePos: number;
 }
 
-// Torcida instanciada (~1500 pessoas) com animação de pulo, ola e intensidade reativa ao jogo.
-export class Crowd {
-  mesh: THREE.InstancedMesh;
-  private count: number;
-  private basePos: Float32Array;
-  private phase: Float32Array;
-  private sectionAngle: Float32Array; // p/ ola (posição angular ao redor da arena)
-  private baseRotY: Float32Array; // rotação-base (encara a quadra) + jitter, constante por pessoa
-  private dummy = new THREE.Object3D();
-  private time = 0;
-  /** 0..1 empolgação atual (decai sozinha) */
-  excitement = 0.25;
-  private waveTimer = 0;
-  private waveActive = false;
-  private wavePos = 0;
-  private accum = 0; // acumulador do throttle por tick fixo
-  private tickInterval: number; // segundos entre reconstruções da animação (0 = todo frame)
+export function initialCrowdMood(): CrowdMood {
+  return { excitement: 0.25, waveTimer: 0, waveActive: false, wavePos: 0 };
+}
 
-  constructor(arena: Arena, density = 1, tickHz = 20) {
-    this.tickInterval = tickHz > 0 ? 1 / tickHz : 0;
-    // geometria de um torcedor: corpo + cabeça fundidos manualmente
-    const body = new THREE.CylinderGeometry(0.16, 0.2, 0.55, 6);
-    body.translate(0, 0.28, 0);
-    const head = new THREE.SphereGeometry(0.11, 6, 5);
-    head.translate(0, 0.68, 0);
-    const geo = mergeGeos([body, head]);
+/** Avança decaimento da empolgação e ciclo da ola espontânea (mesmas regras da v2.0.0). */
+export function advanceCrowdMood(mood: CrowdMood, dt: number): CrowdMood {
+  const excitement = Math.max(0.12, mood.excitement - dt * 0.12);
+  let { waveTimer, waveActive, wavePos } = mood;
+  waveTimer += dt;
+  if (!waveActive && waveTimer > 25 && excitement > 0.5) {
+    waveActive = true;
+    wavePos = -Math.PI;
+    waveTimer = 0;
+  }
+  if (waveActive) {
+    wavePos += dt * 1.6;
+    if (wavePos > Math.PI * 1.5) waveActive = false;
+  }
+  return { excitement, waveTimer, waveActive, wavePos };
+}
 
-    // A malha é SEMPRE construída na lotação máxima (18% de assentos vazios); a densidade
-    // efetiva vira um prefixo visível via InstancedMesh.count — ajustável por tier em runtime
-    // (Fase 4E) sem realocar buffers. O shuffle torna o prefixo um subconjunto uniforme.
-    const emptySeatChance = 0.18;
-    const spots: { pos: THREE.Vector3; angle: number }[] = [];
-    for (const s of arena.standsInfo) {
-      for (let r = 0; r < s.rows; r++) {
-        for (let c = 0; c < s.cols; c++) {
-          if (Math.random() < emptySeatChance) continue; // assentos vazios
-          const t = c / (s.cols - 1) - 0.5;
-          const pos = s.origin
-            .clone()
-            .addScaledVector(s.right, t * s.cols * 0.75)
-            .add(new THREE.Vector3(s.up.x * r, s.up.y * r + 0.55, s.up.z * r));
-          pos.x += (Math.random() - 0.5) * 0.18;
-          pos.z += (Math.random() - 0.5) * 0.18;
-          spots.push({ pos, angle: Math.atan2(pos.z, pos.x) });
-        }
+export interface CrowdSpot {
+  pos: { x: number; y: number; z: number };
+  angle: number;
+}
+
+/** Sorteia assentos ocupados a partir das arquibancadas. Puro com `rand` injetado. */
+export function computeCrowdSpots(
+  stands: readonly {
+    origin: THREE.Vector3;
+    right: THREE.Vector3;
+    up: THREE.Vector3;
+    rows: number;
+    cols: number;
+  }[],
+  emptySeatChance: number,
+  rand: () => number,
+): CrowdSpot[] {
+  const spots: CrowdSpot[] = [];
+  const pos = new THREE.Vector3();
+  for (const s of stands) {
+    for (let r = 0; r < s.rows; r += 1) {
+      for (let c = 0; c < s.cols; c += 1) {
+        if (rand() < emptySeatChance) continue;
+        const t = c / (s.cols - 1) - 0.5;
+        pos
+          .copy(s.origin)
+          .addScaledVector(s.right, t * s.cols * 0.75)
+          .add(new THREE.Vector3(s.up.x * r, s.up.y * r + 0.55, s.up.z * r));
+        const x = pos.x + (rand() - 0.5) * 0.18;
+        const z = pos.z + (rand() - 0.5) * 0.18;
+        spots.push({ pos: { x, y: pos.y, z }, angle: Math.atan2(z, x) });
       }
     }
+  }
+  return spots;
+}
 
-    for (let i = spots.length - 1; i > 0; i--) {
+/** Uniforms compartilhados entre os materiais do corpo e da cabeça. */
+interface CrowdUniforms {
+  uTime: { value: number };
+  uAmp: { value: number };
+  uFreq: { value: number };
+  uWavePos: { value: number };
+  uWaveBoost: { value: number };
+}
+
+/** Injeta a deformação da torcida (pulo + esticada + ola) num material Lambert. */
+function patchCrowdMaterial(material: THREE.MeshLambertMaterial, uniforms: CrowdUniforms): void {
+  material.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, uniforms);
+    shader.vertexShader = shader.vertexShader
+      .replace(
+        '#include <common>',
+        [
+          '#include <common>',
+          'attribute float aPhase;',
+          'attribute float aAngle;',
+          'uniform float uTime;',
+          'uniform float uAmp;',
+          'uniform float uFreq;',
+          'uniform float uWavePos;',
+          'uniform float uWaveBoost;',
+        ].join('\n'),
+      )
+      .replace(
+        '#include <begin_vertex>',
+        [
+          '#include <begin_vertex>',
+          '// pulo senoidal por pessoa + ola por setor (mesmas curvas do loop de CPU legado)',
+          'float crowdBounce = max(0.0, sin(uTime * uFreq + aPhase)) * uAmp;',
+          'float crowdDelta = abs(mod(aAngle - uWavePos + PI, PI2) - PI);',
+          'crowdBounce += max(0.0, 0.5 - crowdDelta) * 1.3 * uWaveBoost;',
+          'transformed.y *= 1.0 + crowdBounce * 0.5;',
+          'transformed.y += crowdBounce;',
+        ].join('\n'),
+      );
+  };
+}
+
+/** Geometria do corpo (camisa): tronco + ombros + braços. Base do assento em y = 0. */
+function buildBodyGeometry(): THREE.BufferGeometry {
+  const torso = new THREE.CylinderGeometry(0.15, 0.19, 0.5, 8);
+  torso.translate(0, 0.27, 0);
+  const shoulders = new THREE.SphereGeometry(0.15, 8, 5, 0, Math.PI * 2, 0, Math.PI * 0.5);
+  shoulders.translate(0, 0.5, 0);
+  const armL = new THREE.CapsuleGeometry(0.042, 0.24, 2, 6);
+  armL.rotateZ(0.42);
+  armL.translate(0.2, 0.34, 0);
+  const armR = new THREE.CapsuleGeometry(0.042, 0.24, 2, 6);
+  armR.rotateZ(-0.42);
+  armR.translate(-0.2, 0.34, 0);
+  return mergeGeos([torso, shoulders, armL, armR]);
+}
+
+/** Geometria da cabeça (pele). */
+function buildHeadGeometry(): THREE.BufferGeometry {
+  const head = new THREE.SphereGeometry(0.105, 8, 6);
+  head.translate(0, 0.68, 0);
+  return mergeGeos([head]);
+}
+
+export class Crowd {
+  readonly group = new THREE.Group();
+  /** 0..1 empolgação atual (decai sozinha) */
+  excitement = 0.25;
+
+  private readonly bodyMesh: THREE.InstancedMesh;
+  private readonly headMesh: THREE.InstancedMesh;
+  private readonly count: number;
+  private mood = initialCrowdMood();
+  private time = 0;
+  private readonly uniforms: CrowdUniforms = {
+    uTime: { value: 0 },
+    uAmp: { value: 0.06 },
+    uFreq: { value: 2.2 },
+    uWavePos: { value: 0 },
+    uWaveBoost: { value: 0 },
+  };
+
+  constructor(arena: Arena, density = 1) {
+    // Lotação máxima sempre; a densidade efetiva vira um prefixo via InstancedMesh.count
+    // (tiers da 4E). O shuffle torna o prefixo um subconjunto uniforme.
+    const spots = computeCrowdSpots(arena.standsInfo, 0.18, Math.random);
+    for (let i = spots.length - 1; i > 0; i -= 1) {
       const j = Math.floor(Math.random() * (i + 1));
       [spots[i], spots[j]] = [spots[j], spots[i]];
     }
-
     this.count = spots.length;
-    const mat = new THREE.MeshLambertMaterial();
-    this.mesh = new THREE.InstancedMesh(geo, mat, this.count);
-    this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
 
-    this.basePos = new Float32Array(this.count * 3);
-    this.phase = new Float32Array(this.count);
-    this.sectionAngle = new Float32Array(this.count);
-    this.baseRotY = new Float32Array(this.count);
-
-    const palette = [0xd6a77a, 0x8d5524, 0xc68642, 0xe0ac69, 0xf1c27d, 0x5d4037];
-    // Torcida "silenciada" (§6.1): tintas dessaturadas da identidade navy/teal/coral — o fundo
-    // nunca contrasta mais que a quadra nem compete com a bola em voo.
-    const shirt = [0x27435e, 0x1c4a52, 0x8a4a3a, 0x4a5a68, 0x35586b, 0x6e4438, 0x3c4f5c, 0x52616d];
+    const phase = new Float32Array(this.count);
+    const angle = new Float32Array(this.count);
+    const dummy = new THREE.Object3D();
     const color = new THREE.Color();
+    const skinPalette = [0xd6a77a, 0x8d5524, 0xc68642, 0xe0ac69, 0xf1c27d, 0x5d4037];
+    // Torcida "silenciada" (§6.1): tintas dessaturadas navy/teal/coral — o fundo nunca
+    // contrasta mais que a quadra nem compete com a bola em voo.
+    const shirtPalette = [
+      0x27435e, 0x1c4a52, 0x8a4a3a, 0x4a5a68, 0x35586b, 0x6e4438, 0x3c4f5c, 0x52616d,
+    ];
 
-    for (let i = 0; i < this.count; i++) {
+    const bodyGeo = buildBodyGeometry();
+    const headGeo = buildHeadGeometry();
+    const bodyMat = new THREE.MeshLambertMaterial();
+    const headMat = new THREE.MeshLambertMaterial();
+    patchCrowdMaterial(bodyMat, this.uniforms);
+    patchCrowdMaterial(headMat, this.uniforms);
+    this.bodyMesh = new THREE.InstancedMesh(bodyGeo, bodyMat, this.count);
+    this.headMesh = new THREE.InstancedMesh(headGeo, headMat, this.count);
+
+    for (let i = 0; i < this.count; i += 1) {
       const s = spots[i];
-      this.basePos[i * 3] = s.pos.x;
-      this.basePos[i * 3 + 1] = s.pos.y;
-      this.basePos[i * 3 + 2] = s.pos.z;
-      this.phase[i] = Math.random() * Math.PI * 2;
-      this.sectionAngle[i] = s.angle;
-      // rotação constante (encara o centro da quadra) + jitter — precomputada p/ o update
-      // não recalcular atan2 por pessoa a cada frame e preservar a variedade do jitter.
-      this.baseRotY[i] = Math.atan2(-s.pos.z, -s.pos.x) + Math.PI / 2 + (Math.random() - 0.5) * 0.4;
-      this.dummy.position.copy(s.pos);
-      this.dummy.rotation.y = this.baseRotY[i];
+      phase[i] = Math.random() * Math.PI * 2;
+      angle[i] = s.angle;
+      dummy.position.set(s.pos.x, s.pos.y, s.pos.z);
+      // encara o centro da quadra + jitter, constante por pessoa
+      dummy.rotation.y = Math.atan2(-s.pos.z, -s.pos.x) + Math.PI / 2 + (Math.random() - 0.5) * 0.4;
       const sc = 0.9 + Math.random() * 0.25;
-      this.dummy.scale.set(sc, sc, sc);
-      this.dummy.updateMatrix();
-      this.mesh.setMatrixAt(i, this.dummy.matrix);
-      // mistura cor de camisa (corpo domina visualmente)
-      color.setHex(
-        Math.random() < 0.75
-          ? shirt[Math.floor(Math.random() * shirt.length)]
-          : palette[Math.floor(Math.random() * palette.length)],
-      );
-      this.mesh.setColorAt(i, color);
+      dummy.scale.set(sc, sc, sc);
+      dummy.updateMatrix();
+      this.bodyMesh.setMatrixAt(i, dummy.matrix);
+      this.headMesh.setMatrixAt(i, dummy.matrix);
+      color.setHex(shirtPalette[Math.floor(Math.random() * shirtPalette.length)]);
+      this.bodyMesh.setColorAt(i, color);
+      color.setHex(skinPalette[Math.floor(Math.random() * skinPalette.length)]);
+      this.headMesh.setColorAt(i, color);
     }
-    this.mesh.instanceColor!.needsUpdate = true;
-    this.mesh.count = this.visibleFor(density);
-  }
-
-  /** Ajusta densidade visível e cadência da animação em runtime (tiers de qualidade, 4E). */
-  setQuality(density: number, tickHz: number): void {
-    this.tickInterval = tickHz > 0 ? 1 / tickHz : 0;
-    this.mesh.count = this.visibleFor(density);
-    this.mesh.instanceMatrix.needsUpdate = true;
+    for (const mesh of [this.bodyMesh, this.headMesh]) {
+      mesh.instanceColor!.needsUpdate = true;
+      mesh.geometry.setAttribute('aPhase', new THREE.InstancedBufferAttribute(phase, 1));
+      mesh.geometry.setAttribute('aAngle', new THREE.InstancedBufferAttribute(angle, 1));
+      mesh.count = this.visibleFor(density);
+      this.group.add(mesh);
+    }
   }
 
   private visibleFor(density: number): number {
     const clamped = Math.min(1, Math.max(0, density));
     return Math.max(1, Math.round(this.count * clamped));
+  }
+
+  /** Ajusta a densidade visível em runtime (tiers de qualidade, 4E). */
+  setQuality(density: number): void {
+    const visible = this.visibleFor(density);
+    this.bodyMesh.count = visible;
+    this.headMesh.count = visible;
   }
 
   /** dispara empolgação: 0.3 = toque legal, 1 = ponto/bloqueio espetacular */
@@ -134,72 +228,24 @@ export class Crowd {
   }
 
   startWave(): void {
-    if (!this.waveActive) {
-      this.waveActive = true;
-      this.wavePos = -Math.PI;
+    if (!this.mood.waveActive) {
+      this.mood = { ...this.mood, waveActive: true, wavePos: -Math.PI };
     }
   }
 
   update(dt: number): void {
     this.time += dt;
-    this.excitement = Math.max(0.12, this.excitement - dt * 0.12);
-
-    // ola espontânea de vez em quando se o jogo está animado
-    this.waveTimer += dt;
-    if (!this.waveActive && this.waveTimer > 25 && this.excitement > 0.5) {
-      this.startWave();
-      this.waveTimer = 0;
-    }
-    if (this.waveActive) {
-      this.wavePos += dt * 1.6;
-      if (this.wavePos > Math.PI * 1.5) this.waveActive = false;
-    }
-
-    // Throttle: o loop pesado (recompor matrizes + reenviar buffer à GPU) só roda a cada
-    // tickInterval segundos, não a cada frame. O barato acima roda sempre (O(1)).
-    const step = advanceCrowdTick(this.accum, dt, this.tickInterval);
-    this.accum = step.accum;
-    if (!step.fire) return;
-
-    // Idle-freeze opcional: em repouso (baixa empolgação, sem ola) pula a reconstrução.
-    // Default desligado (idleFreezeBelow=0) para manter o balanço sutil de sempre.
-    if (CROWD.idleFreezeBelow > 0 && this.excitement <= CROWD.idleFreezeBelow && !this.waveActive) {
-      return;
-    }
-
-    const amp = 0.06 + this.excitement * 0.3;
-    const freq = 2.2 + this.excitement * 6;
-    const t = this.time;
-
-    const visible = this.mesh.count; // só o prefixo visível do tier atual é animado
-    for (let i = 0; i < visible; i++) {
-      const bx = this.basePos[i * 3],
-        by = this.basePos[i * 3 + 1],
-        bz = this.basePos[i * 3 + 2];
-      let bounce = Math.max(0, Math.sin(t * freq + this.phase[i])) * amp;
-      if (this.waveActive) {
-        const d = Math.abs(angDiff(this.sectionAngle[i], this.wavePos));
-        if (d < 0.5) bounce += (0.5 - d) * 1.3; // braços pra cima = pessoa "estica"
-      }
-      this.dummy.position.set(bx, by + bounce, bz);
-      this.dummy.rotation.y = this.baseRotY[i];
-      const stretch = 1 + bounce * 0.5;
-      this.dummy.scale.set(1, stretch, 1);
-      this.dummy.updateMatrix();
-      this.mesh.setMatrixAt(i, this.dummy.matrix);
-    }
-    this.mesh.instanceMatrix.needsUpdate = true;
+    this.mood = advanceCrowdMood({ ...this.mood, excitement: this.excitement }, dt);
+    this.excitement = this.mood.excitement;
+    this.uniforms.uTime.value = this.time;
+    this.uniforms.uAmp.value = 0.06 + this.excitement * 0.3;
+    this.uniforms.uFreq.value = 2.2 + this.excitement * 6;
+    this.uniforms.uWavePos.value = this.mood.wavePos;
+    this.uniforms.uWaveBoost.value = this.mood.waveActive ? 1 : 0;
   }
 }
 
-function angDiff(a: number, b: number): number {
-  let d = a - b;
-  while (d > Math.PI) d -= Math.PI * 2;
-  while (d < -Math.PI) d += Math.PI * 2;
-  return d;
-}
-
-// merge simples de geometrias não-indexadas
+// merge simples de geometrias não-indexadas (posição + normal)
 function mergeGeos(geos: THREE.BufferGeometry[]): THREE.BufferGeometry {
   const nonIndexed = geos.map((g) => g.toNonIndexed());
   let total = 0;
