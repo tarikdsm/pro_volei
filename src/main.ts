@@ -110,7 +110,9 @@ const debugTelemetry: SimulationTelemetryPort | undefined = debugEnabled
 // ---------- renderer ----------
 let renderer: THREE.WebGLRenderer;
 try {
-  renderer = new THREE.WebGLRenderer({ antialias: true });
+  // powerPreference força o browser a usar a GPU de alto desempenho (notebooks com GPU dupla).
+  // NÃO usar failIfMajorPerformanceCaveat: o CI roda WebGL por software e o smoke quebraria.
+  renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
 } catch (error) {
   const detail = error instanceof Error ? ` ${error.message}` : '';
   recovery.showFatal(`Não foi possível iniciar a renderização WebGL.${detail}`);
