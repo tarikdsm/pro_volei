@@ -1356,7 +1356,7 @@ Resolve o "terceiro braço na cabeça": os penteados ganham formas compostas e a
 - Produces: `AthleteJointName` ganha `'hairTail'`; `BONE_TABLE` ganha `{ name: 'hairTail', parent: 'head', position: [0, 0.02, -0.09] }` (índice 19, o ÚLTIMO — não mude os índices existentes, o skinning rígido depende deles).
 - Consumes: `SegmentSpec` (region/bone/geometry/offset/scale/rotationX) de AthleteBodyGeometry.ts:24-33.
 
-- [ ] **Step 1: Testes que falham (esqueleto)**
+- [x] **Step 1: Testes que falham (esqueleto)**
 
 Em `src/entities/rig/AthleteSkeleton.test.ts`, atualize a contagem de ossos de 19 para 20 onde for assertada, e adicione:
 
@@ -1370,7 +1370,7 @@ Em `src/entities/rig/AthleteSkeleton.test.ts`, atualize a contagem de ossos de 1
 
 Run: `npx vitest run src/entities/rig/AthleteSkeleton.test.ts` — Expected: FAIL.
 
-- [ ] **Step 2: Osso novo**
+- [x] **Step 2: Osso novo**
 
 Em `src/entities/rig/AthleteSkeleton.ts`:
 - Adicione `| 'hairTail'` ao fim da união `AthleteJointName`.
@@ -1385,7 +1385,7 @@ Atualize o comentário do topo do arquivo ("19 ossos" → "20 ossos (Fase 8: hai
 Run: `npx vitest run src/entities/rig/AthleteSkeleton.test.ts` — Expected: PASS.
 Run: `npx vitest run src/entities/rig` — Expected: PASS (se algum teste de geometria/rig assertar 19, atualize para 20).
 
-- [ ] **Step 3: Testes que falham (geometria)**
+- [x] **Step 3: Testes que falham (geometria)**
 
 Em `src/entities/rig/AthleteBodyGeometry.test.ts`, siga o padrão do arquivo e adicione:
 
@@ -1419,7 +1419,7 @@ Em `src/entities/rig/AthleteBodyGeometry.test.ts`, siga o padrão do arquivo e a
 
 Run: `npx vitest run src/entities/rig/AthleteBodyGeometry.test.ts` — Expected: FAIL.
 
-- [ ] **Step 4: Penteados 2.0**
+- [x] **Step 4: Penteados 2.0**
 
 Em `src/entities/rig/AthleteBodyGeometry.ts`:
 
@@ -1535,7 +1535,7 @@ Atenção: o array `specs` hoje termina com o cap de cabelo DENTRO do literal �
 
 Run: `npx vitest run src/entities/rig/AthleteBodyGeometry.test.ts` — Expected: PASS.
 
-- [ ] **Step 5: Teste que falha (pêndulo)**
+- [x] **Step 5: Teste que falha (pêndulo)**
 
 Em `src/entities/rig/RiggedCharacter.test.ts`:
 
@@ -1556,7 +1556,7 @@ Em `src/entities/rig/RiggedCharacter.test.ts`:
 
 Run: `npx vitest run src/entities/rig/RiggedCharacter.test.ts` — Expected: FAIL.
 
-- [ ] **Step 6: Pêndulo determinístico**
+- [x] **Step 6: Pêndulo determinístico**
 
 Em `src/entities/rig/RiggedCharacter.ts`:
 
@@ -1603,11 +1603,11 @@ No FIM de `update(dt)` (depois do bloco das pernas), adicione:
 
 Run: `npx vitest run src/entities/rig/RiggedCharacter.test.ts` — Expected: PASS.
 
-- [ ] **Step 7: Aceite visual na galeria**
+- [x] **Step 7: Aceite visual na galeria**
 
 Run: `npx vite --port 5199 --strictPort` (background) e abra `http://localhost:5199/?gallery` (galeria DEV determinística da 4C). Cheque os cinco penteados nos dois times: nada deve parecer "um braço colado na cabeça"; rabo/trança balançam ao trocar poses. Depois `npm run test` completo.
 
-- [ ] **Step 8: Gates + commit**
+- [x] **Step 8: Gates + commit**
 
 Run: `npm run check`
 
