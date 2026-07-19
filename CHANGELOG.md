@@ -6,8 +6,20 @@ Todas as mudanças notáveis do Pró Volei. Formato baseado em
 
 ## [Não lançado]
 
+## [2.0.0] — 2026-07-19
+
 ### Adicionado
 
+- Persistência local versionada com migrações, validação, fallback seguro e reset de progresso que
+  preserva as preferências do jogador.
+- Copa curta com quatro confrontos, identidades táticas próprias e retomada integral offline.
+- Quatro recompensas cosméticas apenas de apresentação: uniforme, paleta, quadra e efeito visual.
+- Painel de opções com acessibilidade, escalas de HUD, assistência de timing, navegação por teclado
+  e preferências de áudio, legendas, vibração e movimento reduzido.
+- Recuperação global para erros fatais e perda real do contexto WebGL, com pausa segura da
+  simulação/entrada/áudio, uma tentativa de restauração e fallback de recarregamento.
+- Metadados de release validados e visíveis em OPÇÕES (`v2.0.0 · <sha>`), vinculando o artefato ao
+  commit publicado.
 - Núcleo de controle 2.0 com `InputHub` timestamped, `InputFrame`, `ControlFrame` e mapeamento de
   direção relativo à câmera.
 - Testes determinísticos de bordas, cancelamento, composição teclado/touch e teste Chromium de
@@ -96,6 +108,10 @@ Todas as mudanças notáveis do Pró Volei. Formato baseado em
 
 ### Alterado
 
+- Renderização mobile usa sombras blob instanciadas, enquanto desktop preserva sombras dinâmicas;
+  a matriz Chromium/Firefox/WebKit e perfis Pixel 5/iPhone 12 permanece dentro dos orçamentos.
+- Dependências compatíveis atualizadas para os patches finais de Vite 8, ESLint 10, Prettier 3,
+  typescript-eslint 8 e tipos do Three.js, sem vulnerabilidades conhecidas no `npm audit`.
 - Dificuldade não altera mais a física: a potência do saque usa uma faixa única
   (`STRATEGIC_SERVE_TUNING.basePower`) no lugar do multiplicador legado `servePower` por
   dificuldade (critério 6 do design 2.0). Knobs do Normal re-tunados (reação 0,16 s, erros de

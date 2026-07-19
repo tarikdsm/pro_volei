@@ -760,6 +760,13 @@ body.touch #meter {
 .reset-progress {
   margin-top: 12px;
 }
+.release-metadata {
+  margin: 8px 0 0;
+  color: #70859c;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-align: center;
+}
 .reset-progress p {
   margin: 0 0 8px;
   color: #ffb5ae;

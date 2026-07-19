@@ -4,8 +4,9 @@ Fonte única para saber quais planos foram executados. Os arquivos individuais p
 ordem TDD e evidências do momento; caixas abertas em blueprints históricos não significam trabalho
 ativo. O estado de produto continua em [`docs/ROADMAP.md`](../../ROADMAP.md).
 
-**Marco atual — 19/07/2026:** Fases 1–6 e subfases 7A–7C entregues localmente. O proprietário
-autorizou a conclusão das Fases 5–7 e do release 2.0.0; a tarefa ativa é a publicação 7D.
+**Marco atual — 19/07/2026:** Fases 1–7 entregues localmente e artefato 2.0.0 aprovado nos gates.
+O proprietário autorizou a conclusão das Fases 5–7 e do release; promoção remota usa `main`,
+CI/Pages e tag no mesmo SHA. Medição física permanece um gate humano externo documentado.
 
 | Plano | Estado | Resultado |
 |---|---|---|
@@ -31,7 +32,7 @@ autorizou a conclusão das Fases 5–7 e do release 2.0.0; a tarefa ativa é a p
 | [`2026-07-19-fase-5a-orientation-gate.md`](2026-07-19-fase-5a-orientation-gate.md) | concluído | Portrait = área de menu, autostart em landscape, revanche com contagem cancelável por giro, áudio suspenso |
 | [`2026-07-19-fase-5-mobile-audio-pwa.md`](2026-07-19-fase-5-mobile-audio-pwa.md) | concluído | Layout multitouch, HUD compacto, mixer/haptics e PWA com partida completa offline |
 | [`2026-07-19-fase-6-copa-acessibilidade.md`](2026-07-19-fase-6-copa-acessibilidade.md) | concluído | Save versionado, Copa curta, cosméticos, opções e acessibilidade |
-| [`2026-07-19-fase-7-release-2-0-0.md`](2026-07-19-fase-7-release-2-0-0.md) | ativo (7D) | 7A–7C concluídas; metadados, gates e publicação do 2.0.0 em execução |
+| [`2026-07-19-fase-7-release-2-0-0.md`](2026-07-19-fase-7-release-2-0-0.md) | concluído localmente (7D) | Balanceamento, performance, resiliência, metadados e gates do 2.0.0 aprovados; promoção rastreada pelo SHA |
 
 ## Retomada de desenvolvimento
 

@@ -3,6 +3,7 @@ import { MatchStats } from '../game/Match';
 import type { CosmeticCategory } from '../platform/save/SaveSchema';
 import type { Preferences } from '../platform/save/SaveSchema';
 import type { AudioSettings } from '../core/audio/AudioSettings';
+import { RELEASE_METADATA } from '../platform/ReleaseMetadata';
 import { bindMenuFocusNavigation } from './MenuFocusNavigator';
 
 export type PreferencePatch = Partial<Omit<Preferences, 'audio'>> & {
@@ -339,7 +340,12 @@ export class Menu {
           }
         </div>
         <button id="btn-options-back" class="ghost-btn">VOLTAR</button>
+        <p id="release-metadata" class="release-metadata" aria-label="Versão do jogo"></p>
       </div>`;
+
+    this.root
+      .querySelector('#release-metadata')
+      ?.replaceChildren(`v${RELEASE_METADATA.version} · ${RELEASE_METADATA.sha}`);
 
     this.root.querySelectorAll<HTMLButtonElement>('[data-pref]').forEach((button) => {
       button.addEventListener('click', () => {

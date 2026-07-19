@@ -4,13 +4,13 @@ Do protótipo jogável ao produto profissional. Ordenado por dependência, não 
 Escopo fixado: **single-player vs CPU** (sem multiplayer/online); publicar em **Web, Desktop/Steam
 e Mobile** a partir do mesmo código web.
 
-Estado atual: **v1.1.0** publicado, com as **Fases 1–6 concluídas** e as subfases técnicas 7A–7C
-fechadas localmente. Metadados, gates finais e publicação do release 2.0.0 permanecem no ciclo.
+Versão do código: **2.0.0**, com as **Fases 1–7 concluídas** e o artefato final identificado por
+SemVer e SHA. A promoção pública usa `main`, CI/Pages e a tag do mesmo commit.
 **Design 2.0 aprovado**, documentado em
 [`2026-07-12-pro-volei-2-0-design.md`](superpowers/specs/2026-07-12-pro-volei-2-0-design.md).
 Em 19/07/2026 o proprietário autorizou explicitamente a conclusão das Fases 5–7 e do release
-2.0.0. Fases 5–6 e o fechamento técnico da Fase 7 foram concluídos localmente; a publicação ainda
-depende dos gates finais, CI/Pages e tag.
+2.0.0. Fases 5–7 e os gates locais do artefato foram concluídos; medição em aparelhos físicos
+permanece explicitamente registrada como gate humano externo.
 
 ### Fundação 2.0 — estado das subfases
 
@@ -177,12 +177,15 @@ depende dos gates finais, CI/Pages e tag.
   e oferece reinício seguro na reincidência sem alterar o save. Auditoria retornou zero
   vulnerabilidades, zero assets remotos e 43/43 guards; README, skill e configurações locais foram
   alinhados. A validação em Android/iPhone físicos continua registrada como gate humano aberto.
+- **Fase 7D — concluída:** package, changelog, UI e service worker identificam 2.0.0; o rodapé de
+  OPÇÕES inclui o SHA validado. O gate final aprovou 1.070 testes, 37 E2E, smoke do `dist`, partida
+  offline e matriz de cinco perfis.
 
-### Marco atual — Fases 5–7 implementadas; publicação 2.0.0 em andamento
+### Marco atual — Release 2.0.0
 
-- **Entregue localmente:** Fases 1A–1D, 2A–2E, 3A–3D, 4A–4E, 5A–5E, 6A–6D e 7A–7C.
-- **Em execução:** metadados/SemVer, gates finais, proteção remota, CI/Pages, tag `v2.0.0` e smoke
-  público. O gate de performance em aparelhos físicos permanece explicitamente aberto.
+- **Entregue:** Fases 1A–1D, 2A–2E, 3A–3D, 4A–4E, 5A–5E, 6A–6D e 7A–7D.
+- **Promoção:** `main` protegida contra force-push/deleção, CI/Pages, tag `v2.0.0` e smoke público
+  devem referenciar o mesmo SHA. O gate de performance em aparelhos físicos permanece aberto.
 - O índice canônico dos planos e suas evidências está em
   [`superpowers/plans/README.md`](superpowers/plans/README.md).
 
@@ -196,7 +199,7 @@ Base para desenvolver com segurança e ritmo.
 - [x] Vitest com primeiro conjunto de testes (`math3d`)
 - [x] CI no GitHub Actions (typecheck · lint · format · test · build)
 - [x] Documentação (CLAUDE.md, ARCHITECTURE, CONTRIBUTING, CHANGELOG, deployment)
-- [ ] Configurar proteção compatível com main-only: bloquear force-push/deleção sem exigir PR.
+- [x] Proteção main-only: force-push/deleção bloqueados, sem exigir PR ou impedir push direto.
 
 ## Fase 1 — Refatoração da arquitetura ✅ (concluída)
 

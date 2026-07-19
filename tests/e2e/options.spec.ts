@@ -1,7 +1,14 @@
 import { expect, test } from '@playwright/test';
+import { execFileSync } from 'node:child_process';
 import { collectBrowserProblems, expectNoBrowserProblems } from './gameHarness';
 
 const SAVE_KEY = 'pro-volei.save.v1';
+const EXPECTED_BUILD_SHA = (
+  process.env.GITHUB_SHA ??
+  execFileSync('git', ['rev-parse', '--short=7', 'HEAD'], { encoding: 'utf8' })
+)
+  .trim()
+  .toLowerCase();
 
 function optionSection(page: import('@playwright/test').Page, heading: string) {
   return page
@@ -79,6 +86,13 @@ test('opções aplicam, persistem e resolvem movimento reduzido imediatamente', 
   await expect(page.getByRole('button', { name: 'OPÇÕES', exact: true })).toBeFocused();
 
   await expectNoBrowserProblems(browserProblems, testInfo);
+});
+
+test('opções identificam a versão 2.0.0 e o commit do build', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'OPÇÕES', exact: true }).click();
+
+  await expect(page.locator('#release-metadata')).toHaveText(`v2.0.0 · ${EXPECTED_BUILD_SHA}`);
 });
 
 test('reset confirmado limpa progresso e preserva opções', async ({ page }) => {

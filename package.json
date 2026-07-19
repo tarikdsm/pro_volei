@@ -1,6 +1,6 @@
 {
   "name": "pro-volei",
-  "version": "1.1.0",
+  "version": "2.0.0",
   "description": "Pró Volei — jogo de vôlei 3D no browser, humano vs computador",
   "type": "module",
   "scripts": {

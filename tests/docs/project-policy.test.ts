@@ -53,4 +53,16 @@ describe('políticas canônicas do projeto', () => {
     expect(roadmap).toContain('Fase 1A');
     expect(roadmap).not.toContain('~490 linhas');
   });
+
+  it('mantém as fontes canônicas alinhadas ao marco 2.0.0', () => {
+    const claude = readRepo('CLAUDE.md');
+    const planIndex = readRepo('docs/superpowers/plans/README.md');
+    const packageJson = JSON.parse(readRepo('package.json')) as { version: string };
+
+    expect(packageJson.version).toBe('2.0.0');
+    expect(claude).toContain('**Marco atual:** Fases 1–7 concluídas');
+    expect(claude).not.toContain('Próxima na fila: **Fase 6**');
+    expect(planIndex).toContain('Fases 1–7 entregues localmente');
+    expect(planIndex).toContain('| concluído localmente (7D) |');
+  });
 });

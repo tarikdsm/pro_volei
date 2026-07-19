@@ -7,10 +7,10 @@ torcida viva, juiz, câmera de transmissão dinâmica. Feito com Three.js + Type
 
 Funciona no desktop (teclado) e no **celular (controles de toque)** — melhor na horizontal.
 
-**Estado do desenvolvimento:** as Fases 1–6 e o fechamento técnico da Fase 7 estão concluídos
-localmente; metadados e publicação do release **2.0.0** estão no ciclo final. O jogo já possui
-simulação determinística, IA coletiva, Copa curta, cosméticos, opções de acessibilidade, PWA
-offline, recuperação de plataforma e perfis adaptativos de qualidade.
+**Versão do código:** **2.0.0**. As Fases 1–7 estão concluídas; o artefato identificado por versão
+e SHA é promovido pela `main`, CI/Pages e tag do mesmo commit. O jogo possui simulação
+determinística, IA coletiva, Copa curta, cosméticos, opções de acessibilidade, PWA offline,
+recuperação de plataforma e perfis adaptativos de qualidade.
 
 O time da casa conta com **Elisa** (#1, rabo de cavalo castanho claro), **Heloisa**
 (#2, cabelo preto liso) e **Isabela** (#3, loira) — nomes estampados nas costas das camisas.

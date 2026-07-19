@@ -5,17 +5,17 @@ Contexto do projeto para o Claude Code. Leia antes de mexer no código.
 ## O que é
 
 **Pró Volei** — jogo de vôlei 3D no browser, **humano vs CPU**, 6×6, quadra oficial.
-Roda 100% offline. A v1.1 usa geometria procedural, texturas em canvas e áudio sintetizado;
-a versão 2.0 também pode usar assets locais otimizados e versionados.
+Roda 100% offline. A v2.0 usa geometria procedural, texturas em canvas e áudio sintetizado e
+também pode receber assets locais otimizados e versionados.
 
 - **Alvos de publicação:** Web (atual) → Desktop/Steam (Tauri) → Mobile (Capacitor). Mesmo
   código web em todos; wrappers nativos entram depois. Ver [docs/ROADMAP.md](docs/ROADMAP.md).
 - **Multiplayer:** fora de escopo — foco em single-player vs CPU. Não introduzir backend/netcode.
-- **Marco atual:** Fases 1–2, 3A–3D, 4A–4E e 5A–5E concluídas (IA coletiva 2.0 balanceada,
-  formato 11·11·7, atleta rigada, elenco, arena premium, quality tiers, experiência mobile,
-  mixer/haptics e PWA offline). Próxima na fila: **Fase 6** (persistência, Copa curta,
-  cosméticos, opções e acessibilidade), seguida da Fase 7 e do release 2.0.0.
-  Estado canônico em [docs/ROADMAP.md](docs/ROADMAP.md).
+- **Marco atual:** Fases 1–7 concluídas e artefato 2.0.0 identificado por SemVer/SHA (IA coletiva,
+  formato 11·11·7, atleta rigada, elenco, arena premium, quality tiers, mobile, mixer/haptics,
+  PWA offline, save, Copa, cosméticos, acessibilidade e recuperação de plataforma). Promoção
+  pública usa `main`, CI/Pages e tag no mesmo commit; medição em Android/iPhone físicos continua
+  registrada como gate humano externo. Estado canônico em [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Stack
 
