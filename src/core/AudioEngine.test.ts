@@ -125,6 +125,14 @@ afterEach(() => {
 });
 
 describe('AudioEngine.init', () => {
+  it('cai em modo silencioso quando a engine não expõe Web Audio', () => {
+    globalThis.AudioContext = undefined as unknown as typeof AudioContext;
+    const audio = new AudioEngine();
+
+    expect(() => audio.init()).not.toThrow();
+    expect(audio.enabled).toBe(false);
+  });
+
   it('destrava o contexto: chama resume() ao criar (cobre iOS/Safari nascido suspended)', () => {
     const audio = new AudioEngine();
     audio.init();

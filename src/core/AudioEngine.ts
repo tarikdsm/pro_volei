@@ -42,7 +42,15 @@ export class AudioEngine {
       this.resume();
       return;
     }
-    const ctx = new AudioContext();
+    const audioGlobal = globalThis as typeof globalThis & {
+      webkitAudioContext?: typeof AudioContext;
+    };
+    const AudioContextConstructor = audioGlobal.AudioContext ?? audioGlobal.webkitAudioContext;
+    if (typeof AudioContextConstructor !== 'function') {
+      this.enabled = false;
+      return;
+    }
+    const ctx = new AudioContextConstructor();
     this.ctx = ctx;
 
     this.master = ctx.createGain();

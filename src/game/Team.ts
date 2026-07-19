@@ -1,5 +1,11 @@
 import * as THREE from 'three';
-import { CharAction, CharLook, CharVisual, CharFactory } from '../entities/PlayerCharacter';
+import {
+  CharAction,
+  CharLook,
+  CharVisual,
+  CharFactory,
+  meshCastsShadow,
+} from '../entities/PlayerCharacter';
 import { createRiggedCharacter } from '../entities/rig/RiggedCharacter';
 import { AWAY_ROSTER, HOME_ROSTER } from '../entities/rig/roster';
 import { BASE_SLOTS, COLORS, PLAYER, TeamSide, SETTER_SPOT } from '../core/constants';
@@ -166,6 +172,8 @@ export class Athlete {
 export class Team {
   athletes: Athlete[] = [];
   group = new THREE.Group();
+  private readonly groundShadows: THREE.InstancedMesh | null;
+  private readonly groundShadowTransform = new THREE.Object3D();
   /** slots[i] = índice do atleta na posição de rodízio i */
   slots: number[] = initialSlots();
 
@@ -173,7 +181,26 @@ export class Team {
     public side: TeamSide,
     // Injeta a fábrica visual (testes passam um dublê; browser usa o default).
     makeChar?: CharFactory,
+    // A simulação headless injeta uma fábrica sem visual e não deve alocar geometria/material.
+    groundShadowsEnabled = makeChar === undefined,
   ) {
+    this.groundShadows = groundShadowsEnabled
+      ? new THREE.InstancedMesh(
+          new THREE.CircleGeometry(0.34, 16),
+          new THREE.MeshBasicMaterial({
+            color: 0x02060b,
+            transparent: true,
+            opacity: 0.24,
+            depthWrite: false,
+          }),
+          6,
+        )
+      : null;
+    if (this.groundShadows) {
+      this.groundShadows.name = 'athlete-ground-shadows';
+      this.groundShadows.frustumCulled = false;
+      this.group.add(this.groundShadows);
+    }
     // Elenco nomeado 2.0 (Fase 4C): identidades visuais vêm do roster; uniforme vem do time.
     const roster = side === TeamSide.HOME ? HOME_ROSTER : AWAY_ROSTER;
     for (let i = 0; i < 6; i++) {
@@ -187,6 +214,16 @@ export class Team {
       this.group.add(a.char.root);
     }
     this.resetToBase(true);
+  }
+
+  setDynamicShadows(enabled: boolean): void {
+    for (const athlete of this.athletes) {
+      athlete.char.root.traverse((object) => {
+        if (object instanceof THREE.Mesh) {
+          object.castShadow = enabled && meshCastsShadow(object);
+        }
+      });
+    }
   }
 
   setUniform(uniform: Readonly<{ jersey: number; shorts: number }>): void {
@@ -260,6 +297,7 @@ export class Team {
       if (warp) a.warpTo(p.x, p.z);
       else a.moveTo(p.x, p.z);
     }
+    this.updateGroundShadows();
   }
 
   nearestTo(x: number, z: number, exclude?: Athlete): Athlete {
@@ -310,6 +348,21 @@ export class Team {
 
   present(alpha: number): void {
     for (const athlete of this.athletes) athlete.present(alpha);
+    this.updateGroundShadows();
+  }
+
+  private updateGroundShadows(): void {
+    if (!this.groundShadows) return;
+    this.groundShadowTransform.rotation.set(-Math.PI / 2, 0, 0);
+    for (const athlete of this.athletes) {
+      const root = athlete.char.root;
+      const jumpScale = Math.max(0.58, 1 - athlete.char.jumpY * 0.12);
+      this.groundShadowTransform.position.set(root.position.x, 0.018, root.position.z);
+      this.groundShadowTransform.scale.setScalar(jumpScale);
+      this.groundShadowTransform.updateMatrix();
+      this.groundShadows.setMatrixAt(athlete.index, this.groundShadowTransform.matrix);
+    }
+    this.groundShadows.instanceMatrix.needsUpdate = true;
   }
 }
 

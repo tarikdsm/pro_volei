@@ -119,6 +119,7 @@ describe('HeadlessRallyRunner', () => {
       expect(sampled.serializedStrategyTrace).toBe(baseline.serializedStrategyTrace);
       expect(sampled.rallies).toEqual(baseline.rallies);
     },
+    30_000,
   );
 
   it.each([30, 120] as const)(

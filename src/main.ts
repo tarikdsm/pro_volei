@@ -109,7 +109,7 @@ const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, isTouch ? 1.5 : 2));
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = THREE.PCFShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.05;
@@ -132,19 +132,18 @@ scene.add(court.group, arena.group, crowd.mesh, referee.group, effects.group);
 const tierParam = debugEnabled
   ? Number(new URLSearchParams(location.search).get('tier'))
   : Number.NaN;
-const initialTier =
-  Number.isInteger(tierParam) && tierParam >= 0 && tierParam < QUALITY_TIERS.length
-    ? tierParam
-    : isTouch
-      ? 1
-      : 2;
-const quality = new QualityManager(initialTier);
+const forcedTier =
+  Number.isInteger(tierParam) && tierParam >= 0 && tierParam < QUALITY_TIERS.length;
+const initialTier = forcedTier ? tierParam : isTouch ? 1 : 2;
+const quality = new QualityManager(initialTier, !forcedTier);
+let applyTeamShadowQuality: (enabled: boolean) => void = () => {};
 function applyQualityTier(tier: number): void {
   const q = QUALITY_TIERS[tier];
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, q.dpr));
   arena.setShadowResolution(q.shadowRes);
   crowd.setQuality(q.crowdDensity, q.crowdTickHz);
   effects.particleScale = q.particleScale;
+  applyTeamShadowQuality(!isTouch && tier > 0);
 }
 applyQualityTier(quality.tier);
 let lastMatchStateForQuality = '';
@@ -370,6 +369,11 @@ const match = new Match(
   { random: randomHub, telemetry: debugTelemetry, humanSide: autoplay ? null : undefined },
 );
 scene.add(match.group);
+applyTeamShadowQuality = (enabled) => {
+  match.home.setDynamicShadows(enabled);
+  match.away.setDynamicShadows(enabled);
+};
+applyTeamShadowQuality(!isTouch && quality.tier > 0);
 
 function applyCosmetics(): void {
   const save = saveRepository.snapshot();

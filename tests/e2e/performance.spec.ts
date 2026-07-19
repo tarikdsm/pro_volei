@@ -102,7 +102,7 @@ test('coleta perfil real de FPS, heap e draw calls no jogo', async ({
     requestAnimationFrame(recordFrame);
   });
 
-  await openGameAndStartMatch(page);
+  await openGameAndStartMatch(page, { search: '?tier=2' });
   await exerciseServeControls(page);
   await page.evaluate(() => {
     (
@@ -254,6 +254,9 @@ test('coleta perfil real de FPS, heap e draw calls no jogo', async ({
   // confirma que o hook window.__renderer respondeu (renderer.info.render por frame)
   expect(browserMetrics.rendererInfoCallsAvg).toBeGreaterThan(0);
   expect(browserMetrics.rendererInfoTrianglesAvg).toBeGreaterThan(0);
+  expect(browserMetrics.maxDrawCallsPerFrame).toBeLessThanOrEqual(250);
+  expect(browserMetrics.rendererInfoCallsAvg).toBeLessThanOrEqual(250);
+  expect(browserMetrics.rendererInfoTrianglesAvg).toBeLessThanOrEqual(500_000);
   expect(cdpMetricByName.get('JSHeapUsedSize') ?? 0).toBeGreaterThan(0);
   await expectNoBrowserProblems(browserProblems, testInfo);
 });

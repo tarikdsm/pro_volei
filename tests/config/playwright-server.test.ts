@@ -15,7 +15,9 @@ describe('servidor do Playwright', () => {
     const shared = readOrEmpty('tests/e2e/playwrightConfig.ts');
     const dev = readOrEmpty('playwright.config.ts');
 
-    expect(shared).toContain("dev: 'npm run dev -- --host 127.0.0.1 --port 5199 --strictPort'");
+    expect(shared).toContain("mode === 'dev' ? 'dev' : 'preview'");
+    expect(shared).toContain('--host 127.0.0.1 --port ${port} --strictPort');
+    expect(shared).toContain('command: serverCommand');
     expect(dev).toContain("makePlaywrightConfig('dev')");
   });
 
@@ -23,9 +25,8 @@ describe('servidor do Playwright', () => {
     const shared = readOrEmpty('tests/e2e/playwrightConfig.ts');
     const preview = readOrEmpty('playwright.preview.config.ts');
 
-    expect(shared).toContain(
-      "preview: 'npm run preview -- --host 127.0.0.1 --port 5199 --strictPort'",
-    );
+    expect(shared).toContain("mode === 'dev' ? 'dev' : 'preview'");
+    expect(shared).toContain('--host 127.0.0.1 --port ${port} --strictPort');
     expect(shared).toContain("reuseExistingServer: mode === 'dev' && !process.env.CI");
     expect(shared).toContain(
       "mode === 'dev' ? [/touch\\.spec\\.ts/, /offline\\.spec\\.ts/] : /touch\\.spec\\.ts/",

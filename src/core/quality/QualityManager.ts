@@ -21,7 +21,10 @@ export class QualityManager {
   private upStreak = 0;
   private cooldown = 0;
 
-  constructor(initialTier: number) {
+  constructor(
+    initialTier: number,
+    private readonly adaptive = true,
+  ) {
     this.currentTier = Math.min(QUALITY_TIER_COUNT - 1, Math.max(0, Math.trunc(initialTier)));
   }
 
@@ -39,6 +42,7 @@ export class QualityManager {
 
   /** Registra a duração de um frame de apresentação (segundos). */
   sampleFrame(dtSeconds: number): void {
+    if (!this.adaptive) return;
     if (!(dtSeconds > 0)) return;
     this.samples[this.cursor] = dtSeconds;
     this.cursor = (this.cursor + 1) % WINDOW_SIZE;
@@ -50,6 +54,7 @@ export class QualityManager {
    * A janela é consumida (zerada) a cada avaliação para medir apenas o trecho seguinte.
    */
   evaluateAtBreak(): number | null {
+    if (!this.adaptive) return null;
     if (this.sampleCount < MIN_SAMPLES) return null;
     const p95 = this.percentile95();
     this.sampleCount = 0;

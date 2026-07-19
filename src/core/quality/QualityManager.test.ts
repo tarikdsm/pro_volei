@@ -73,4 +73,11 @@ describe('QualityManager', () => {
     expect(manager.evaluateAtBreak()).toBe(null);
     expect(manager.tier).toBe(1);
   });
+
+  it('mantém tier forçado sem adaptação automática', () => {
+    const manager = new QualityManager(2, false);
+    expect(feedAndEvaluate(manager, 0.05)).toBe(null);
+    expect(feedAndEvaluate(manager, 0.05)).toBe(null);
+    expect(manager.tier).toBe(2);
+  });
 });

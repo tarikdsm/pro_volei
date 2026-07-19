@@ -22,6 +22,35 @@ describe('Team (modelo lógico desacoplado do visual)', () => {
     expect(team.athletes.length).toBe(6);
   });
 
+  it('usa uma única malha instanciada para as seis sombras blob', () => {
+    const team = new Team(TeamSide.HOME, stubFactory, true);
+    const blobs = team.group.children.filter((child) => child instanceof THREE.InstancedMesh);
+
+    expect(blobs).toHaveLength(1);
+    expect((blobs[0] as THREE.InstancedMesh).count).toBe(6);
+  });
+
+  it('desliga sombras dinâmicas preservando apenas malhas sólidas ao reativar', () => {
+    const solids: THREE.Mesh[] = [];
+    const decals: THREE.Mesh[] = [];
+    const team = new Team(TeamSide.HOME, () => {
+      const root = new THREE.Group();
+      const solid = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshStandardMaterial());
+      const decal = new THREE.Mesh(new THREE.PlaneGeometry(), new THREE.MeshBasicMaterial());
+      solid.castShadow = true;
+      root.add(solid, decal);
+      solids.push(solid);
+      decals.push(decal);
+      return { ...stubFactory({} as CharLook), root };
+    });
+
+    team.setDynamicShadows(false);
+    expect(solids.every((mesh) => !mesh.castShadow)).toBe(true);
+    team.setDynamicShadows(true);
+    expect(solids.every((mesh) => mesh.castShadow)).toBe(true);
+    expect(decals.every((mesh) => !mesh.castShadow)).toBe(true);
+  });
+
   it('chama a factory visual 6 vezes', () => {
     let calls = 0;
     const counting: CharFactory = (look) => {
