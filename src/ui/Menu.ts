@@ -5,16 +5,20 @@ import { MatchStats } from '../game/Match';
 // a pausa de portrait (§7.1) e a vitória compacta com contagem de revanche.
 export class Menu {
   private root: HTMLElement;
-  difficulty = 1;
-  format = 0;
+  difficulty: 0 | 1 | 2 = 1;
+  format: 0 | 1 | 2 = 0;
   onStart: (() => void) | null = null;
   onResume: (() => void) | null = null;
+  onSelectionChange: ((difficulty: 0 | 1 | 2, format: 0 | 1 | 2) => void) | null = null;
   private countdownId: ReturnType<typeof setInterval> | null = null;
 
   constructor(
     parent: HTMLElement,
     private touchMode = false,
+    initial: { readonly difficulty?: number; readonly format?: number } = {},
   ) {
+    this.difficulty = validIndex(initial.difficulty, DIFFICULTIES.length, 1);
+    this.format = validIndex(initial.format, MATCH_FORMATS.length, 0);
     this.root = document.createElement('div');
     this.root.id = 'menu';
     parent.appendChild(this.root);
@@ -67,16 +71,18 @@ export class Menu {
   private bindOpts(): void {
     this.root.querySelectorAll('#opt-diff button').forEach((b) => {
       b.addEventListener('click', () => {
-        this.difficulty = Number((b as HTMLElement).dataset.i);
+        this.difficulty = validIndex(Number((b as HTMLElement).dataset.i), DIFFICULTIES.length, 1);
         this.root.querySelectorAll('#opt-diff button').forEach((x) => x.classList.remove('sel'));
         b.classList.add('sel');
+        this.onSelectionChange?.(this.difficulty, this.format);
       });
     });
     this.root.querySelectorAll('#opt-fmt button').forEach((b) => {
       b.addEventListener('click', () => {
-        this.format = Number((b as HTMLElement).dataset.i);
+        this.format = validIndex(Number((b as HTMLElement).dataset.i), MATCH_FORMATS.length, 0);
         this.root.querySelectorAll('#opt-fmt button').forEach((x) => x.classList.remove('sel'));
         b.classList.add('sel');
+        this.onSelectionChange?.(this.difficulty, this.format);
       });
     });
   }
@@ -195,4 +201,10 @@ export class Menu {
   get visible(): boolean {
     return this.root.style.display !== 'none';
   }
+}
+
+function validIndex(value: number | undefined, length: number, fallback: 0 | 1 | 2): 0 | 1 | 2 {
+  return Number.isInteger(value) && value !== undefined && value >= 0 && value < length
+    ? (value as 0 | 1 | 2)
+    : fallback;
 }

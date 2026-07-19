@@ -27,13 +27,10 @@ import type { SafeFrame, ScreenRect } from './systems/camera/CameraFrame';
 import { parseSeed, RandomHub } from './core/random';
 import { RallyJournal, type RallyJournalEntry } from './game/simulation/RallyJournal';
 import type { SimulationTelemetryPort } from './game/simulation/SimulationTelemetry';
-import {
-  loadAudioSettings,
-  saveAudioSettings,
-  type AudioSettingsStorage,
-} from './core/audio/AudioSettings';
+import { loadAudioSettings, type AudioSettingsStorage } from './core/audio/AudioSettings';
 import { registerPwa, type PwaCoordinator } from './platform/PwaCoordinator';
 import { bindAudioUnlock } from './platform/AudioUnlock';
+import { createSaveRepository, type SaveStorage } from './platform/save/SaveRepository';
 
 const app = document.getElementById('app')!;
 const loadingShell = document.getElementById('loading-shell');
@@ -150,22 +147,32 @@ const director = new CameraDirector(
   detectMotionProfile(window.matchMedia.bind(window)),
 );
 const input = new Input();
-let audioStorage: AudioSettingsStorage | null = null;
+let saveStorage: (AudioSettingsStorage & SaveStorage) | null = null;
 try {
-  audioStorage = window.localStorage;
+  saveStorage = window.localStorage;
 } catch {
   // Safari privado/políticas corporativas podem bloquear até o getter do storage.
 }
-const audio = new AudioEngine(loadAudioSettings(audioStorage), () =>
+const saveRepository = createSaveRepository(saveStorage, {
+  legacyAudio: loadAudioSettings(saveStorage),
+});
+const initialSave = saveRepository.snapshot();
+const audio = new AudioEngine(initialSave.preferences.audio, () =>
   THREE.MathUtils.clamp(director.ballPos.z / 9, -0.65, 0.65),
 );
-saveAudioSettings(audioStorage, audio.settingsSnapshot());
 bindAudioUnlock(document, audio);
 const haptics = new Haptics();
 const feedback = new PresentationFeedback([effects, audio, haptics]);
 const hud = new HUD(app, isTouch);
 audio.setCaptionSink(({ text, durationMs }) => hud.caption(text, durationMs));
-const menu = new Menu(app, isTouch);
+hud.setScale(initialSave.preferences.hudScale);
+const menu = new Menu(app, isTouch, initialSave.preferences);
+menu.onSelectionChange = (difficulty, format) => {
+  saveRepository.update((current) => ({
+    ...current,
+    preferences: { ...current.preferences, difficulty, format },
+  }));
+};
 const touch = isTouch ? new TouchControls(app, input) : null;
 window.addEventListener('blur', () => touch?.resetPointers());
 hud.show(false);
