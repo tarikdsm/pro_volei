@@ -1,6 +1,33 @@
 import * as THREE from 'three';
 import { COURT, COLORS } from '../core/constants';
 
+/** Textura taraflex procedural: base neutra com emendas e granulado sutis (o tom vem da cor
+ *  do material, então setTheme continua funcionando). Canvas local — zero assets remotos. */
+function makeTaraflexTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 512;
+  const c = canvas.getContext('2d')!;
+  c.fillStyle = '#ffffff';
+  c.fillRect(0, 0, 512, 512);
+  // emendas das mantas (faixas verticais a cada 128 px)
+  c.fillStyle = 'rgba(0,0,0,0.05)';
+  for (let x = 0; x < 512; x += 128) c.fillRect(x, 0, 2, 512);
+  c.fillStyle = 'rgba(255,255,255,0.5)';
+  for (let x = 3; x < 512; x += 128) c.fillRect(x, 0, 1, 512);
+  // granulado leve do vinil
+  for (let i = 0; i < 6000; i += 1) {
+    const shade = Math.random();
+    c.fillStyle = shade < 0.5 ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.04)';
+    c.fillRect(Math.random() * 512, Math.random() * 512, 1.5, 1.5);
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  return tex;
+}
+
 // Quadra oficial: piso taraflex com linhas, zona livre, rede com postes e antenas.
 export class Court {
   group = new THREE.Group();
@@ -25,6 +52,11 @@ export class Court {
   private buildFloor(): void {
     const { halfLength, halfWidth, freeZone } = COURT;
 
+    // Textura taraflex compartilhada pelos três materiais do piso (instância única); como o map
+    // é único, o repeat também é: 6×4 e não se reconfigura nos demais.
+    const taraflex = makeTaraflexTexture();
+    taraflex.repeat.set(6, 4);
+
     // zona livre (base maior)
     const freeGeo = new THREE.PlaneGeometry(
       (halfLength + freeZone) * 2,
@@ -33,6 +65,7 @@ export class Court {
     this.freeMaterial = new THREE.MeshStandardMaterial({
       color: COLORS.floorFree,
       roughness: 0.8,
+      map: taraflex,
     });
     const free = new THREE.Mesh(freeGeo, this.freeMaterial);
     free.rotation.x = -Math.PI / 2;
@@ -45,6 +78,7 @@ export class Court {
     this.floorMaterial = new THREE.MeshStandardMaterial({
       color: COLORS.floorCourt,
       roughness: 0.55,
+      map: taraflex,
     });
     const court = new THREE.Mesh(
       new THREE.PlaneGeometry(halfLength * 2, halfWidth * 2),
@@ -59,6 +93,7 @@ export class Court {
     this.zoneMaterial = new THREE.MeshStandardMaterial({
       color: COLORS.floorZone,
       roughness: 0.6,
+      map: taraflex,
     });
     for (const s of [-1, 1]) {
       const zone = new THREE.Mesh(

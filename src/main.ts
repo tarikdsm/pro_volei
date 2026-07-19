@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import './style.css';
 import { Court } from './world/Court';
 import { Arena } from './world/Arena';
@@ -123,7 +124,8 @@ try {
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, isTouch ? 1.5 : 2));
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFShadowMap;
+// PCFSoft dá borda de sombra mais suave no desktop; touch mantém PCF (mais barato).
+renderer.shadowMap.type = isTouch ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.05;
@@ -132,6 +134,13 @@ app.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(COLORS.background);
 scene.fog = new THREE.Fog(COLORS.background, 45, 90);
+
+// Environment procedural (Fase 8): reflexos sutis nos materiais standard (taraflex, bola,
+// uniformes) sem nenhum asset externo. Intensidade baixa — realce, não espelho.
+const pmrem = new THREE.PMREMGenerator(renderer);
+const envTexture = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+pmrem.dispose();
+scene.environmentIntensity = 0.35;
 
 // ---------- mundo (qualidade reduzida no celular) ----------
 const court = new Court();
@@ -159,6 +168,8 @@ function applyQualityTier(tier: number): void {
   crowd.setQuality(q.crowdDensity);
   effects.particleScale = q.particleScale;
   applyTeamShadowQuality(!isTouch && tier > 0);
+  // Environment só nos tiers médio/alto — no baixo, economiza amostragem por fragmento.
+  scene.environment = tier >= 1 ? envTexture : null;
 }
 applyQualityTier(quality.tier);
 let lastMatchStateForQuality = '';
