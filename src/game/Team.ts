@@ -176,6 +176,16 @@ export class Athlete {
     const localZ = sinF * dx + cosF * dz;
     this.char.setContactAim(localX, point.y - this.jumpY, localZ, inSeconds);
   }
+
+  /** Alvo do olhar (rastreio da bola): converte mundo → referencial do root. */
+  lookAtPoint(point: { x: number; y: number; z: number }): void {
+    if (!this.char.setLookTarget) return;
+    const dx = point.x - this.char.root.position.x;
+    const dz = point.z - this.char.root.position.z;
+    const sinF = Math.sin(this.char.root.rotation.y);
+    const cosF = Math.cos(this.char.root.rotation.y);
+    this.char.setLookTarget(cosF * dx - sinF * dz, point.y - this.jumpY, sinF * dx + cosF * dz);
+  }
 }
 
 // Time de 6 com rodízio oficial. Slots: [pos1, pos6, pos5, pos4, pos3, pos2]

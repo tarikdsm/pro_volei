@@ -55,6 +55,8 @@ export interface CharVisual {
   setPlanarMotion?(forward: number, lateral: number, braking: boolean): void;
   /** Alvo de contato no referencial do root; a implementação expira após `inSeconds`. */
   setContactAim?(x: number, y: number, z: number, inSeconds: number): void;
+  /** Alvo do olhar no referencial do root (rastreio da bola pela cabeça). */
+  setLookTarget?(x: number, y: number, z: number): void;
   /** Atualização puramente visual dos materiais do uniforme. */
   setUniform?(jersey: number, shorts: number): void;
 }

@@ -583,7 +583,11 @@ export class Match {
     this.home.present(alpha);
     this.away.present(alpha);
     this.human.presentMarker();
-    this.hooks.camera.ballPos.copy(this.ball.present(alpha));
+    const ballPos = this.ball.present(alpha);
+    this.hooks.camera.ballPos.copy(ballPos);
+    // Rastreio da bola pela cabeça (Fase 8) — apresentação pura, depois da interpolação.
+    for (const athlete of this.home.athletes) athlete.lookAtPoint(ballPos);
+    for (const athlete of this.away.athletes) athlete.lookAtPoint(ballPos);
   }
 
   /** Alinha previous/current após pausas ou teletransportes para a apresentação não recuar. */

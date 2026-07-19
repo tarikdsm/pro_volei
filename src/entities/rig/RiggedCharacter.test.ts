@@ -189,4 +189,23 @@ describe('RiggedCharacter', () => {
     expect(colors).toContain(0x092b4c);
     expect(char.root.toJSON().object).toEqual(before);
   });
+
+  it('a cabeça gira em direção ao alvo do olhar, com clamp', () => {
+    const char = new RiggedCharacter(LOOK, { decalTexture: null });
+    char.setLookTarget!(2, 1.6, 1); // alvo à esquerda do modelo
+    for (let i = 0; i < 60; i += 1) char.update(1 / 60);
+    const head = char.root.getObjectByName('head')!;
+    expect(head.rotation.y).toBeGreaterThan(0.2);
+    expect(Math.abs(head.rotation.y)).toBeLessThanOrEqual(1.0);
+  });
+
+  it('sem alvo de olhar a cabeça volta ao yaw neutro', () => {
+    const char = new RiggedCharacter(LOOK, { decalTexture: null });
+    char.setLookTarget!(2, 1.6, 1);
+    for (let i = 0; i < 60; i += 1) char.update(1 / 60);
+    char.clearLookTarget();
+    for (let i = 0; i < 90; i += 1) char.update(1 / 60);
+    const head = char.root.getObjectByName('head')!;
+    expect(Math.abs(head.rotation.y)).toBeLessThan(0.08);
+  });
 });

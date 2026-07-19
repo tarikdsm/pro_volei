@@ -33,6 +33,9 @@ const LEG_L1 = 0.42; // quadril→joelho
 const LEG_L2 = 0.44; // joelho→tornozelo
 const PLANT_REPLANT_DISTANCE = 0.25; // root além disso força um passo curto (replante)
 const AIM_HOLD_SECONDS = 0.3; // follow-through após o instante do contato
+const HEAD_YAW_MAX = 1.0; // rad — além disso a atleta não "quebra o pescoço"
+const HEAD_PITCH_MIN = -0.55; // olhar para cima
+const HEAD_PITCH_MAX = 0.6; // olhar para baixo
 
 export interface RiggedCharacterOptions {
   /**
@@ -69,6 +72,10 @@ export class RiggedCharacter implements CharVisual {
   // Alvo de contato (referencial do root); expira sozinho.
   private readonly aim = new THREE.Vector3();
   private aimTimeLeft = Number.NEGATIVE_INFINITY;
+
+  // Alvo do olhar (referencial do root); null = cabeça neutra.
+  private readonly look = new THREE.Vector3();
+  private lookActive = false;
 
   // Foot planting: âncoras de mundo dos tornozelos e do root no instante do plante.
   private readonly plantedL = new THREE.Vector3();
@@ -159,6 +166,15 @@ export class RiggedCharacter implements CharVisual {
     this.aimTimeLeft = inSeconds;
   }
 
+  setLookTarget(x: number, y: number, z: number): void {
+    this.look.set(x, y, z);
+    this.lookActive = true;
+  }
+
+  clearLookTarget(): void {
+    this.lookActive = false;
+  }
+
   setAction(action: CharAction): void {
     if (this.action !== action) {
       this.action = action;
@@ -208,7 +224,23 @@ export class RiggedCharacter implements CharVisual {
     j.spine.rotation.x += (p.torsoPitch - j.spine.rotation.x) * l;
     j.spine.rotation.y += (p.torsoYaw - j.spine.rotation.y) * l;
     j.spine.rotation.z += (p.spineRoll - j.spine.rotation.z) * l;
-    j.head.rotation.x += (p.headPitch - j.head.rotation.x) * l;
+    // Rastreio da bola: yaw/pitch do alvo no referencial do root, com clamp anatômico.
+    // Celebração/decepção mantêm a cabeça coreografada.
+    let headYawTarget = 0;
+    let headPitchTarget = p.headPitch;
+    if (this.lookActive && this.action !== 'celebrate' && this.action !== 'dejected') {
+      const dx = this.look.x;
+      const dy = this.look.y - 1.54 * this.heightScale; // altura aprox. dos olhos
+      const dz = this.look.z;
+      const flat = Math.hypot(dx, dz);
+      headYawTarget = Math.max(-HEAD_YAW_MAX, Math.min(HEAD_YAW_MAX, Math.atan2(dx, dz)));
+      headPitchTarget = Math.max(
+        HEAD_PITCH_MIN,
+        Math.min(HEAD_PITCH_MAX, p.headPitch - Math.atan2(dy, Math.max(0.4, flat))),
+      );
+    }
+    j.head.rotation.x += (headPitchTarget - j.head.rotation.x) * l;
+    j.head.rotation.y += (headYawTarget - j.head.rotation.y) * l;
 
     const aw = armIK?.weight ?? 0;
     const armLX = armIK ? mix(-p.lShX, armIK.left.rootPitch, aw) : -p.lShX;
