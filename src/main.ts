@@ -6,7 +6,7 @@ import { Crowd } from './world/Crowd';
 import { Referee } from './world/Referee';
 import { Effects } from './systems/Effects';
 import { CameraDirector } from './systems/CameraDirector';
-import { Match } from './game/Match';
+import { Match, type MatchStats } from './game/Match';
 import { Input } from './core/Input';
 import { AudioEngine } from './core/AudioEngine';
 import { HUD } from './ui/HUD';
@@ -192,14 +192,7 @@ function measureCameraSafeFrame(): Readonly<SafeFrame> {
   );
 }
 
-// aviso para jogar na horizontal
-const rotateTip = document.createElement('div');
-rotateTip.id = 'rotate-tip';
-rotateTip.setAttribute('role', 'status');
-rotateTip.setAttribute('aria-live', 'polite');
-rotateTip.setAttribute('aria-hidden', 'true');
-rotateTip.textContent = '↻ Jogo pausado — gire o celular para continuar na horizontal';
-app.appendChild(rotateTip);
+// Gate de orientação (§7.1): a instrução de girar agora vive no menu de portrait (Fase 5A).
 const portraitQuery = matchMedia('(orientation: portrait)');
 let portraitBlocked = isTouch && portraitQuery.matches;
 
@@ -248,7 +241,13 @@ const match = new Match(
       updateTouchOrientationPresentation();
       hud.show(false);
       touch?.show(false);
-      menu.showVictory(homeWon, stats, scoreline);
+      lastVictory = { homeWon, stats, scoreline };
+      if (isTouch && !portraitBlocked) {
+        // §7.1: em landscape o resultado é compacto e a revanche entra sozinha na contagem.
+        menu.showVictoryCompact(homeWon, scoreline, rematchSeconds, startMatchFromMenu);
+      } else {
+        menu.showVictory(homeWon, stats, scoreline);
+      }
       markCameraLayoutDirty();
     },
     feedback,
@@ -279,7 +278,17 @@ if (debugEnabled) {
   });
 }
 
-menu.onStart = () => {
+// Resultado da última partida (para reabrir o painel completo se girar durante a contagem).
+let lastVictory: { homeWon: boolean; stats: MatchStats; scoreline: string } | null = null;
+// Contagem de revanche (§7.1); ?rematch=N em DEV/?debug encurta para os E2E.
+const rematchParam = debugEnabled
+  ? Number(new URLSearchParams(location.search).get('rematch'))
+  : Number.NaN;
+const rematchSeconds =
+  Number.isInteger(rematchParam) && rematchParam >= 1 && rematchParam <= 10 ? rematchParam : 5;
+
+/** Início/reinício de partida com as configurações atuais do menu (in-place, sem reload). */
+function startMatchFromMenu(): void {
   audio.init();
   audio.uiClick();
   appState = nextAppState(appState, 'start');
@@ -294,10 +303,15 @@ menu.onStart = () => {
     });
   }
   match.startMatch(menu.difficulty, menu.format);
-  if (portraitBlocked) cancelGameplayInput('portrait');
+  if (portraitBlocked) {
+    cancelGameplayInput('portrait');
+    audio.suspend();
+    menu.showPortraitBreak();
+  }
   updateTouchOrientationPresentation();
   markCameraLayoutDirty();
-};
+}
+menu.onStart = startMatchFromMenu;
 menu.onResume = () => {
   // botão CONTINUAR: o Menu já chamou hide(); aqui só destravamos o estado.
   match.snapPresentation();
@@ -309,6 +323,14 @@ menu.onResume = () => {
   markCameraLayoutDirty();
 };
 
+// §7.1: primeira abertura já na horizontal (touch) entra direto na partida rápida padrão —
+// preferências salvas chegam com o save da Fase 6A; até lá, Normal + formato oficial.
+// (O áudio pode nascer suspenso pela política de autoplay; o primeiro gesto o retoma.)
+if (isTouch && !portraitBlocked) {
+  menu.hide();
+  startMatchFromMenu();
+}
+
 function togglePause(): void {
   if (appState !== 'playing' && appState !== 'paused') return;
 
@@ -316,6 +338,7 @@ function togglePause(): void {
   appState = nextAppState(appState, 'togglePause');
   if (appState === 'paused') {
     cancelGameplayInput('pause');
+    audio.suspend();
     menu.showPause();
   } else if (previous === 'paused') {
     match.snapPresentation();
@@ -335,7 +358,6 @@ function cancelGameplayInput(reason: 'pause' | 'portrait'): void {
 function updateTouchOrientationPresentation(): void {
   const blockingGameplay = portraitBlocked && appState === 'playing';
   document.body.classList.toggle('portrait-blocked', blockingGameplay);
-  rotateTip.setAttribute('aria-hidden', String(!blockingGameplay));
 }
 
 function syncTouchOrientation(): void {
@@ -345,14 +367,24 @@ function syncTouchOrientation(): void {
 
   if (appState === 'playing') {
     cancelGameplayInput('portrait');
-    if (!nextBlocked) {
+    if (nextBlocked) {
+      // §7.1: portrait pausa e vira área de menu (girar + novo jogo + sair), áudio suspenso.
+      audio.suspend();
+      menu.showPortraitBreak();
+    } else {
+      menu.hide();
       match.snapPresentation();
       audio.resume();
     }
+  } else if (appState === 'ended' && nextBlocked && lastVictory) {
+    // Girar durante a contagem de revanche interrompe a continuidade e abre o painel completo.
+    menu.showVictory(lastVictory.homeWon, lastVictory.stats, lastVictory.scoreline);
   }
   updateTouchOrientationPresentation();
   markCameraLayoutDirty();
 }
+// Robustez além do resize: a media query de orientação notifica a rotação diretamente.
+portraitQuery.addEventListener('change', syncTouchOrientation);
 
 window.addEventListener('keydown', (e) => {
   // ignora auto-repeat (segurar Escape não deve piscar a pausa) e só alterna em jogo/pausa

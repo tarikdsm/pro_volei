@@ -311,40 +311,28 @@ body,
   pointer-events: auto;
   touch-action: none;
 }
-#rotate-tip {
-  display: none;
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 30;
-  padding: 8px;
-  text-align: center;
-  background: rgba(255, 190, 40, 0.92);
-  color: #1a1200;
-  font-weight: 700;
-  font-size: 14px;
-  pointer-events: none;
-}
+/* Gate de orientação (5A): a instrução de girar vive no menu de portrait (#portrait-break). */
 @media (orientation: portrait) {
-  body.touch.portrait-blocked #rotate-tip {
-    display: grid;
-    place-items: center;
-    inset: 0;
-    padding: max(32px, env(safe-area-inset-top, 0px)) 32px
-      max(32px, env(safe-area-inset-bottom, 0px));
-    background:
-      radial-gradient(circle at 50% 42%, rgba(35, 74, 112, 0.96), rgba(8, 18, 31, 0.985)), #08121f;
-    color: #f4f8ff;
-    font-size: clamp(18px, 5.5vw, 28px);
-    line-height: 1.35;
-    text-wrap: balance;
-    pointer-events: auto;
-  }
-
   body.touch.portrait-blocked #touch-controls {
     display: none !important;
   }
+}
+/* Vitória compacta com contagem de revanche (landscape, 5A): faixa no topo, jogo visível. */
+#menu:has(.compact-victory) {
+  align-items: flex-start;
+  background: transparent;
+  pointer-events: none;
+}
+.compact-victory {
+  margin-top: max(10px, env(safe-area-inset-top, 0px));
+  padding: 10px 22px;
+}
+.compact-victory .endtitle {
+  font-size: 22px;
+  margin: 0 0 4px;
+}
+.compact-victory .tagline {
+  margin: 0;
 }
 /* botões maiores no toque + HUD compacta entre os controles */
 body.touch .opts button {
