@@ -306,7 +306,7 @@ Hoje o tier só desce quando o p95 fica pior que 30 fps. Para "60 fps sempre", o
 **Interfaces:**
 - Consumes/Produces: nenhuma mudança de API — só a constante `P95_DOWN_SECONDS`.
 
-- [ ] **Step 1: Escrever o teste que falha**
+- [x] **Step 1: Escrever o teste que falha**
 
 Abra `src/core/quality/QualityManager.test.ts`, leia como os testes existentes preenchem a janela (eles chamam `sampleFrame` ≥ 90 vezes e `evaluateAtBreak`). Adicione:
 
@@ -321,12 +321,12 @@ Abra `src/core/quality/QualityManager.test.ts`, leia como os testes existentes p
   });
 ```
 
-- [ ] **Step 2: Rodar para ver falhar**
+- [x] **Step 2: Rodar para ver falhar**
 
 Run: `npx vitest run src/core/quality/QualityManager.test.ts`
 Expected: FAIL — com o limiar antigo (0.0333), 20 ms não dispara descida e `tier` continua 2.
 
-- [ ] **Step 3: Ajustar o limiar**
+- [x] **Step 3: Ajustar o limiar**
 
 Em `src/core/quality/QualityManager.ts`, linha 7, troque:
 
@@ -340,12 +340,12 @@ por:
 const P95_DOWN_SECONDS = 0.0182; // pior que ~55 fps sustentado ⇒ candidata a descer (alvo: 60 fps sempre)
 ```
 
-- [ ] **Step 4: Rodar a suíte do arquivo**
+- [x] **Step 4: Rodar a suíte do arquivo**
 
 Run: `npx vitest run src/core/quality/QualityManager.test.ts`
 Expected: PASS. Se algum teste antigo usava frames entre 18,2 ms e 33,3 ms como "neutros", ajuste o dt desse teste para a faixa neutra nova (entre 0.012 e 0.0182), mantendo a intenção do teste.
 
-- [ ] **Step 5: Gates + commit**
+- [x] **Step 5: Gates + commit**
 
 Run: `npm run check`
 
