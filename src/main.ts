@@ -124,8 +124,10 @@ try {
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, isTouch ? 1.5 : 2));
 renderer.shadowMap.enabled = true;
-// PCFSoft dá borda de sombra mais suave no desktop; touch mantém PCF (mais barato).
-renderer.shadowMap.type = isTouch ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
+// PCFShadowMap em todos os dispositivos: PCFSoftShadowMap foi descontinuado no three r185
+// (o renderer cai em PCF e emite warning no console). Sombra suave "de verdade" exigiria
+// VSMShadowMap com tuning de blur — fora do escopo desta fase.
+renderer.shadowMap.type = THREE.PCFShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.05;
