@@ -1630,7 +1630,7 @@ Textura taraflex procedural no piso (emendas + granulado sutis), environment map
 - Consumes: `COLORS.floorCourt/floorZone/floorFree` de constants; `QUALITY_TIERS`/`applyQualityTier` de main.ts:151-158.
 - Produces: nada novo de API. `Court.setTheme` continua funcionando (o map multiplica a cor).
 
-- [ ] **Step 1: Textura taraflex procedural**
+- [x] **Step 1: Textura taraflex procedural**
 
 Em `src/world/Court.ts`, adicione antes da classe:
 
@@ -1675,7 +1675,7 @@ Em `buildFloor`, aplique a MESMA textura (instância única) aos três materiais
 
 (As três chamadas de `new THREE.MeshStandardMaterial({...})` ganham a propriedade `map: taraflex`; a linha do `repeat` fica logo após criar a textura.)
 
-- [ ] **Step 2: Environment map + sombras suaves**
+- [x] **Step 2: Environment map + sombras suaves**
 
 Em `src/main.ts`:
 
@@ -1709,14 +1709,14 @@ Em `applyQualityTier` (linha ~151), adicione ao corpo:
   scene.environment = tier >= 1 ? envTexture : null;
 ```
 
-- [ ] **Step 3: Gates + verificação visual**
+- [x] **Step 3: Gates + verificação visual**
 
 Run: `npm run check` — Expected: verde.
 Run: `npm run build` — Expected: bundle ≤ 250 kB gzip (RoomEnvironment adiciona ~4 kB).
 
 Playtest (skill `playtest`, porta 5199): piso com brilho de vinil e emendas sutis; sem moiré forte na câmera broadcast (se houver, aumente `anisotropy` para 8); sombras das atletas com borda suave no desktop; `?tier=0` remove reflexos sem erro. `__renderer.info.render.calls` em rally ≤ 250.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/world/Court.ts src/main.ts
