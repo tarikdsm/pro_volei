@@ -15,6 +15,8 @@ const ACTIONS: CharAction[] = [
   'dive',
   'celebrate',
   'dejected',
+  'serveUnderhand',
+  'land',
 ];
 
 describe('easings', () => {
@@ -65,5 +67,20 @@ describe('poseFor', () => {
 
   it('bloqueio sobe rápido: braços quase estendidos em 150 ms', () => {
     expect(poseFor('block', 0.15, 0, 0, 0).lShX).toBeGreaterThan(2.4);
+  });
+});
+
+describe('ações novas (Fase 8)', () => {
+  it('saque por baixo balança o braço direito de trás para frente', () => {
+    const armed = poseFor('serveUnderhand', 0.2, 0, 0, 0).rShX;
+    const swung = poseFor('serveUnderhand', 0.6, 0, 0, 0).rShX;
+    expect(armed).toBeLessThan(0); // braço atrás
+    expect(swung).toBeGreaterThan(1); // pêndulo à frente
+  });
+
+  it('aterrissagem agacha e recupera valores finitos', () => {
+    const p = poseFor('land', 0.15, 0, 0, 0);
+    expect(p.knees).toBeLessThan(-0.8);
+    expect(p.hips).toBeGreaterThan(0.4);
   });
 });

@@ -237,6 +237,33 @@ export function poseFor(
       p.lShX = 0.9 - 0.5 * k;
       break;
     }
+    case 'serveUnderhand': {
+      // saque por baixo: corpo curvado, braço direito pêndulo de trás para frente,
+      // mão esquerda apresenta a bola à frente
+      const wind = ease01(phase(t, 0, 0.3) * 1.5);
+      const swing = easeOutBack(phase(t, 0.3, 0.55), 1.2);
+      p.torsoPitch = 0.35 - 0.18 * swing;
+      p.hips = 0.35;
+      p.knees = -0.5 + 0.15 * swing;
+      p.rShX = -0.9 * wind + 2.5 * swing; // termina ~1.6 (pêndulo completo)
+      p.rElX = -0.1;
+      p.lShX = 0.9 - 0.5 * swing; // apresenta a bola e recolhe
+      p.lElX = -0.6;
+      break;
+    }
+    case 'land': {
+      // aterrissagem: agachamento curto de absorção com braços à frente para equilíbrio
+      const k = ease01(t * 8);
+      const recover = ease01(phase(t, 0.14, 0.3));
+      p.torsoPitch = 0.4 * k * (1 - 0.5 * recover);
+      p.hips = 0.12 + 0.5 * k * (1 - recover * 0.6);
+      p.knees = -0.2 - 0.95 * k * (1 - recover * 0.6);
+      p.lShX = 0.55 * k;
+      p.rShX = 0.55 * k;
+      p.lElX = -0.3;
+      p.rElX = -0.3;
+      break;
+    }
     case 'dive': {
       // peixinho
       const k = ease01(t * 7);

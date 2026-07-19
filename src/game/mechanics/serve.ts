@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import {
   COURT,
+  SERVE_UNDERHAND_VISUAL_POWER,
   STRATEGIC_SERVE_TUNING,
   otherSide,
   sideSign,
@@ -122,10 +123,12 @@ export function performServe(
   const serverIndex = server.index;
   ctx.hooks.serveMeter(false);
   ctx.hooks.effects.showAim(null);
-  server.act('serveToss', 0.5);
+  // Carga baixa = saque por baixo (visual); a física do saque é idêntica (finishServe decide).
+  const underhand = power < SERVE_UNDERHAND_VISUAL_POWER;
+  server.act(underhand ? 'serveUnderhand' : 'serveToss', underhand ? 0.9 : 0.5);
   const hand = server.reachPoint();
   ctx.ball.launch(new THREE.Vector3(hand.x, 1.15, hand.z), new THREE.Vector3(0, 5.6, 0));
-  ctx.after(0.34, () => server.act('serveHit', 0.5));
+  if (!underhand) ctx.after(0.34, () => server.act('serveHit', 0.5));
   ctx.after(0.42, () => {
     finishServe(ctx, side, serverIndex, power, target, clearance, null);
   });

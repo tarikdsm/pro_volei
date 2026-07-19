@@ -20,6 +20,8 @@ export type CharAction =
   | 'block'
   | 'serveToss'
   | 'serveHit'
+  | 'serveUnderhand'
+  | 'land'
   | 'dive'
   | 'celebrate'
   | 'dejected';
@@ -355,6 +357,26 @@ export class PlayerCharacter implements CharVisual {
         p.rShX = -1.9 + 3.2 * k;
         p.rElX = -0.1;
         p.lShX = 0.9 - 0.5 * k;
+        break;
+      }
+      case 'serveUnderhand': {
+        const k = ease01(t * 2.5);
+        p.torsoPitch = 0.35 - 0.18 * k;
+        p.rShX = -0.9 + 2.5 * k;
+        p.rElX = -0.1;
+        p.lShX = 0.9 - 0.5 * k;
+        p.lElX = -0.6;
+        p.hips = 0.35;
+        p.knees = -0.5;
+        break;
+      }
+      case 'land': {
+        const k = ease01(t * 8);
+        p.torsoPitch = 0.35 * k;
+        p.hips = 0.12 + 0.45 * k;
+        p.knees = -0.2 - 0.85 * k;
+        p.lShX = 0.5 * k;
+        p.rShX = 0.5 * k;
         break;
       }
       case 'dive': {

@@ -145,6 +145,10 @@ export const SERVE_TUNING = {
   perfectPower: 0.95, // potência aplicada num saque perfeito
 } as const;
 
+// Limiar VISUAL do saque por baixo (Fase 8): carga do medidor abaixo disso usa a animação
+// de saque por baixo. Só apresentação — trajetória e resultado não mudam.
+export const SERVE_UNDERHAND_VISUAL_POWER = 0.4;
+
 /**
  * Realização física do saque estratégico. O orçamento é invariável: seis draws de `contact`
  * na ordem power, error, errorMode, dx, dz e clearance. Decisão estratégica nunca consome aqui.

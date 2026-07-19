@@ -329,4 +329,19 @@ describe('Athlete.update (movimento cinemático sem alocação por tick)', () =>
     expect(a.athlete.velocity.z).toBeCloseTo(0);
     expect(b.athlete.velocity.x).toBeCloseTo(0);
   });
+
+  it('aterrissar de uma cortada dispara a ação land', () => {
+    const actions: CharAction[] = [];
+    const athlete = new Athlete(TeamSide.HOME, 0, {} as CharLook, () => ({
+      root: new THREE.Group(),
+      moveSpeed: 0,
+      jumpY: 0,
+      setAction: (a: CharAction) => actions.push(a),
+      update: () => {},
+    }));
+    athlete.jump(6);
+    athlete.act('spikeHit', 0.5);
+    for (let i = 0; i < 120; i += 1) athlete.update(1 / 60, 5);
+    expect(actions).toContain('land');
+  });
 });

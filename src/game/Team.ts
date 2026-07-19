@@ -30,6 +30,7 @@ export class Athlete {
   private jumpVel = 0;
   private airborne = false;
   private actionUntil = 0;
+  private lastAction: CharAction = 'idle';
   private clock = 0;
   speedMul = 1;
 
@@ -68,6 +69,7 @@ export class Athlete {
 
   /** define a animação por uma duração; depois volta a idle/run automático */
   act(action: CharAction, duration: number): void {
+    this.lastAction = action;
     this.char.setAction(action);
     this.actionUntil = this.clock + duration;
   }
@@ -117,6 +119,14 @@ export class Athlete {
         this.jumpY = 0;
         this.airborne = false;
         this.jumpVel = 0;
+        // Aterrissagem de jogada aérea: agachamento curto de absorção (visual, Fase 8).
+        if (
+          this.lastAction === 'spikeHit' ||
+          this.lastAction === 'spikeWindup' ||
+          this.lastAction === 'block'
+        ) {
+          this.act('land', 0.28);
+        }
       }
     }
 
