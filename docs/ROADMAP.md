@@ -124,6 +124,20 @@ nova autorização explícita.
   decisão registrada; medição física em aparelhos reais permanece na 7B, como o design prevê.
   986 testes verdes; o commit funcional `76de9a3` passou `npm run check` e smoke prod local; o
   run `29669256918` publicou o deploy Pages verde com smoke público limpo.
+- **Fase 5A — concluída:** regra de orientação completa do §7.1 sobre a fundação da 2A. Em
+  touch, portrait agora abre a **área de menu** (instrução de girar + seletores + novo jogo +
+  sair) com simulação congelada e áudio suspenso (`AudioEngine.suspend()`); landscape retoma
+  sozinho e a **primeira abertura na horizontal inicia a partida rápida padrão** sem tocar em
+  JOGAR; o fim de partida em landscape mostra **resultado compacto com contagem de revanche**
+  (5 s; `?rematch=` em DEV) que relança in-place preservando dificuldade/formato — girar
+  durante a contagem cancela e abre o painel completo. Pausa explícita continua vencendo o
+  gate; a media query de orientação ganhou listener de `change` (robustez além do resize); o
+  JOGAR DE NOVO do desktop também virou revanche in-place (sem reload). Decisões registradas:
+  Copa/opções entram no menu de portrait nas Fases 6; "sair" mantém reload→título; "áudio
+  reduzido" = suspend. E2E: 4 cenários novos + specs de toque/fim atualizados (e uma fixture
+  latente da 3D corrigida no matchEnd.spec — o CI de smoke não cobria os E2E completos).
+  988 testes + 11 E2E verdes; o commit funcional `6d3f09b` passou `npm run check` e smoke prod
+  local; o run `29670349914` publicou o deploy Pages verde com smoke público limpo.
 
 ### Marco atual — mandato 3D + 4A–4E completo
 

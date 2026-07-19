@@ -67,6 +67,11 @@ Todas as mudanças notáveis do Pró Volei. Formato baseado em
   somente na entrada do estado de ponto; tiers aplicam pixel ratio, resolução de sombra,
   densidade/cadência da torcida e escala de partículas (`?tier=` força em DEV). Arquibancada
   mesclada por material (48 meshes → 2): rally no tier alto caiu para 218–226 draw calls.
+- Orientation gate completo (§7.1): em touch, portrait abre a área de menu (girar + novo jogo +
+  sair) com jogo congelado e áudio suspenso; landscape retoma sozinho e a primeira abertura na
+  horizontal já entra na partida rápida padrão; fim de partida em landscape tem resultado
+  compacto com contagem de revanche in-place (girar cancela). JOGAR DE NOVO reinicia sem
+  recarregar a página também no desktop.
 - Ferramental de qualidade: ESLint 10 (flat config) + Prettier 3, `.editorconfig`,
   `.gitattributes` (LF), `.nvmrc` (Node 22).
 - Testes com Vitest 4 e primeira suíte cobrindo os solvers balísticos (`math3d`).

@@ -29,7 +29,7 @@ e as Fases 6–7 aguardam autorização.
 | [`2026-07-18-fase-4c-elenco.md`](2026-07-18-fase-4c-elenco.md) | concluído | Corpo parametrizado, elenco nomeado 6+6, galeria `?gallery` e aceite §5.3 aprovado em duas revisões |
 | [`2026-07-18-fase-4d-arena-premium.md`](2026-07-18-fase-4d-arena-premium.md) | concluído | Paleta navy/teal/coral, torcida silenciada, contra-luz de TV e anel duplo de seleção daltônico-legível |
 | [`2026-07-18-fase-4e-quality-tiers.md`](2026-07-18-fase-4e-quality-tiers.md) | concluído | QualityManager com histerese entre pontos; arquibancada mesclada (48→2 meshes) e rally ≤ 250 dc |
-| [`2026-07-19-fase-5a-orientation-gate.md`](2026-07-19-fase-5a-orientation-gate.md) | em execução | Portrait = pausa/menu, landscape auto-inicia/retoma, revanche com contagem e áudio suspenso |
+| [`2026-07-19-fase-5a-orientation-gate.md`](2026-07-19-fase-5a-orientation-gate.md) | concluído | Portrait = área de menu, autostart em landscape, revanche com contagem cancelável por giro, áudio suspenso |
 
 ## Retomada de desenvolvimento
 
